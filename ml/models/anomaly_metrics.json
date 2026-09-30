@@ -1,0 +1,18 @@
+{
+  "model_name": "Isolation Forest Procurement Anomaly Detector",
+  "model_type": "ANOMALY_DETECTION",
+  "precision_score": 0.8333,
+  "recall_score": 1.0,
+  "f1_score": 0.9091,
+  "outliers_flagged": 60,
+  "dataset_info": "Synthetic demonstration dataset (Seed 42)",
+  "feature_cols": [
+    "booked_quantity",
+    "collected_quantity",
+    "weighed_quantity",
+    "procured_quantity",
+    "moisture_content",
+    "processing_time_mins",
+    "qty_difference"
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "model_name": "XGBoost Supply Forecaster",
+  "model_type": "REGRESSION",
+  "mae": 0.5316,
+  "rmse": 1.1483,
+  "r2_score": 0.9975,
+  "dataset_info": "Synthetic demonstration dataset (Seed 42)",
+  "feature_cols": [
+    "centre_id",
+    "state",
+    "district",
+    "crop",
+    "month",
+    "day_of_week",
+    "registered_farmers_count",
+    "booked_quantity",
+    "expected_harvest_quantity",
+    "daily_capacity",
+    "historic_arrival_qty",
+    "trucks_demand",
+    "bardan_bags_consumed"
+  ]
+}

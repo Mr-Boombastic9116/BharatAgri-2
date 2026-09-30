@@ -1,0 +1,17 @@
+{
+  "name": "bharatagri-backend",
+  "version": "1.0.0",
+  "description": "BHARATAGRI Backend API Server",
+  "main": "server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server.js",
+    "seed": "node seed.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.19.2",
+    "qrcode": "^1.5.4",
+    "sqlite3": "^5.1.7"
+  }
+}
