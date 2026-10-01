@@ -40,3 +40,49 @@ def check_db_health() -> bool:
 
 check_db_connection = check_db_health
 
+def check_mysql_status() -> int:
+    """
+    Checks MySQL connectivity and database initialization.
+    Returns:
+        0: Database exists and contains users table with seed data
+        1: MySQL connection failed (server unreachable / offline)
+        2: Database does not exist
+        3: Database exists but tables are missing
+    """
+    import pymysql
+    try:
+        conn = pymysql.connect(
+            host=settings.DB_HOST,
+            port=settings.DB_PORT,
+            user=settings.DB_USER,
+            password=settings.DB_PASSWORD,
+            connect_timeout=3
+        )
+    except Exception as e:
+        print(f"[Error] MySQL connection failed: {e}")
+        return 1
+
+    try:
+        cur = conn.cursor()
+        cur.execute("SHOW DATABASES LIKE %s", (settings.DB_NAME,))
+        if not cur.fetchone():
+            return 2
+
+        cur.execute(f"USE `{settings.DB_NAME}`")
+        cur.execute("SHOW TABLES LIKE 'users'")
+        if not cur.fetchone():
+            return 3
+
+        cur.execute("SELECT COUNT(*) FROM users")
+        user_count = cur.fetchone()[0]
+        print(f"[OK] Database '{settings.DB_NAME}' verified ({user_count} users).")
+        return 0
+    except Exception as e:
+        print(f"[Error] Database query check failed: {e}")
+        return 1
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+

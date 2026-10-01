@@ -1,6 +1,7 @@
+import logging
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from backend.app.core.database import get_db
 from backend.app.core.security import verify_password, get_password_hash, create_access_token
 from backend.app.core.deps import get_current_user
@@ -10,6 +11,8 @@ from backend.app.models.farmer import Farmer, FarmerCrop
 from backend.app.models.agent import Agent
 from backend.app.models.centre import ProcurementCentre
 from backend.app.models.audit import AuditLog
+
+logger = logging.getLogger("bharatagri.auth")
 
 router = APIRouter(prefix="", tags=["Authentication"])
 
@@ -22,22 +25,48 @@ def login(req: LoginRequest, db: Session = Depends(get_db)):
         )
 
     clean_uid = req.user_id.strip()
-    query = db.query(User).filter(func.lower(User.user_id) == func.lower(clean_uid))
+    try:
+        # Match by user_id, email, or mobile (case-insensitive for text)
+        query = db.query(User).filter(
+            or_(
+                func.lower(User.user_id) == func.lower(clean_uid),
+                func.lower(User.email) == func.lower(clean_uid),
+                User.mobile == clean_uid
+            )
+        )
 
-    if req.role:
-        clean_role = req.role.strip().lower()
-        # map common aliases: procurement_centre -> centre
-        if clean_role in ["procurement_centre", "procurement centre"]:
-            clean_role = "centre"
-        query = query.filter(User.role == clean_role)
+        clean_role = None
+        if req.role:
+            clean_role = req.role.strip().lower()
+            if clean_role in ["procurement_centre", "procurement centre"]:
+                clean_role = "centre"
+            elif clean_role in ["admin"]:
+                clean_role = "government"
+            query = query.filter(User.role == clean_role)
 
-    user = query.first()
+        user = query.first()
+    except Exception as e:
+        logger.error(f"[Auth] Database connection or query error during login for '{clean_uid}': {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Database service is unavailable. Please verify MySQL is running and the database has been imported."
+        )
 
-    if not user or not verify_password(req.password, user.password_hash):
+    if not user:
+        logger.warning(f"[Auth] Login failed: User '{clean_uid}' not found (role filter: '{clean_role or req.role}').")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid User ID or Password for the selected role."
         )
+
+    if not verify_password(req.password, user.password_hash):
+        logger.warning(f"[Auth] Login failed: Invalid password for user '{clean_uid}' ({user.user_id}).")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid User ID or Password for the selected role."
+        )
+
+    logger.info(f"[Auth] Login success for user '{user.user_id}', role='{user.role}'.")
 
     cid = getattr(user, "centre_id", None)
     if user.role == "centre" and not cid:

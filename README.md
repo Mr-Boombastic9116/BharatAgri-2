@@ -48,45 +48,66 @@ Every procurement produces an immutable Lot identifier linking:
 
 All demo accounts are pre-seeded in the database with the single unified password:
 
-| Role | Username / Email | Password | Primary Capabilities |
-| :--- | :--- | :--- | :--- |
-| **Government** | `admin@bharatagri.demo` | `BharatAgri@2026` | National Dashboard, ML Forecasts, Congestion, OR-Tools, Anomalies, Redirections |
-| **Procurement Centre** | `centre@bharatagri.demo` | `BharatAgri@2026` | QR Gate Scan, Inward QC, Weighment, Lot Generation, Storage, Truck Requests |
-| **Field Agent** | `agent@bharatagri.demo` | `BharatAgri@2026` | Regional Farmer Management, Assisted Booking, e-KYC, Farmer Complaints |
-| **Farmer** | `farmer@bharatagri.demo` | `BharatAgri@2026` | Slot Booking, Digital QR Pass, Lot Traceability, DBT Payment Status, Helpdesk |
+| Role | Username / Identifier | Password | Associated Entity / Centre | Primary Capabilities |
+| :--- | :--- | :--- | :--- | :--- |
+| **Farmer** | `farmer@bharatagri.demo` | `BharatAgri@2026` | Rameshwar Patil (`FRM-DEMO-001`) | Slot Booking, Digital QR Pass, Lot Traceability, DBT Payment Status, Helpdesk |
+| **Field Agent** | `agent@bharatagri.demo` | `BharatAgri@2026` | Pernem CSC Operator (`AGT-DEMO-001`) | Regional Farmer Management, Assisted Booking, e-KYC, Farmer Complaints |
+| **Procurement Centre** | `centre@bharatagri.demo` | `BharatAgri@2026` | Sanquelim Mandi (`CENTRE-GOA-01`) | QR Gate Scan, Inward QC, Weighment, Lot Generation, Storage, Truck Requests |
+| **Government** | `admin@bharatagri.demo` | `BharatAgri@2026` | National Command Centre | National Dashboard, ML Forecasts, Congestion, OR-Tools, Anomalies, Redirections |
 
 > **Quick Fill**: The login screen (`/login`) includes 1-click Quick Demo buttons to immediately populate credentials for any of the four roles.
 
 ---
 
-## 4. Database Setup (XAMPP / MySQL)
+## 4. Fresh-Machine Setup & Installation Guide
 
-The entire relational schema and comprehensive synthetic seed data (2,000+ farmers, 25 procurement centres, 10,000+ bookings, procurement lifecycle records, trucks, bardan, anomalies, audit logs) is packaged into a **single self-contained SQL file**:
+This guide ensures complete reproducibility when downloading or extracting the repository as a ZIP on a fresh Windows computer.
 
-```text
-database/bharatagri_iteration2.sql
-```
-
-### Steps to Import:
-
-#### Option A: Using phpMyAdmin (XAMPP)
-1. Open XAMPP Control Panel and start **Apache** and **MySQL**.
-2. Navigate to `http://localhost/phpmyadmin` in your web browser.
-3. Click on the **Import** tab in the top navigation bar.
-4. Click **Choose File** and select `database/bharatagri_iteration2.sql`.
-5. Scroll down and click **Import** (or **Go**).
-   *(The script automatically executes `CREATE DATABASE IF NOT EXISTS bharatagri_iteration2; USE bharatagri_iteration2;`)*.
-
-#### Option B: Using MySQL Command Line
-```bash
-mysql -u root -p < database/bharatagri_iteration2.sql
-```
+### System Prerequisites
+Ensure the following software is installed on the target machine:
+* **Operating System**: Windows 10 or 11 (64-bit)
+* **Python**: Python 3.10, 3.11, or 3.12 (Check `Add Python to PATH` during installation)
+* **Node.js**: Node.js 18.x or 20.x LTS with `npm` (Download from https://nodejs.org/)
+* **Database / Server**: XAMPP (Apache + MySQL / MariaDB 10.4+) or standalone MySQL Server 8.0+
 
 ---
 
-## 5. Configuration (`.env`)
+### First-Time Setup Workflow
 
-Create or update `.env` in the project root:
+1. **Extract Repository**: Download and extract the repository ZIP into a folder of your choice (e.g., `C:\BharatAgri`).
+2. **Start MySQL Service**:
+   * Open the **XAMPP Control Panel**.
+   * Click **Start** next to **MySQL** (and optionally Apache if using phpMyAdmin).
+   * Verify MySQL is active on port `3306`.
+3. **Run Automatic Launcher**:
+   * Double-click `start.bat` (or `start-local.bat`) in the project root.
+   * `start.bat` automatically executes the startup flow:
+     1. **Project root**: Resolves directory properly (supports paths with spaces).
+     2. **Python**: Detects `python`/`py`, initializes `.venv`, and verifies packages from `requirements.txt`.
+     3. **Node & npm**: Detects Node.js/npm and installs frontend packages (`npm install`) if needed.
+     4. **Environment**: Verifies `.env` (copies `.env.example` if missing, preserving existing configurations).
+     5. **MySQL & Database**: Checks MySQL connectivity on port 3306 and verifies `bharatagri_iteration2`.
+     6. **Backend**: Starts FastAPI backend (`http://localhost:5000`) in its own console window.
+     7. **Health Check**: Polls `http://127.0.0.1:5000/api/health` until HTTP 200 is confirmed.
+     8. **Frontend**: Starts Vite frontend (`http://localhost:3000`) and launches default browser.
+4. **Manual Database Import (If required or using phpMyAdmin)**:
+
+   * Navigate to `http://localhost/phpmyadmin`.
+   * Click **Import** in the top navigation bar.
+   * Choose `database/bharatagri_iteration2.sql` and click **Import** (or **Go**).
+   * Or via command prompt:
+     ```cmd
+     mysql -u root bharatagri_iteration2 < database\bharatagri_iteration2.sql
+     ```
+5. **Sign In**:
+   * Visit `http://localhost:3000`.
+   * Click **Sign In** and use the **Quick Demo Fill** buttons or enter the documented demo credentials above.
+
+---
+
+## 5. Environment Configuration (`.env`)
+
+A default `.env` file is generated automatically from `.env.example` upon first launch:
 
 ```env
 # XAMPP MySQL Configuration
@@ -107,24 +128,9 @@ PORT=5000
 
 ---
 
-## 6. Installation & Startup
+## 6. Manual Step-by-Step Setup (Alternative)
 
-### One-Click Local Startup (Windows)
-Double-click or run from command prompt:
-```cmd
-start-local.bat
-```
-This launcher automatically verifies Python, Node.js, MySQL port 3306, `.env`, starts the FastAPI backend, starts the Vite frontend, and opens `http://localhost:3000` in your default browser.
-
-### One-Click Local Startup (Linux / macOS / Bash)
-```bash
-chmod +x start-local.sh
-./start-local.sh
-```
-
----
-
-### Manual Step-by-Step Setup
+If you prefer to run services manually in separate terminals:
 
 #### 1. Backend Setup (FastAPI & AI)
 ```bash
