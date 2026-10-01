@@ -416,6 +416,43 @@ export async function completePayment(paymentId, bankRefNumber) {
 }
 
 // ----------------------------------------------------
+// PHOTO EVIDENCE (QUALITY, WEIGHING, MOISTURE)
+// ----------------------------------------------------
+export async function uploadProcurementEvidence(formData) {
+  let authHeader = {};
+  try {
+    const userStr = localStorage.getItem('bharatagri_user');
+    if (userStr) {
+      const user = JSON.parse(userStr);
+      if (user && (user.token || user.access_token)) {
+        authHeader['Authorization'] = `Bearer ${user.token || user.access_token}`;
+      }
+    }
+  } catch (e) {
+    console.error('Error resolving auth token for evidence upload:', e);
+  }
+
+  const res = await fetch(`${API_BASE}/procurement/evidence/upload`, {
+    method: 'POST',
+    headers: authHeader,
+    body: formData
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error?.message || data.detail || 'Failed to upload photo evidence');
+  return data;
+}
+
+export async function getProcurementEvidence(bookingId) {
+  const res = await fetch(`${API_BASE}/procurement/evidence/${encodeURIComponent(bookingId)}`, {
+    headers: getAuthHeaders()
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error?.message || data.detail || 'Failed to retrieve photo evidence');
+  return data;
+}
+
+
+// ----------------------------------------------------
 // AI & OPTIMIZATION ENGINES
 // ----------------------------------------------------
 export async function getSupplyForecast(payload) {

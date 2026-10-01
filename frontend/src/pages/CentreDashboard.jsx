@@ -21,7 +21,9 @@ import {
   recordProcurement,
   completePayment,
   getCentreOperationalIntelligence,
-  getEstimatedPrice
+  getEstimatedPrice,
+  uploadProcurementEvidence,
+  getProcurementEvidence
 } from '../services/api';
 import StatusBadge from '../components/StatusBadge';
 import { Html5Qrcode } from 'html5-qrcode';
@@ -52,7 +54,12 @@ import {
   Truck,
   Package,
   Activity,
-  AlertTriangle
+  AlertTriangle,
+  Image as ImageIcon,
+  Upload,
+  Droplets,
+  FileCheck,
+  Eye
 } from 'lucide-react';
 import { formatDateDisplay } from '../utils/dateUtils';
 import DateInput from '../components/DateInput';
@@ -152,6 +159,122 @@ export default function CentreDashboard({ user }) {
   });
   const [submittingProcurement, setSubmittingProcurement] = useState(false);
   const [procurementError, setProcurementError] = useState('');
+
+  // Photo Evidence State (Quality, Weighing, Moisture)
+  const [bookingEvidence, setBookingEvidence] = useState({ QUALITY: [], WEIGHING: [], MOISTURE: [] });
+  const [loadingEvidence, setLoadingEvidence] = useState(false);
+  const [evidenceUploadStatus, setEvidenceUploadStatus] = useState({
+    QUALITY: { uploading: false, error: '', success: '' },
+    WEIGHING: { uploading: false, error: '', success: '' },
+    MOISTURE: { uploading: false, error: '', success: '' }
+  });
+  const [pendingFiles, setPendingFiles] = useState({
+    QUALITY: null,
+    WEIGHING: null,
+    MOISTURE: null
+  });
+  const [filePreviews, setFilePreviews] = useState({
+    QUALITY: null,
+    WEIGHING: null,
+    MOISTURE: null
+  });
+  const [enlargedImage, setEnlargedImage] = useState(null);
+
+  const loadBookingEvidence = async (numericBookingId) => {
+    if (!numericBookingId) return;
+    setLoadingEvidence(true);
+    try {
+      const res = await getProcurementEvidence(numericBookingId);
+      if (res && res.by_type) {
+        setBookingEvidence({
+          QUALITY: res.by_type.QUALITY || [],
+          WEIGHING: res.by_type.WEIGHING || [],
+          MOISTURE: res.by_type.MOISTURE || []
+        });
+      }
+    } catch (e) {
+      console.warn('Could not load evidence for booking:', e);
+    } finally {
+      setLoadingEvidence(false);
+    }
+  };
+
+  const handleSelectEvidenceFile = (type, file) => {
+    if (!file) return;
+    const allowed = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+    if (!allowed.includes(file.type.toLowerCase())) {
+      setEvidenceUploadStatus(prev => ({
+        ...prev,
+        [type]: { uploading: false, error: 'Only JPG, PNG, and WEBP images are supported.', success: '' }
+      }));
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setEvidenceUploadStatus(prev => ({
+        ...prev,
+        [type]: { uploading: false, error: 'File size must be 5MB or less.', success: '' }
+      }));
+      return;
+    }
+
+    if (filePreviews[type]) {
+      try { URL.revokeObjectURL(filePreviews[type]); } catch (e) {}
+    }
+    const previewUrl = URL.createObjectURL(file);
+    setPendingFiles(prev => ({ ...prev, [type]: file }));
+    setFilePreviews(prev => ({ ...prev, [type]: previewUrl }));
+    setEvidenceUploadStatus(prev => ({
+      ...prev,
+      [type]: { uploading: false, error: '', success: '' }
+    }));
+  };
+
+  const handleClearPendingFile = (type) => {
+    if (filePreviews[type]) {
+      try { URL.revokeObjectURL(filePreviews[type]); } catch (e) {}
+    }
+    setPendingFiles(prev => ({ ...prev, [type]: null }));
+    setFilePreviews(prev => ({ ...prev, [type]: null }));
+    setEvidenceUploadStatus(prev => ({
+      ...prev,
+      [type]: { uploading: false, error: '', success: '' }
+    }));
+  };
+
+  const handleUploadSingleEvidence = async (type, numericBookingId) => {
+    const file = pendingFiles[type];
+    if (!file || !numericBookingId) return;
+
+    setEvidenceUploadStatus(prev => ({
+      ...prev,
+      [type]: { uploading: true, error: '', success: '' }
+    }));
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('booking_id', String(numericBookingId));
+      formData.append('evidence_type', type);
+      formData.append('notes', `${type} photo measurement captured at mandi`);
+
+      const res = await uploadProcurementEvidence(formData);
+      if (res.success) {
+        handleClearPendingFile(type);
+        setEvidenceUploadStatus(prev => ({
+          ...prev,
+          [type]: { uploading: false, error: '', success: `${type} photo uploaded successfully!` }
+        }));
+        await loadBookingEvidence(numericBookingId);
+      } else {
+        throw new Error(res.message || 'Upload failed');
+      }
+    } catch (err) {
+      setEvidenceUploadStatus(prev => ({
+        ...prev,
+        [type]: { uploading: false, error: err.message || 'Failed to upload photo', success: '' }
+      }));
+    }
+  };
 
   // Quick Date Navigation Handlers
   const handlePrevDay = () => {
@@ -256,6 +379,18 @@ export default function CentreDashboard({ user }) {
   const handleOpenProcurementModal = async (b) => {
     setSelectedArrivedBooking(b);
     setWorkflowRecordIds({ collection_id: null, check_id: null, weighment_id: null, payment_id: null });
+    const rawBkId = b.id !== undefined && b.id !== null ? b.id : b.booking_id;
+    const numBkId = typeof rawBkId === 'number' ? rawBkId : parseInt(rawBkId, 10);
+    setPendingFiles({ QUALITY: null, WEIGHING: null, MOISTURE: null });
+    setFilePreviews({ QUALITY: null, WEIGHING: null, MOISTURE: null });
+    setEvidenceUploadStatus({
+      QUALITY: { uploading: false, error: '', success: '' },
+      WEIGHING: { uploading: false, error: '', success: '' },
+      MOISTURE: { uploading: false, error: '', success: '' }
+    });
+    if (!isNaN(numBkId) && numBkId > 0) {
+      loadBookingEvidence(numBkId);
+    }
     const qty = parseFloat(b.quantity || 1);
     let msp = 2300;
     let estPrice = 2345;
@@ -335,6 +470,13 @@ export default function CentreDashboard({ user }) {
         }
         setProcurementStep('quality');
       } else if (targetStatus === 'QUALITY_CHECKED') {
+        // Auto-upload optional quality & moisture evidence if selected
+        if (pendingFiles.QUALITY) {
+          try { await handleUploadSingleEvidence('QUALITY', numericBookingId); } catch (e) { console.warn(e); }
+        }
+        if (pendingFiles.MOISTURE) {
+          try { await handleUploadSingleEvidence('MOISTURE', numericBookingId); } catch (e) { console.warn(e); }
+        }
         const qcRes = await recordQualityCheck({
           collection_id: workflowRecordIds.collection_id || undefined,
           booking_id: numericBookingId,
@@ -353,6 +495,10 @@ export default function CentreDashboard({ user }) {
         }
         setProcurementStep('weighment');
       } else if (targetStatus === 'WEIGHED') {
+        // Auto-upload optional weighing evidence if selected
+        if (pendingFiles.WEIGHING) {
+          try { await handleUploadSingleEvidence('WEIGHING', numericBookingId); } catch (e) { console.warn(e); }
+        }
         const gross = parseFloat(procurementForm.actual_weight || procurementForm.actual_quantity || selectedArrivedBooking.quantity);
         const tare = 0.5;
         const wbRes = await recordWeighment({
@@ -650,7 +796,7 @@ export default function CentreDashboard({ user }) {
     await stopCameraScanner();
 
     try {
-      const res = await verifyQrToken(tokenToVerify.trim(), user.user_id);
+      const res = await verifyQrToken(tokenToVerify.trim(), centreId);
       setVerificationResult(res);
       setScannerState('result');
       if (res.success) {
@@ -808,6 +954,177 @@ export default function CentreDashboard({ user }) {
   const bookedCapacitySelectedDate = slots.reduce((sum, s) => sum + (s.booked_count || 0), 0);
   const remainingCapacitySelectedDate = Math.max(0, totalCapacitySelectedDate - bookedCapacitySelectedDate);
 
+  const renderEvidenceSection = (type, title, description) => {
+    const rawBkId = selectedArrivedBooking?.id ?? selectedArrivedBooking?.booking_id;
+    const currentBookingId = typeof rawBkId === 'number' ? rawBkId : parseInt(rawBkId, 10);
+    const existingList = bookingEvidence[type] || [];
+    const pendingFile = pendingFiles[type];
+    const previewUrl = filePreviews[type];
+    const status = evidenceUploadStatus[type];
+
+    return (
+      <div className="evidence-section" style={{
+        marginTop: '0.75rem',
+        padding: '0.85rem',
+        borderRadius: 'var(--radius-sm)',
+        background: 'var(--bg-page)',
+        border: '1px solid var(--border)'
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+          <div>
+            <strong style={{ fontSize: '0.85rem', color: 'var(--secondary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <ImageIcon size={15} style={{ color: 'var(--primary)' }} />
+              {title}
+            </strong>
+            <span style={{ fontSize: '0.75rem', color: 'var(--muted)', display: 'block' }}>
+              {description} <em style={{ fontStyle: 'normal', color: 'var(--primary)', fontWeight: 600 }}>(Optional)</em>
+            </span>
+          </div>
+          {existingList.length > 0 && (
+            <span className="badge badge-confirmed" style={{ fontSize: '0.7rem' }}>
+              <FileCheck size={12} style={{ marginRight: '4px' }} /> {existingList.length} Uploaded
+            </span>
+          )}
+        </div>
+
+        {/* Existing uploaded evidence thumbnails */}
+        {existingList.length > 0 ? (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.75rem' }}>
+            {existingList.map((ev, idx) => (
+              <div 
+                key={ev.id || idx}
+                style={{
+                  position: 'relative',
+                  border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius-sm)',
+                  overflow: 'hidden',
+                  cursor: 'pointer',
+                  background: 'var(--bg-card)'
+                }}
+                onClick={() => setEnlargedImage(ev.file_path || ev.file_url)}
+                title="Click to enlarge"
+              >
+                <img 
+                  src={ev.file_path || ev.file_url} 
+                  alt={ev.original_filename || `${type} Evidence`} 
+                  style={{ width: '70px', height: '70px', objectFit: 'cover', display: 'block' }}
+                  onError={(e) => { e.target.style.display = 'none'; }}
+                />
+                <div style={{
+                  position: 'absolute',
+                  bottom: 0,
+                  left: 0,
+                  right: 0,
+                  background: 'rgba(0,0,0,0.6)',
+                  color: '#fff',
+                  fontSize: '0.62rem',
+                  padding: '2px 4px',
+                  textAlign: 'center',
+                  textOverflow: 'ellipsis',
+                  overflow: 'hidden',
+                  whiteSpace: 'nowrap'
+                }}>
+                  {ev.original_filename || `Evidence #${idx+1}`}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div style={{ fontSize: '0.75rem', color: 'var(--muted)', fontStyle: 'italic', marginBottom: '0.5rem' }}>
+            No evidence uploaded yet
+          </div>
+        )}
+
+        {/* File selection & preview */}
+        {previewUrl ? (
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.75rem',
+            padding: '0.5rem',
+            background: 'var(--bg-card)',
+            borderRadius: 'var(--radius-sm)',
+            border: '1px dashed var(--primary-border)',
+            marginBottom: '0.5rem'
+          }}>
+            <img 
+              src={previewUrl} 
+              alt="Selected Preview" 
+              style={{ width: '56px', height: '56px', objectFit: 'cover', borderRadius: '4px', border: '1px solid var(--border)' }}
+            />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {pendingFile?.name}
+              </div>
+              <div style={{ fontSize: '0.7rem', color: 'var(--muted)' }}>
+                {(pendingFile?.size / 1024).toFixed(1)} KB • Ready to save
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: '4px' }}>
+              <button
+                type="button"
+                className="btn btn-primary"
+                style={{ padding: '4px 8px', fontSize: '0.75rem' }}
+                disabled={status.uploading}
+                onClick={() => handleUploadSingleEvidence(type, currentBookingId)}
+              >
+                {status.uploading ? 'Uploading...' : 'Upload Now'}
+              </button>
+              <button
+                type="button"
+                className="btn btn-outline"
+                style={{ padding: '4px 8px', fontSize: '0.75rem' }}
+                onClick={() => handleClearPendingFile(type)}
+                disabled={status.uploading}
+              >
+                <X size={14} />
+              </button>
+            </div>
+          </div>
+        ) : (
+          <label style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '6px',
+            padding: '6px 12px',
+            borderRadius: 'var(--radius-sm)',
+            border: '1px dashed var(--border)',
+            background: 'var(--bg-card)',
+            color: 'var(--secondary)',
+            fontSize: '0.78rem',
+            fontWeight: 600,
+            cursor: 'pointer'
+          }}>
+            <Upload size={14} style={{ color: 'var(--primary)' }} />
+            <span>Select {title.split(' ')[0]} Photo (JPG/PNG/WEBP, Max 5MB)</span>
+            <input 
+              type="file" 
+              accept="image/jpeg,image/png,image/webp" 
+              style={{ display: 'none' }}
+              onChange={(e) => {
+                if (e.target.files && e.target.files[0]) {
+                  handleSelectEvidenceFile(type, e.target.files[0]);
+                }
+              }}
+            />
+          </label>
+        )}
+
+        {/* Status messages */}
+        {status.error && (
+          <div style={{ marginTop: '0.4rem', fontSize: '0.75rem', color: 'var(--danger-text)' }}>
+            ⚠ {status.error}
+          </div>
+        )}
+        {status.success && (
+          <div style={{ marginTop: '0.4rem', fontSize: '0.75rem', color: 'var(--success-text)' }}>
+            ✓ {status.success}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className="centre-dashboard animate-fade-in">
       {/* Top Header Banner */}
@@ -855,7 +1172,7 @@ export default function CentreDashboard({ user }) {
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
-          <div style={{ width: '48px', height: '48px', borderRadius: '50%', backgroundColor: '#e0f2fe', color: '#0284c7', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ width: '48px', height: '48px', borderRadius: '50%', backgroundColor: 'var(--info-bg)', color: 'var(--info-text)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <Clock size={24} />
           </div>
           <div>
@@ -865,12 +1182,12 @@ export default function CentreDashboard({ user }) {
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
-          <div style={{ width: '48px', height: '48px', borderRadius: '50%', backgroundColor: '#f0fdf4', color: '#16a34a', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ width: '48px', height: '48px', borderRadius: '50%', backgroundColor: 'var(--success-bg)', color: 'var(--success-text)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <Scale size={24} />
           </div>
           <div>
             <div style={{ fontSize: '0.8rem', color: 'var(--muted)', fontWeight: 600 }}>DAILY QUINTAL INTAKE CAP</div>
-            <div style={{ fontSize: '1.15rem', fontWeight: 700, color: '#15803d' }}>
+            <div style={{ fontSize: '1.15rem', fontWeight: 700, color: 'var(--primary)' }}>
               {dailyCapacityInfo.max_quintals_per_day} Quintals/Day
             </div>
           </div>
@@ -919,7 +1236,7 @@ export default function CentreDashboard({ user }) {
       </div>
 
       {/* UNIVERSAL TOP DATE SELECTION CONTROL (Applies across Overview, Appointments, and Schedule Editor) */}
-      <div className="card shadow-sm mb-4" style={{ padding: '16px 24px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px' }}>
+      <div className="card shadow-sm mb-4" style={{ padding: '16px 24px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: '12px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <Calendar size={20} color="var(--primary)" />
@@ -963,7 +1280,7 @@ export default function CentreDashboard({ user }) {
             </button>
           </div>
 
-          <div style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--primary-dark)', background: '#e0f2fe', padding: '6px 14px', borderRadius: '20px' }}>
+          <div style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--info-text)', background: 'var(--info-bg)', padding: '6px 14px', borderRadius: '20px' }}>
             Selected Date: {formatDateDisplay(selectedDate)}
           </div>
         </div>
@@ -974,14 +1291,14 @@ export default function CentreDashboard({ user }) {
         <>
           {/* HIERARCHY ITEM 1: CLOSED / NON-OPERATIONAL DATE NOTICE */}
           {isClosedDate ? (
-            <div className="card shadow-sm mb-4" style={{ padding: '32px', textAlign: 'center', background: '#fef2f2', border: '1.5px solid #fca5a5', borderRadius: '14px' }}>
-              <div style={{ width: '56px', height: '56px', borderRadius: '50%', backgroundColor: '#fee2e2', color: '#dc2626', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px auto' }}>
+            <div className="card shadow-sm mb-4" style={{ padding: '32px', textAlign: 'center', background: 'var(--danger-bg)', border: '1.5px solid var(--danger)', borderRadius: '14px' }}>
+              <div style={{ width: '56px', height: '56px', borderRadius: '50%', backgroundColor: 'var(--danger-bg)', color: 'var(--danger)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px auto' }}>
                 <CalendarOff size={32} />
               </div>
-              <h2 style={{ fontSize: '1.6rem', color: '#991b1b', fontWeight: 800, marginBottom: '8px' }}>
+              <h2 style={{ fontSize: '1.6rem', color: 'var(--danger-text)', fontWeight: 800, marginBottom: '8px' }}>
                 Centre Closed — {formatDateDisplay(selectedDate)}
               </h2>
-              <p style={{ fontSize: '1rem', color: '#b91c1c', fontWeight: 600, margin: 0 }}>
+              <p style={{ fontSize: '1rem', color: 'var(--danger-text)', fontWeight: 600, margin: 0 }}>
                 Reason: {closedReasonText}
               </p>
               <p style={{ fontSize: '0.875rem', color: 'var(--muted)', marginTop: '8px' }}>
@@ -990,7 +1307,7 @@ export default function CentreDashboard({ user }) {
             </div>
           ) : slots.length === 0 ? (
             /* HIERARCHY ITEM 1 ALT: NO SCHEDULE CONFIGURED FOR DATE */
-            <div className="card shadow-sm mb-4" style={{ padding: '32px', textAlign: 'center', background: '#fafafa', border: '1px dashed var(--border)', borderRadius: '14px' }}>
+            <div className="card shadow-sm mb-4" style={{ padding: '32px', textAlign: 'center', background: 'var(--bg-card)', border: '1px dashed var(--border)', borderRadius: '14px' }}>
               <Clock size={40} color="var(--muted)" style={{ marginBottom: '12px' }} />
               <h3 style={{ fontSize: '1.4rem', color: 'var(--secondary)', fontWeight: 700, marginBottom: '6px' }}>
                 No Schedule Available for {formatDateDisplay(selectedDate)}
@@ -1344,7 +1661,7 @@ export default function CentreDashboard({ user }) {
                 </div>
 
                 {cropSummaryList.length === 0 ? (
-                  <div style={{ textAlign: 'center', padding: '24px', background: '#fafafa', borderRadius: '8px', border: '1px dashed #e2e8f0' }}>
+                  <div style={{ textAlign: 'center', padding: '24px', background: 'var(--bg-page)', borderRadius: '8px', border: '1px dashed var(--border)' }}>
                     <Wheat size={32} color="var(--muted)" style={{ marginBottom: '8px' }} />
                     <h4 style={{ fontSize: '1.1rem', color: 'var(--secondary)', margin: '0 0 4px 0' }}>No crop bookings yet</h4>
                     <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', margin: 0 }}>
@@ -1355,7 +1672,7 @@ export default function CentreDashboard({ user }) {
                   <div className="table-container">
                     <table className="data-table" style={{ width: '100%' }}>
                       <thead>
-                        <tr style={{ background: '#f8fafc' }}>
+                        <tr style={{ background: 'var(--bg-page)' }}>
                           <th style={{ fontSize: '0.9rem', fontWeight: 700, padding: '12px 16px' }}>Crop</th>
                           <th style={{ fontSize: '0.9rem', fontWeight: 700, textAlign: 'right', padding: '12px 16px' }}>Total Bookings</th>
                           <th style={{ fontSize: '0.9rem', fontWeight: 700, textAlign: 'right', padding: '12px 16px' }}>Total Quintals</th>
@@ -1379,14 +1696,14 @@ export default function CentreDashboard({ user }) {
                           </tr>
                         ))}
                         {/* Dynamic Total Row */}
-                        <tr style={{ background: '#f0fdf4', borderTop: '2px solid #bbf7d0' }}>
-                          <td style={{ fontWeight: 800, fontSize: '1.05rem', color: '#14532d', padding: '14px 16px' }}>
+                        <tr style={{ background: 'var(--success-bg)', borderTop: '2px solid var(--primary-border)' }}>
+                          <td style={{ fontWeight: 800, fontSize: '1.05rem', color: 'var(--success-text)', padding: '14px 16px' }}>
                             Total
                           </td>
-                          <td style={{ textAlign: 'right', fontWeight: 800, fontSize: '1.05rem', color: '#14532d', padding: '14px 16px' }}>
+                          <td style={{ textAlign: 'right', fontWeight: 800, fontSize: '1.05rem', color: 'var(--success-text)', padding: '14px 16px' }}>
                             {totalBookingsCount} Bookings
                           </td>
-                          <td style={{ textAlign: 'right', fontWeight: 800, fontSize: '1.1rem', color: '#16a34a', padding: '14px 16px' }}>
+                          <td style={{ textAlign: 'right', fontWeight: 800, fontSize: '1.1rem', color: 'var(--primary)', padding: '14px 16px' }}>
                             {totalQuintalsSum} Quintals
                           </td>
                         </tr>
@@ -1455,20 +1772,20 @@ export default function CentreDashboard({ user }) {
                 Detailed farmer booking list for the selected date grouped by time slot.
               </p>
             </div>
-            <span style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--primary-dark)', background: '#e0f2fe', padding: '6px 12px', borderRadius: '8px' }}>
+            <span style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--info-text)', background: 'var(--info-bg)', padding: '6px 12px', borderRadius: '8px' }}>
               Total: {bookings.length} Appointments
             </span>
           </div>
 
           {isClosedDate ? (
-            <div style={{ textAlign: 'center', padding: '32px', background: '#fef2f2', borderRadius: '12px', border: '1px solid #fca5a5' }}>
-              <h3 style={{ color: '#991b1b', fontWeight: 800 }}>Centre Closed on {formatDateDisplay(selectedDate)}</h3>
-              <p style={{ color: '#b91c1c' }}>Reason: {closedReasonText}</p>
+            <div style={{ textAlign: 'center', padding: '32px', background: 'var(--danger-bg)', borderRadius: '12px', border: '1px solid var(--danger)' }}>
+              <h3 style={{ color: 'var(--danger-text)', fontWeight: 800 }}>Centre Closed on {formatDateDisplay(selectedDate)}</h3>
+              <p style={{ color: 'var(--danger-text)' }}>Reason: {closedReasonText}</p>
             </div>
           ) : loading ? (
             <p style={{ padding: '16px' }}>Loading appointments for {formatDateDisplay(selectedDate)}...</p>
           ) : bookings.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '36px', background: '#fafafa', borderRadius: '12px', border: '1px dashed #cbd5e1' }}>
+            <div style={{ textAlign: 'center', padding: '36px', background: 'var(--bg-page)', borderRadius: '12px', border: '1px dashed var(--border)' }}>
               <Users size={40} color="var(--muted)" style={{ marginBottom: '12px' }} />
               <h3 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--secondary)', marginBottom: '6px' }}>No Appointments</h3>
               <p style={{ color: 'var(--text-secondary)', margin: 0 }}>
@@ -1481,16 +1798,16 @@ export default function CentreDashboard({ user }) {
               {slots.map(slot => {
                 const slotBookings = bookings.filter(b => b.slot_id === slot.id || (b.start_time === slot.start_time && b.end_time === slot.end_time));
                 return (
-                  <div key={slot.id} style={{ border: '1px solid #e2e8f0', borderRadius: '12px', overflow: 'hidden' }}>
+                  <div key={slot.id} style={{ border: '1px solid var(--border)', borderRadius: '12px', overflow: 'hidden' }}>
                     {/* Slot Group Header */}
-                    <div style={{ background: '#f8fafc', padding: '14px 20px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ background: 'var(--bg-page)', padding: '14px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                         <Clock size={18} color="var(--primary)" />
                         <h3 style={{ fontSize: '1.1rem', fontWeight: 800, margin: 0, color: 'var(--secondary)' }}>
                           {slot.start_time} – {slot.end_time}
                         </h3>
                       </div>
-                      <span style={{ fontWeight: 700, fontSize: '0.875rem', color: slot.is_full ? '#dc2626' : '#15803d' }}>
+                      <span style={{ fontWeight: 700, fontSize: '0.875rem', color: slot.is_full ? 'var(--danger)' : 'var(--primary)' }}>
                         {slotBookings.length} / {slot.max_capacity} Farmers Booked
                       </span>
                     </div>
@@ -1547,7 +1864,7 @@ export default function CentreDashboard({ user }) {
                                     {(b.status === 'BOOKED' || b.status === 'PENDING' || b.status === 'CONFIRMED') && (
                                       <button 
                                         className="btn btn-outline btn-sm"
-                                        style={{ backgroundColor: '#e0f2fe', color: '#0369a1', borderColor: '#7dd3fc' }}
+                                        style={{ backgroundColor: 'var(--info-bg)', color: 'var(--info-text)', borderColor: 'var(--info)' }}
                                         onClick={() => handleStatusChange(b.appointment_id || b.booking_id, 'ARRIVED')}
                                         disabled={updatingStatusId === (b.appointment_id || b.booking_id)}
                                         title="Mark Farmer Arrived"
@@ -1633,8 +1950,8 @@ export default function CentreDashboard({ user }) {
 
           {/* Daily Quintal Capacity Banner */}
           <div style={{
-            background: 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)',
-            border: '1px solid #bbf7d0',
+            background: 'var(--success-bg)',
+            border: '1px solid var(--primary-border)',
             borderRadius: '12px',
             padding: '20px',
             marginBottom: '1.5rem',
@@ -1645,13 +1962,13 @@ export default function CentreDashboard({ user }) {
             gap: '1rem'
           }}>
             <div>
-              <div style={{ fontSize: '0.85rem', color: '#166534', fontWeight: 700, textTransform: 'uppercase' }}>
+              <div style={{ fontSize: '0.85rem', color: 'var(--success-text)', fontWeight: 700, textTransform: 'uppercase' }}>
                 Daily Quintal Capacity for {formatDateDisplay(selectedDate)}
               </div>
-              <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#14532d', marginTop: '4px' }}>
+              <div style={{ fontSize: '1.6rem', fontWeight: 800, color: 'var(--success-text)', marginTop: '4px' }}>
                 {dailyCapacityInfo.booked_quintals} / {dailyCapacityInfo.max_quintals_per_day} Quintals Booked
               </div>
-              <div style={{ fontSize: '0.875rem', color: '#15803d', marginTop: '2px' }}>
+              <div style={{ fontSize: '0.875rem', color: 'var(--primary)', marginTop: '2px' }}>
                 Available: <strong>{dailyCapacityInfo.available_quintals} Quintals</strong> remaining for booking.
               </div>
             </div>
@@ -1765,18 +2082,18 @@ export default function CentreDashboard({ user }) {
                 const currentDays = parseDaysArray(operatingDays);
                 const isChecked = currentDays.includes(day);
                 return (
-                  <label key={day} style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer', padding: '8px 12px', borderRadius: '8px', background: isChecked ? '#f0fdf4' : '#f8fafc', border: `1px solid ${isChecked ? '#bbf7d0' : '#e2e8f0'}` }}>
+                  <label key={day} style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer', padding: '8px 12px', borderRadius: '8px', background: isChecked ? 'var(--success-bg)' : 'var(--bg-page)', border: `1px solid ${isChecked ? 'var(--primary-border)' : 'var(--border)'}` }}>
                     <input 
                       type="checkbox"
                       checked={isChecked}
                       onChange={() => handleToggleOperatingDay(day)}
                       style={{ width: '18px', height: '18px', accentColor: 'var(--primary)' }}
                     />
-                    <span style={{ fontWeight: 600, color: isChecked ? '#166534' : 'var(--text-secondary)' }}>{day}</span>
+                    <span style={{ fontWeight: 600, color: isChecked ? 'var(--success-text)' : 'var(--text-secondary)' }}>{day}</span>
                     {isChecked ? (
-                      <span style={{ marginLeft: 'auto', fontSize: '0.75rem', fontWeight: 700, color: '#16a34a', textTransform: 'uppercase' }}>Open</span>
+                      <span style={{ marginLeft: 'auto', fontSize: '0.75rem', fontWeight: 700, color: 'var(--success)', textTransform: 'uppercase' }}>Open</span>
                     ) : (
-                      <span style={{ marginLeft: 'auto', fontSize: '0.75rem', fontWeight: 700, color: '#dc2626', textTransform: 'uppercase' }}>Closed</span>
+                      <span style={{ marginLeft: 'auto', fontSize: '0.75rem', fontWeight: 700, color: 'var(--danger)', textTransform: 'uppercase' }}>Closed</span>
                     )}
                   </label>
                 );
@@ -1804,7 +2121,7 @@ export default function CentreDashboard({ user }) {
             </p>
 
             {/* Add Holiday Form */}
-            <form onSubmit={handleAddNonOpDate} style={{ marginBottom: '20px', background: '#f8fafc', padding: '16px', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+            <form onSubmit={handleAddNonOpDate} style={{ marginBottom: '20px', background: 'var(--bg-page)', padding: '16px', borderRadius: '10px', border: '1px solid var(--border)' }}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
                 <div>
                   <label className="form-label" style={{ fontSize: '0.8rem' }}>Date</label>
@@ -1839,16 +2156,16 @@ export default function CentreDashboard({ user }) {
 
             {/* List of Non-Operational Dates */}
             {nonOperationalDates.length === 0 ? (
-              <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', textAlign: 'center', padding: '16px', background: '#fafafa', borderRadius: '8px' }}>
+              <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', textAlign: 'center', padding: '16px', background: 'var(--bg-page)', borderRadius: '8px', border: '1px solid var(--border)' }}>
                 No holiday exceptions configured.
               </p>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '320px', overflowY: 'auto' }}>
                 {nonOperationalDates.map(item => (
-                  <div key={item.date} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: '#fef2f2', borderRadius: '8px', border: '1px solid #fecaca' }}>
+                  <div key={item.date} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: 'var(--danger-bg)', borderRadius: '8px', border: '1px solid var(--danger)' }}>
                     <div>
-                      <div style={{ fontWeight: 700, color: '#991b1b', fontSize: '0.9rem' }}>{formatDateDisplay(item.date)}</div>
-                      <div style={{ fontSize: '0.8rem', color: '#b91c1c' }}>{item.reason}</div>
+                      <div style={{ fontWeight: 700, color: 'var(--danger-text)', fontSize: '0.9rem' }}>{formatDateDisplay(item.date)}</div>
+                      <div style={{ fontSize: '0.8rem', color: 'var(--danger-text)' }}>{item.reason}</div>
                     </div>
                     <button 
                       className="btn btn-danger btn-sm"
@@ -2167,7 +2484,7 @@ export default function CentreDashboard({ user }) {
               </div>
 
               {rangeSummary && (
-                <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', padding: '12px', borderRadius: '8px', marginBottom: '1rem', fontSize: '0.85rem', color: '#166534' }}>
+                <div style={{ background: 'var(--success-bg)', border: '1px solid var(--primary-border)', padding: '12px', borderRadius: '8px', marginBottom: '1rem', fontSize: '0.85rem', color: '#166534' }}>
                   <strong>Schedule Generator Summary:</strong>
                   <div>✓ Configured: <strong>{rangeSummary.created_dates_count} operating dates</strong></div>
                   <div>✕ Skipped: <strong>{rangeSummary.skipped_dates_count} closed/holiday dates</strong></div>
@@ -2329,7 +2646,7 @@ export default function CentreDashboard({ user }) {
                 </p>
 
                 {verificationResult.appointment && (
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', fontSize: '0.85rem', backgroundColor: 'white', padding: '0.75rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', color: 'var(--secondary)', marginBottom: '1rem' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', fontSize: '0.85rem', backgroundColor: 'var(--bg-card)', padding: '0.75rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', color: 'var(--secondary)', marginBottom: '1rem' }}>
                     <div><strong>Farmer:</strong> {verificationResult.appointment.farmer_name}</div>
                     <div><strong>Appointment ID:</strong> {verificationResult.appointment.appointment_id}</div>
                     <div><strong>Crop:</strong> {verificationResult.appointment.crop}</div>
@@ -2505,10 +2822,13 @@ export default function CentreDashboard({ user }) {
                 </div>
               </div>
 
-              {/* Price Intelligence & Procurement Payment Breakdown (Prompt 2 - Section 12) */}
+              {/* Weighing Evidence (Section 5) */}
+              {renderEvidenceSection('WEIGHING', 'Weighing Photo Evidence', 'Photo of weighbridge scale or certified tare slip.')}
+
+              {/* Price Intelligence & Procurement Payment Breakdown */}
               <div style={{
-                background: '#f8fafc',
-                border: '1px solid #e2e8f0',
+                background: 'var(--bg-page)',
+                border: '1px solid var(--border)',
                 borderRadius: '8px',
                 padding: '12px 16px',
                 display: 'grid',
@@ -2516,38 +2836,38 @@ export default function CentreDashboard({ user }) {
                 gap: '12px',
                 textAlign: 'center'
               }}>
-                <div style={{ background: '#ffffff', padding: '10px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
-                  <span style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 700, textTransform: 'uppercase', display: 'block' }}>
+                <div style={{ background: 'var(--bg-card)', padding: '10px', borderRadius: '6px', border: '1px solid var(--border)' }}>
+                  <span style={{ fontSize: '0.72rem', color: 'var(--muted)', fontWeight: 700, textTransform: 'uppercase', display: 'block' }}>
                     MSP Reference Value
                   </span>
-                  <strong style={{ fontSize: '1.15rem', color: '#1e293b', display: 'block', marginTop: '2px' }}>
+                  <strong style={{ fontSize: '1.15rem', color: 'var(--secondary)', display: 'block', marginTop: '2px' }}>
                     ₹ {Number(procurementForm.msp_reference_value || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                   </strong>
-                  <span style={{ fontSize: '0.68rem', color: '#64748b' }}>
+                  <span style={{ fontSize: '0.68rem', color: 'var(--muted)' }}>
                     {procurementForm.actual_quantity || 0} Q × ₹{procurementForm.official_msp || 2300}/Q MSP
                   </span>
                 </div>
 
-                <div style={{ background: '#ffffff', padding: '10px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
-                  <span style={{ fontSize: '0.72rem', color: '#0284c7', fontWeight: 700, textTransform: 'uppercase', display: 'block' }}>
+                <div style={{ background: 'var(--bg-card)', padding: '10px', borderRadius: '6px', border: '1px solid var(--border)' }}>
+                  <span style={{ fontSize: '0.72rem', color: 'var(--info-text)', fontWeight: 700, textTransform: 'uppercase', display: 'block' }}>
                     Estimated Value
                   </span>
-                  <strong style={{ fontSize: '1.15rem', color: '#0284c7', display: 'block', marginTop: '2px' }}>
+                  <strong style={{ fontSize: '1.15rem', color: 'var(--info-text)', display: 'block', marginTop: '2px' }}>
                     ₹ {Number(procurementForm.estimated_value || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                   </strong>
-                  <span style={{ fontSize: '0.68rem', color: '#0284c7' }}>
+                  <span style={{ fontSize: '0.68rem', color: 'var(--info-text)' }}>
                     {procurementForm.actual_quantity || 0} Q × ₹{procurementForm.estimated_price || 2345}/Q Estimate
                   </span>
                 </div>
 
-                <div style={{ background: '#f0fdf4', padding: '10px', borderRadius: '6px', border: '1px solid #bbf7d0' }}>
-                  <span style={{ fontSize: '0.72rem', color: '#166534', fontWeight: 700, textTransform: 'uppercase', display: 'block' }}>
+                <div style={{ background: 'var(--success-bg)', padding: '10px', borderRadius: '6px', border: '1px solid var(--primary-border)' }}>
+                  <span style={{ fontSize: '0.72rem', color: 'var(--success-text)', fontWeight: 700, textTransform: 'uppercase', display: 'block' }}>
                     Actual Payment
                   </span>
-                  <strong style={{ fontSize: '1.2rem', color: '#15803d', display: 'block', marginTop: '2px' }}>
+                  <strong style={{ fontSize: '1.2rem', color: 'var(--primary)', display: 'block', marginTop: '2px' }}>
                     ₹ {Number(procurementForm.payment_amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                   </strong>
-                  <span style={{ fontSize: '0.68rem', color: '#166534', fontWeight: 600 }}>
+                  <span style={{ fontSize: '0.68rem', color: 'var(--success-text)', fontWeight: 600 }}>
                     Certified Weighed Payout
                   </span>
                 </div>
@@ -2577,6 +2897,12 @@ export default function CentreDashboard({ user }) {
                   />
                 </div>
               </div>
+
+              {/* Quality Evidence (Section 4) */}
+              {renderEvidenceSection('QUALITY', 'Quality Measurement Evidence', 'Photo of inspected sample or physical grading.')}
+
+              {/* Moisture Evidence (Section 6) */}
+              {renderEvidenceSection('MOISTURE', 'Moisture Measurement Evidence', 'Photo of digital moisture meter reading.')}
 
               <div>
                 <label className="form-label" style={{ fontSize: '0.8rem' }}>Warehouse Bay / Storage Location</label>
@@ -2671,6 +2997,48 @@ export default function CentreDashboard({ user }) {
                 )}
               </div>
             </div>
+          </div>
+        </div>
+      )}
+      {/* ENLARGED PHOTO EVIDENCE MODAL */}
+      {enlargedImage && (
+        <div 
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.85)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1300,
+            padding: '1.5rem'
+          }}
+          onClick={() => setEnlargedImage(null)}
+        >
+          <div style={{ position: 'relative', maxWidth: '90vw', maxHeight: '90vh' }} onClick={e => e.stopPropagation()}>
+            <button
+              onClick={() => setEnlargedImage(null)}
+              style={{
+                position: 'absolute',
+                top: '-40px',
+                right: '0',
+                background: 'none',
+                border: 'none',
+                color: '#fff',
+                fontSize: '1.5rem',
+                cursor: 'pointer'
+              }}
+            >
+              <X size={28} />
+            </button>
+            <img 
+              src={enlargedImage} 
+              alt="Enlarged Evidence" 
+              style={{ maxWidth: '100%', maxHeight: '85vh', borderRadius: '8px', objectFit: 'contain', boxShadow: '0 10px 25px rgba(0,0,0,0.5)' }} 
+            />
           </div>
         </div>
       )}

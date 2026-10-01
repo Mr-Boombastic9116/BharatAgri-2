@@ -109,3 +109,19 @@ class Payment(Base):
     remarks = Column(String(255), nullable=True)
 
     procurement = relationship("ProcurementRecord", back_populates="payment")
+
+class ProcurementEvidence(Base):
+    __tablename__ = "procurement_evidence"
+    id = Column(Integer, primary_key=True, index=True)
+    booking_id = Column(Integer, ForeignKey("bookings.id", ondelete="CASCADE"), nullable=False, index=True)
+    procurement_id = Column(String(50), nullable=True)
+    evidence_type = Column(Enum('QUALITY', 'WEIGHING', 'MOISTURE'), nullable=False, index=True)
+    file_path = Column(String(255), nullable=False)
+    original_filename = Column(String(255), nullable=False)
+    file_size_bytes = Column(Integer, nullable=False)
+    mime_type = Column(String(100), nullable=False)
+    notes = Column(String(255), nullable=True)
+    uploaded_by = Column(String(100), nullable=False)
+    uploaded_at = Column(DateTime, server_default=func.now())
+
+    booking = relationship("Booking")

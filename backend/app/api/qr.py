@@ -3,6 +3,8 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from backend.app.core.database import get_db
+from backend.app.core.deps import get_current_user_optional
+from backend.app.core.helpers import resolve_centre
 from backend.app.models.booking import Booking, BookingStatusHistory, QRCode
 from backend.app.models.centre import Slot, ProcurementCentre
 from backend.app.models.user import User
@@ -12,7 +14,11 @@ from backend.app.schemas.booking import VerifyQRRequest
 router = APIRouter(tags=["QR System"])
 
 @router.post("/appointments/verify")
-def verify_appointment_qr(req: VerifyQRRequest, db: Session = Depends(get_db)):
+def verify_appointment_qr(
+    req: VerifyQRRequest,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user_optional)
+):
     if not req.qr_token or not req.centre_id:
         return {
             "success": False,
@@ -22,6 +28,27 @@ def verify_appointment_qr(req: VerifyQRRequest, db: Session = Depends(get_db)):
         }
 
     clean_token = req.qr_token.strip()
+
+    # Resolve target centre
+    target_centre = resolve_centre(req.centre_id, db)
+    if not target_centre:
+        return {
+            "success": False,
+            "code": "CENTRE_NOT_FOUND",
+            "error": "CENTRE NOT FOUND ✕",
+            "message": f"Procurement centre '{req.centre_id}' does not exist."
+        }
+
+    # Centre authorization check: if user is centre staff, ensure they match target centre
+    if current_user and getattr(current_user, 'role', '').lower() in ['centre', 'procurement_centre']:
+        user_centre = resolve_centre(getattr(current_user, 'centre_id', None) or current_user.user_id, db)
+        if user_centre and user_centre.centre_id != target_centre.centre_id:
+            return {
+                "success": False,
+                "code": "UNAUTHORIZED_CENTRE",
+                "error": "UNAUTHORIZED CENTRE ✕",
+                "message": f"You are authorized for '{user_centre.centre_id}', cannot verify bookings for '{target_centre.centre_id}'."
+            }
 
     # Query booking matching token, appointment_id, or booking_id
     booking = (
@@ -42,13 +69,14 @@ def verify_appointment_qr(req: VerifyQRRequest, db: Session = Depends(get_db)):
             "message": "Entry Not Accepted. Unrecognized QR code."
         }
 
-    if booking.centre_id != req.centre_id:
+    if booking.centre_id != target_centre.centre_id:
         return {
             "success": False,
             "code": "WRONG_CENTRE",
             "error": "WRONG PROCUREMENT CENTRE ✕",
-            "message": f"Appointment belongs to centre '{booking.centre_id}', not this centre."
+            "message": f"Appointment belongs to centre '{booking.centre_id}', not this centre ({target_centre.centre_id})."
         }
+
 
     if booking.status in ["COLLECTED", "RECEIVED", "QUALITY_CHECKED", "WEIGHED", "PROCURED", "STORED", "PAYMENT_INITIATED", "PAID"]:
         return {

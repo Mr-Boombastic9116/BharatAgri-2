@@ -1,13 +1,17 @@
+import os
+import uuid
 import random
 from datetime import datetime, date
 from typing import Optional, List
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status, UploadFile, File, Form
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from backend.app.core.database import get_db
+from backend.app.core.deps import get_current_user, get_current_user_optional
+from backend.app.core.helpers import resolve_centre
 from backend.app.models.booking import Booking, BookingStatusHistory
 from backend.app.models.procurement import (
-    CollectionRecord, QualityCheck, Weighment, ProcurementRecord, StorageLot, Payment
+    CollectionRecord, QualityCheck, Weighment, ProcurementRecord, StorageLot, Payment, ProcurementEvidence
 )
 from backend.app.models.centre import ProcurementCentre, Slot
 from backend.app.models.farmer import Farmer
@@ -18,6 +22,7 @@ from backend.app.schemas.procurement import (
 )
 
 router = APIRouter(prefix="/procurement", tags=["Procurement & Traceability"])
+
 
 @router.post("/collection", status_code=201)
 def record_collection(req: CollectionCreate, db: Session = Depends(get_db)):
@@ -573,3 +578,150 @@ def list_procurement_lots(
             for lot in items
         ]
     }
+
+
+ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
+ALLOWED_MIME_TYPES = {"image/jpeg", "image/pjpeg", "image/png", "image/webp", "image/jpg"}
+MAX_FILE_SIZE = 5 * 1024 * 1024  # 5MB
+
+
+@router.post("/evidence/upload")
+async def upload_procurement_evidence(
+    file: UploadFile = File(...),
+    booking_id: int = Form(...),
+    evidence_type: str = Form(...),
+    notes: Optional[str] = Form(None),
+    procurement_id: Optional[str] = Form(None),
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+    ev_type = evidence_type.upper().strip()
+    if ev_type not in ["QUALITY", "WEIGHING", "MOISTURE"]:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid evidence type '{evidence_type}'. Must be QUALITY, WEIGHING, or MOISTURE."
+        )
+
+    booking = db.query(Booking).filter(Booking.id == booking_id).first()
+    if not booking:
+        raise HTTPException(status_code=404, detail=f"Booking with ID {booking_id} not found.")
+
+    # Authorization check: Centre staff can only upload for their assigned centre
+    if getattr(current_user, 'role', '').lower() in ['centre', 'procurement_centre']:
+        user_centre = resolve_centre(getattr(current_user, 'centre_id', None) or current_user.user_id, db)
+        if user_centre and user_centre.centre_id != booking.centre_id:
+            raise HTTPException(
+                status_code=403,
+                detail=f"Access denied: You are assigned to '{user_centre.centre_id}', but booking belongs to '{booking.centre_id}'."
+            )
+
+    # Validate filename extension and MIME type
+    orig_name = file.filename or "evidence.jpg"
+    ext = os.path.splitext(orig_name)[1].lower()
+    if ext not in ALLOWED_EXTENSIONS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported file format '{ext}'. Allowed: {', '.join(sorted(ALLOWED_EXTENSIONS))}"
+        )
+
+    content_type = (file.content_type or "").lower()
+    if content_type and content_type not in ALLOWED_MIME_TYPES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid MIME type '{content_type}'. Must be JPEG, PNG, or WEBP."
+        )
+
+    # Read and validate size
+    file_bytes = await file.read()
+    file_size = len(file_bytes)
+    if file_size == 0:
+        raise HTTPException(status_code=400, detail="Uploaded file is empty.")
+    if file_size > MAX_FILE_SIZE:
+        raise HTTPException(status_code=400, detail="File size exceeds maximum allowed limit of 5MB.")
+
+    # Safe unique filename preventing collision and traversal
+    safe_filename = f"{ev_type.lower()}_{booking.id}_{uuid.uuid4().hex[:12]}{ext}"
+    base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "uploads", "evidence"))
+    os.makedirs(base_dir, exist_ok=True)
+    destination = os.path.join(base_dir, safe_filename)
+
+    with open(destination, "wb") as f:
+        f.write(file_bytes)
+
+    web_path = f"/uploads/evidence/{safe_filename}"
+
+    evidence = ProcurementEvidence(
+        booking_id=booking.id,
+        procurement_id=procurement_id,
+        evidence_type=ev_type,
+        file_path=web_path,
+        original_filename=orig_name,
+        file_size_bytes=file_size,
+        mime_type=content_type or f"image/{ext.replace('.', '')}",
+        notes=notes,
+        uploaded_by=current_user.name or current_user.user_id,
+        uploaded_at=datetime.utcnow()
+    )
+    db.add(evidence)
+    db.commit()
+    db.refresh(evidence)
+
+    return {
+        "success": True,
+        "message": f"{ev_type} photo evidence saved successfully.",
+        "evidence": {
+            "id": evidence.id,
+            "booking_id": evidence.booking_id,
+            "procurement_id": evidence.procurement_id,
+            "evidence_type": evidence.evidence_type,
+            "file_path": evidence.file_path,
+            "original_filename": evidence.original_filename,
+            "file_size_bytes": evidence.file_size_bytes,
+            "mime_type": evidence.mime_type,
+            "notes": evidence.notes,
+            "uploaded_by": evidence.uploaded_by,
+            "uploaded_at": str(evidence.uploaded_at)
+        }
+    }
+
+
+@router.get("/evidence/{booking_id}")
+def get_procurement_evidence(
+    booking_id: int,
+    db: Session = Depends(get_db)
+):
+    evidence_items = (
+        db.query(ProcurementEvidence)
+        .filter(ProcurementEvidence.booking_id == booking_id)
+        .order_by(ProcurementEvidence.id.asc())
+        .all()
+    )
+
+    by_type = {"QUALITY": [], "WEIGHING": [], "MOISTURE": []}
+    all_list = []
+    for ev in evidence_items:
+        item = {
+            "id": ev.id,
+            "booking_id": ev.booking_id,
+            "procurement_id": ev.procurement_id,
+            "evidence_type": ev.evidence_type,
+            "file_path": ev.file_path,
+            "original_filename": ev.original_filename,
+            "file_size_bytes": ev.file_size_bytes,
+            "mime_type": ev.mime_type,
+            "notes": ev.notes,
+            "uploaded_by": ev.uploaded_by,
+            "uploaded_at": str(ev.uploaded_at)
+        }
+        all_list.append(item)
+        if ev.evidence_type in by_type:
+            by_type[ev.evidence_type].append(item)
+
+    return {
+        "success": True,
+        "booking_id": booking_id,
+        "total": len(all_list),
+        "evidence": all_list,
+        "by_type": by_type
+    }
+

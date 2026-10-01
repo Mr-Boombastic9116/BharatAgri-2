@@ -11,6 +11,7 @@ from backend.app.models.price import MspPrice, StateCropSupplyDemand, PriceEstim
 from backend.app.models.centre import ProcurementCentre
 from backend.app.models.procurement import ProcurementRecord
 from backend.app.models.farmer import Farmer, FarmerCrop
+from backend.app.models.booking import Booking
 from backend.app.models.audit import AuditLog
 
 router = APIRouter(tags=["Price Intelligence & Official MSP"])
@@ -94,6 +95,17 @@ def get_price_intelligence(
         if actual_proc and float(actual_proc) > 0:
             row.current_procurement_quintals = float(actual_proc)
 
+        # Sum upcoming bookings to compute projected procurement
+        upcoming_proc = db.query(func.coalesce(func.sum(Booking.quantity), 0)).join(
+            ProcurementCentre, Booking.centre_id == ProcurementCentre.centre_id
+        ).filter(
+            ProcurementCentre.state.ilike(f"%{row.state}%"),
+            Booking.crop.ilike(f"%{row.crop}%"),
+            Booking.status.in_(["BOOKED", "CONFIRMED", "CHECKED_IN"])
+        ).scalar()
+        tot_proc = float(row.current_procurement_quintals)
+        row.projected_procurement_quintals = round(tot_proc + float(upcoming_proc or 0), 2)
+
         # Sum available storage for this state
         actual_avail = db.query(func.coalesce(func.sum(
             ProcurementCentre.total_storage_capacity_quintals - ProcurementCentre.current_storage_usage_quintals
@@ -109,6 +121,16 @@ def get_price_intelligence(
         ).scalar()
         if actual_inv and float(actual_inv) > 0:
             row.current_inventory_quintals = float(actual_inv)
+
+        # Check registered farmer harvest expectations for expected supply
+        reg_supply = db.query(func.coalesce(func.sum(FarmerCrop.estimated_quantity_quintals), 0)).join(
+            Farmer, FarmerCrop.farmer_id == Farmer.id
+        ).filter(
+            Farmer.state.ilike(f"%{row.state}%"),
+            FarmerCrop.crop_name.ilike(f"%{row.crop}%")
+        ).scalar()
+        if reg_supply and float(reg_supply) > 0:
+            row.expected_supply_quintals = max(float(row.expected_supply_quintals), float(reg_supply))
 
         # Recalculate surplus / deficit
         surplus = float(row.expected_supply_quintals) - float(row.expected_demand_quintals)

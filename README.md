@@ -150,11 +150,138 @@ Web application will be live at: `http://localhost:3000`
 
 ## 7. AI Models & Optimization Engine
 
-All AI pipelines are located in `ml/`:
+All AI, optimization, and rule-based pipelines are located in `ml/`:
 - `ml/training/train_forecast.py`: Trains XGBoost Regressor on historical arrivals, yields, rainfall, and booking features. Saves artifact to `ml/models/supply_forecast_xgboost.pkl`.
 - `ml/training/train_anomaly.py`: Trains Isolation Forest on procurement volume discrepancies, weight variances, and turnaround durations. Saves artifact to `ml/models/anomaly_isolation_forest.pkl`.
 - `ml/inference/optimizer.py`: Google OR-Tools Mixed-Integer Programming (`pywraplp`) for fleet minimization and multi-centre capacity dispatch.
+- `ml/evaluation/evaluate_models.py`: Internal evaluation harness calculating empirical metrics across all models and engines.
 - **Resilience / Fallback Guarantee**: If models are missing or unreadable, the system activates built-in rule-based operational estimators without throwing 500 errors.
+
+---
+
+## 7.1 AI / ML Model & Optimization Evaluation
+
+> **Last evaluated: 2026-10-01**  
+> *Note: These evaluation results are strictly for developer and project owner auditing. Model performance metrics are not displayed anywhere in the user-facing application UI.*
+
+### Compact Summary Table
+
+| Component | Type | Algorithm / Engine | Current Performance | Evaluation Status |
+| :--- | :--- | :--- | :--- | :--- |
+| **Procurement Supply Forecast** | Machine Learning (Regression) | XGBoost (`XGBRegressor`) | MAE: **0.5316 Q**, RMSE: **1.1483 Q**, R²: **0.9975**, MAPE: **0.297%** | Validated (Synthetic benchmark) |
+| **Procurement Anomaly Detection** | Machine Learning (Unsupervised) | Isolation Forest (`IsolationForest`) | Precision: **0.8333**, Recall: **1.0000**, F1: **0.9091** (Benchmark) | Benchmark Validated; Live: Ground truth unavailable |
+| **Price Intelligence Engine** | Policy / Deterministic Hybrid | Bounded Economic Rule Model | **100%** MSP floor constraint adherence (Zero floor violations) | Validated (Deterministic rule engine) |
+| **Congestion Intelligence** | Rule-Based System | Operational Threshold Engine | **100%** Deterministic classification across 4 states | Rule-Based (Not ML; No ML accuracy metric) |
+| **Truck Route Fleet Optimizer** | Operations Research Optimization | Google OR-Tools (MILP / SCIP) | Feasibility: **100%**, Distance: **101.0 km**, Violations: **0** | Optimization Engine (Not ML; Feasibility validated) |
+
+---
+
+### Detailed Evaluation Methodology & Breakdown
+
+#### 1. Procurement Supply Forecast Model
+* **Algorithm:** XGBoost (`XGBRegressor`, `n_estimators=100`, `max_depth=6`, `learning_rate=0.1`, `random_state=42`)
+* **Purpose:** Predict expected procurement volume (in quintals) over a 7 to 30-day operational horizon per crop and centre.
+* **Features Used:**
+  * Centre and storage capacity (`centre_capacity_quintals`, `storage_capacity_quintals`)
+  * Farmer registration counts (`registered_farmers`)
+  * Inventory state (`current_inventory_quintals`, `avg_daily_arrival_quintals`)
+  * Weather and climate covariates (`rainfall_mm`, `temperature_c`)
+  * Market variables (`msp_price`, `market_price`, `day_of_season`)
+  * Categorical identifiers (`crop_type_encoded`, `state_encoded`)
+* **Target Variable:** `actual_procurement_quintals` (Continuous numeric quantity)
+* **Dataset & Split:**
+  * Total Samples: 10,000 multi-state/crop historical procurement records (`ml/data/historical_arrivals.csv`)
+  * Split: 80% Training (8,000 rows), 20% Held-out Test Set (2,000 rows)
+  * Random Seed: `42` (Fixed deterministic split, no data leakage)
+  * Data Type: Synthetic benchmark dataset generated to reflect multi-state seasonal procurement patterns
+* **Calculated Metrics:**
+  * **Mean Absolute Error (MAE):** `0.5316` quintals
+  * **Root Mean Squared Error (RMSE):** `1.1483` quintals
+  * **Coefficient of Determination (R²):** `0.9975`
+  * **Mean Absolute Percentage Error (MAPE):** `0.2974%`
+* **Important Findings:** The high R² (0.9975) is attributable to the controlled synthetic data generation equations. Under real-world agronomic, climatic, and open-market distress volatility, field R² values are expected to be lower.
+
+---
+
+#### 2. Procurement Anomaly Detection Model
+* **Algorithm:** Scikit-Learn Isolation Forest (`IsolationForest`, `n_estimators=100`, `contamination=0.06`, `random_state=42`)
+* **Purpose:** Detect anomalous procurement transactions such as weight tampering, moisture manipulation, turnaround time inflation, or abnormal volume spikes.
+* **Features Used:**
+  * `quantity_quintals`
+  * `gross_weight_quintals`
+  * `tare_weight_quintals`
+  * `net_weight_quintals`
+  * `moisture_percentage`
+  * `foreign_matter_percentage`
+  * `turnaround_minutes`
+* **Evaluation on Labeled Benchmark Dataset:**
+  * Dataset: 5,045 records (`ml/data/anomaly_training_dataset.csv`)
+  * Test Set Size: 1,009 rows (20% held-out test split, 50 injected ground-truth anomalies)
+  * Anomalies Flagged: 60
+  * True Positives (TP): 50
+  * False Positives (FP): 10
+  * False Negatives (FN): 0
+  * **Precision:** `0.8333` (83.33%)
+  * **Recall:** `1.0000` (100.00%)
+  * **F1-Score:** `0.9091` (90.91%)
+* **Production Status (Ground-Truth Availability):**
+  * In live production operations, **Ground-truth accuracy is NOT available**.
+  * Isolation Forest operates as an unsupervised outlier detector in production; flagged records are routed to administrative audit queues for manual inspector verification.
+
+---
+
+#### 3. Price Intelligence Engine
+* **Type:** Hybrid Deterministic Supply-Demand & Policy Rule Engine (NOT an unconstrained regression model)
+* **Purpose:** Estimate expected state procurement prices while enforcing government-notified Minimum Support Price (MSP) statutory lower bounds.
+* **Mathematical Specification:**
+  $$\text{Estimated Price} = \max(\text{Official MSP}, \text{Raw Estimate})$$
+  $$\text{Raw Estimate} = \text{Official MSP} \times \left(1.0 + \frac{\text{Expected Demand} - \text{Expected Supply}}{\text{Expected Demand}} \times \epsilon\right)$$
+* **Evaluation & Constraint Adherence:**
+  * Test Scope: All active state-crop combinations across Goa, Maharashtra, Karnataka, and Madhya Pradesh
+  * Floor Violations: `0`
+  * **Statutory Floor Compliance:** `100.0%`
+  * Price Distinction: The system strictly separates `Official MSP` (statutory value) from `Estimated State Procurement Price` (model estimate).
+
+---
+
+#### 4. Congestion Intelligence Engine
+* **Type:** Deterministic Rule-Based Operational Threshold Engine (**NOT a Machine Learning Model**)
+* **Purpose:** Classify procurement centre operational load to prevent gate bottlenecks and trigger dynamic farmer slot redirection.
+* **Classification Rules:**
+  * **LOW:** Utilization $< 50\%$ (Normal operational capacity)
+  * **MEDIUM:** $50\% \le \text{Utilization} < 75\%$ (Moderate queuing)
+  * **HIGH:** $75\% \le \text{Utilization} < 90\%$ (Congestion warning)
+  * **CRITICAL:** $\text{Utilization} \ge 90\%$ (Gate saturation; redirection recommended)
+* **Metrics:** 100% deterministic rule adherence. No ML classification metrics (e.g., accuracy, ROC-AUC) apply, as this is an operational rule system.
+
+---
+
+#### 5. Logistics & Truck Route Optimizer
+* **Type:** Operations Research Mixed-Integer Linear Programming Engine (**NOT a Machine Learning Model**)
+* **Algorithm / Solver:** Google OR-Tools (`pywraplp.Solver.CreateSolver('SCIP')`)
+* **Purpose:** Solve multi-centre fleet dispatch minimizing total haulage distance, vehicle count, and unmet centre demand.
+* **Objectives & Constraints:**
+  * **Objective:** Minimize $\sum_{(i,j)} \text{Distance}_{i,j} \times x_{i,j} + \text{Penalty} \times \text{UnmetDemand}$
+  * **Payload Constraint:** $\sum_j \text{Load}_{k,j} \le \text{TruckCapacity}_k$
+  * **Origin Supply Constraint:** Dispatched volume $\le$ Available centre lot stock
+  * **Destination Storage Constraint:** Received volume $\le$ Warehouse available storage
+* **Evaluation on Standard Multi-Centre Benchmark (5 Centres, 3 Trucks):**
+  * **Solution Status:** `Optimal` (Feasible solution rate: **100%**)
+  * **Capacity Violations:** `0` (Zero truck overload or storage overflow)
+  * **Total Allocated Volume:** `190.0` quintals
+  * **Total Route Distance:** `101.0` km
+  * **Fleet Capacity Utilization:** `95.0%`
+  * **Constraint Violations:** `0`
+
+---
+
+### Model Evaluation Limitations
+
+1. **Synthetic Training Data**: Both the supply forecast and anomaly detection models were trained and benchmarked on synthesized datasets (`ml/data/historical_arrivals.csv`, `ml/data/anomaly_training_dataset.csv`). While these datasets accurately model multi-state procurement dynamics, the reported metrics demonstrate software implementation fidelity rather than real-world agronomic accuracy under unobserved weather catastrophes or global commodity shocks.
+2. **Ground-Truth Label Absence in Production**: Anomaly detection precision and recall are measurable only on benchmark sets with pre-injected anomaly labels. In live production environments, ground-truth labels do not exist until verified by human auditors.
+3. **Deterministic Bounds in Price Intelligence**: The price intelligence engine uses a policy-constrained econometric model rather than an unconstrained deep neural network to guarantee that farmers are never quoted below the statutory MSP.
+4. **Optimization vs. Learning**: OR-Tools is an exact/heuristic mathematical solver, not a predictive learning model. It evaluates for optimality and constraint satisfaction rather than predictive accuracy.
+
 
 ---
 

@@ -60,11 +60,25 @@ def get_government_kpis(
         farmer_q = farmer_q.filter(Farmer.state.ilike(f"%{st_val}%"))
     reg_farmers = farmer_q.scalar() or 0
 
-    # 2. Active Centres
+    # 2. Active Centres & Geographic Scope
     centre_q = db.query(func.count(ProcurementCentre.id)).filter(ProcurementCentre.status != "INACTIVE")
+    state_count_q = db.query(func.count(distinct(ProcurementCentre.state))).filter(
+        ProcurementCentre.status != "INACTIVE",
+        ProcurementCentre.state.isnot(None),
+        ProcurementCentre.state != ""
+    )
+    district_count_q = db.query(func.count(distinct(ProcurementCentre.district))).filter(
+        ProcurementCentre.status != "INACTIVE",
+        ProcurementCentre.district.isnot(None),
+        ProcurementCentre.district != ""
+    )
     if has_state:
         centre_q = centre_q.filter(ProcurementCentre.state.ilike(f"%{st_val}%"))
+        state_count_q = state_count_q.filter(ProcurementCentre.state.ilike(f"%{st_val}%"))
+        district_count_q = district_count_q.filter(ProcurementCentre.state.ilike(f"%{st_val}%"))
     active_centres = centre_q.scalar() or 0
+    state_count = state_count_q.scalar() or 0
+    district_count = district_count_q.scalar() or 0
 
     # 3. Today's Bookings
     b_today_q = db.query(func.count(Booking.id)).join(Slot, Booking.slot_id == Slot.id).filter(Slot.date == today)
@@ -173,6 +187,8 @@ def get_government_kpis(
         "data": {
             "registered_farmers": reg_farmers,
             "active_centres": active_centres,
+            "state_count": state_count,
+            "district_count": district_count,
             "today_bookings": today_bookings,
             "today_procurement_quintals": float(today_proc_sum),
             "monthly_procurement_quintals": float(monthly_proc_sum),

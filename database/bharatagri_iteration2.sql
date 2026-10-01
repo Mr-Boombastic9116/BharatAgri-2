@@ -85123,6 +85123,27 @@ INSERT INTO `truck_route_approvals` (`route_prediction_id`, `action`, `action_by
 (3, 'APPROVED', 'gov_admin', 'Approved inter-state transfer for poultry feed support'),
 (4, 'SCHEDULED', 'gov_admin', 'Scheduled buffer stock redistribution');
 
+-- -------------------------------------------------------------
+-- 28. PROCUREMENT EVIDENCE (QUALITY, WEIGHING, MOISTURE)
+-- -------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS procurement_evidence (
+  id int NOT NULL AUTO_INCREMENT,
+  booking_id int NOT NULL,
+  procurement_id varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  evidence_type enum('QUALITY','WEIGHING','MOISTURE') COLLATE utf8mb4_unicode_ci NOT NULL,
+  file_path varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  original_filename varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  file_size_bytes int NOT NULL,
+  mime_type varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
+  notes varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  uploaded_by varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
+  uploaded_at datetime DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_pe_booking (booking_id),
+  KEY idx_pe_type (evidence_type),
+  CONSTRAINT fk_pe_booking FOREIGN KEY (booking_id) REFERENCES bookings (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 SET FOREIGN_KEY_CHECKS = 1;
 -- =================================================================
 -- END OF BHARATAGRI ITERATION 2 DATABASE DUMP

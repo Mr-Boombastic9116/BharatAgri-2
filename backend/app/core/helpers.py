@@ -28,13 +28,13 @@ def resolve_centre(centre_id_or_uid: str, db: Session) -> Optional[ProcurementCe
             return c
 
     # 4. Fallback for demo centre manager
-    if "centre" in cid.lower():
+    if "centre" in cid.lower() and ("demo" in cid.lower() or "01" in cid.lower() or cid.lower() == "centre"):
         c = db.query(ProcurementCentre).filter(ProcurementCentre.centre_id == "CENTRE-GOA-01").first()
         if c:
             return c
 
-    # 5. Default first operational centre
-    return db.query(ProcurementCentre).first()
+    return None
+
 
 
 def resolve_farmer(farmer_id_or_uid: str, db: Session) -> Optional[Farmer]:

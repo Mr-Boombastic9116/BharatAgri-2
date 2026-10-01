@@ -126,6 +126,14 @@ app.include_router(stats_router)
 app.include_router(price_router, prefix="/api")
 app.include_router(price_router)
 
+# Mount uploads directory for photo evidence
+import os
+from fastapi.staticfiles import StaticFiles
+uploads_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "uploads"))
+os.makedirs(os.path.join(uploads_dir, "evidence"), exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=uploads_dir), name="uploads")
+
+
 
 @app.on_event("startup")
 def startup_event():

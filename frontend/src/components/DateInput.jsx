@@ -362,16 +362,16 @@ export default function DateInput({
                     color: isSelected 
                       ? '#ffffff' 
                       : !isAllowed 
-                        ? '#cbd5e1' 
+                        ? 'var(--muted)' 
                         : isToday 
-                          ? 'var(--primary, #16a34a)' 
-                          : 'var(--secondary, #1e293b)',
+                          ? 'var(--primary)' 
+                          : 'var(--secondary)',
                     cursor: isAllowed ? 'pointer' : 'not-allowed',
                     transition: 'all 0.15s'
                   }}
                   onMouseEnter={(e) => {
                     if (isAllowed && !isSelected) {
-                      e.currentTarget.style.backgroundColor = '#f1f5f9';
+                      e.currentTarget.style.backgroundColor = 'var(--primary-light)';
                     }
                   }}
                   onMouseLeave={(e) => {
@@ -387,7 +387,7 @@ export default function DateInput({
           </div>
 
           {/* Calendar Footer: Today button & DD-MM-YYYY badge */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px', paddingTop: '8px', borderTop: '1px solid #f1f5f9' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px', paddingTop: '8px', borderTop: '1px solid var(--border)' }}>
             <button
               type="button"
               onClick={handleSelectToday}
