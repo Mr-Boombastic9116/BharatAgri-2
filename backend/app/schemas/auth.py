@@ -23,16 +23,25 @@ class LoginResponse(BaseModel):
     user: UserResponse
 
 class FarmerRegisterRequest(BaseModel):
+    user_id: Optional[str] = None
+    farmer_id: Optional[str] = None
+    user_code: Optional[str] = None
     name: str
     mobile: str
-    village: str
-    user_id: str
+    email: Optional[str] = None
+    dob: Optional[str] = None
     password: str
-    preferred_language: Optional[str] = "English"
-    land_area: Optional[float] = 2.5
-    state: Optional[str] = "Goa"
-    district: Optional[str] = "North Goa"
+    address: Optional[str] = None
+    village: Optional[str] = "Main Village"
     taluka: Optional[str] = "Bicholim"
+    district: Optional[str] = "North Goa"
+    state: Optional[str] = "Goa"
+    land_area: Optional[float] = 2.5
+    preferred_language: Optional[str] = "English"
+    bank_name: Optional[str] = "State Bank of India"
+    bank_account_no: Optional[str] = None
+    bank_ifsc: Optional[str] = "SBIN0001234"
+    ekyc_status: Optional[str] = "VERIFIED"
 
 class CentreRegisterRequest(BaseModel):
     centre_name: str

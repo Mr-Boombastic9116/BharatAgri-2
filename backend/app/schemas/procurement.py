@@ -15,7 +15,8 @@ class CollectionCreate(BaseModel):
     notes: Optional[str] = None
 
 class QualityCheckCreate(BaseModel):
-    collection_id: str
+    collection_id: Optional[str] = None
+    booking_id: Optional[int] = None
     moisture_content_pct: float
     foreign_matter_pct: float
     broken_grains_pct: Optional[float] = 0.0
@@ -29,6 +30,7 @@ class QualityCheckCreate(BaseModel):
 class WeighmentCreate(BaseModel):
     collection_id: Optional[str] = None
     quality_check_id: Optional[str] = None
+    booking_id: Optional[int] = None
     gross_weight_quintals: float
     tare_weight_quintals: float
     weighbridge_id: Optional[str] = "WB-01"

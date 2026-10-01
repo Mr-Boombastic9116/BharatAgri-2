@@ -14,14 +14,31 @@ import { ThemeProvider } from './context/ThemeContext';
 import { LanguageProvider } from './context/LanguageContext';
 
 function AppContent() {
-  const [activePage, setActivePage] = useState('home');
-  const [initialLoginRole, setInitialLoginRole] = useState('farmer');
-
   // User state persisted in localStorage
   const [user, setUser] = useState(() => {
     const saved = localStorage.getItem('bharatagri_user');
     return saved ? JSON.parse(saved) : null;
   });
+
+  const [activePage, setActivePage] = useState(() => {
+    const savedPage = localStorage.getItem('bharatagri_active_page');
+    const savedUser = localStorage.getItem('bharatagri_user');
+    if (savedPage) return savedPage;
+    if (savedUser) {
+      try {
+        const u = JSON.parse(savedUser);
+        const r = (u.role || '').toLowerCase();
+        if (r === 'farmer') return 'farmer-dashboard';
+        if (r === 'agent') return 'agent-dashboard';
+        if (r === 'government' || r === 'admin') return 'government-dashboard';
+        return 'centre-dashboard';
+      } catch (e) {
+        return 'home';
+      }
+    }
+    return 'home';
+  });
+  const [initialLoginRole, setInitialLoginRole] = useState('farmer');
 
   // Active booking for confirmation view
   const [confirmedBooking, setConfirmedBooking] = useState(null);
@@ -31,6 +48,7 @@ function AppContent() {
       setInitialLoginRole(options.role);
     }
     setActivePage(page);
+    localStorage.setItem('bharatagri_active_page', page);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 

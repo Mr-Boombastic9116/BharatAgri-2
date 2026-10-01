@@ -24,6 +24,7 @@ from backend.app.api.audit import router as audit_router
 from backend.app.api.ai import router as ai_router
 from backend.app.api.government import router as government_router
 from backend.app.api.stats import router as stats_router
+from backend.app.api.price import router as price_router
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("bharatagri")
@@ -122,6 +123,8 @@ app.include_router(audit_router)
 app.include_router(ai_router)
 app.include_router(government_router)
 app.include_router(stats_router)
+app.include_router(price_router, prefix="/api")
+app.include_router(price_router)
 
 
 @app.on_event("startup")

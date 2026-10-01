@@ -10,11 +10,31 @@ class CropInfo(BaseModel):
     expected_harvest_date: Optional[date] = None
     estimated_quantity_quintals: float
 
+class CropCreate(BaseModel):
+    crop_name: str
+    season: str = "Kharif 2026-27"
+    sowing_date: Optional[date] = None
+    expected_harvest_date: Optional[date] = None
+    estimated_quantity_quintals: float
+
+class CropUpdate(BaseModel):
+    crop_name: Optional[str] = None
+    season: Optional[str] = None
+    sowing_date: Optional[date] = None
+    expected_harvest_date: Optional[date] = None
+    estimated_quantity_quintals: Optional[float] = None
+
 class FarmerUpdate(BaseModel):
     name: Optional[str] = None
     mobile: Optional[str] = None
     email: Optional[str] = None
+    dob: Optional[date] = None
+    gender: Optional[str] = None
     address: Optional[str] = None
+    state: Optional[str] = None
+    district: Optional[str] = None
+    taluka: Optional[str] = None
+    village: Optional[str] = None
     land_area_hectares: Optional[float] = None
     bank_name: Optional[str] = None
     bank_account_no: Optional[str] = None

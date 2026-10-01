@@ -7,6 +7,7 @@ from backend.app.core.deps import get_current_user
 from backend.app.schemas.auth import LoginRequest, LoginResponse, FarmerRegisterRequest, CentreRegisterRequest, UserResponse
 from backend.app.models.user import User
 from backend.app.models.farmer import Farmer, FarmerCrop
+from backend.app.models.agent import Agent
 from backend.app.models.centre import ProcurementCentre
 from backend.app.models.audit import AuditLog
 
@@ -38,7 +39,26 @@ def login(req: LoginRequest, db: Session = Depends(get_db)):
             detail="Invalid User ID or Password for the selected role."
         )
 
-    access_token = create_access_token(data={"sub": user.user_id, "role": user.role, "id": user.id})
+    cid = getattr(user, "centre_id", None)
+    if user.role == "centre" and not cid:
+        cid = "CENTRE-GOA-01"
+
+    farmer_code = None
+    if user.role == "farmer":
+        f = db.query(Farmer).filter(Farmer.user_id == user.user_id).first()
+        if f: farmer_code = f.farmer_code
+
+    agent_code = None
+    if user.role == "agent":
+        a = db.query(Agent).filter(Agent.user_id == user.user_id).first()
+        if a: agent_code = a.agent_code
+
+    token_data = {"sub": user.user_id, "role": user.role, "id": user.id}
+    if cid: token_data["centre_id"] = cid
+    if farmer_code: token_data["farmer_code"] = farmer_code
+    if agent_code: token_data["agent_code"] = agent_code
+
+    access_token = create_access_token(data=token_data)
 
     # Record Audit Log
     try:
@@ -63,6 +83,9 @@ def login(req: LoginRequest, db: Session = Depends(get_db)):
         "user_id": user.user_id,
         "preferred_language": user.preferred_language or "English",
         "role": user.role,
+        "centre_id": cid,
+        "farmer_code": farmer_code,
+        "agent_code": agent_code,
         "status": user.status
     }
 
@@ -78,7 +101,13 @@ def login(req: LoginRequest, db: Session = Depends(get_db)):
 
 @router.post("/farmers/register", status_code=status.HTTP_201_CREATED)
 def register_farmer(req: FarmerRegisterRequest, db: Session = Depends(get_db)):
-    clean_uid = req.user_id.strip()
+    clean_uid = (req.user_id or req.user_code or req.farmer_id or "").strip()
+    if not clean_uid:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Farmer ID / User Code is required."
+        )
+
     existing = db.query(User).filter(func.lower(User.user_id) == func.lower(clean_uid)).first()
     if existing:
         raise HTTPException(
@@ -92,6 +121,7 @@ def register_farmer(req: FarmerRegisterRequest, db: Session = Depends(get_db)):
         user_id=clean_uid,
         name=req.name.strip(),
         mobile=req.mobile.strip(),
+        email=req.email.strip() if req.email else None,
         password_hash=pw_hash,
         role="farmer",
         preferred_language=req.preferred_language or "English",
@@ -100,18 +130,24 @@ def register_farmer(req: FarmerRegisterRequest, db: Session = Depends(get_db)):
     db.add(new_user)
     db.flush()
 
-    farmer_code = f"FRM-2026-{new_user.id:05d}"
+    farmer_code = (req.farmer_id or f"FRM-2026-{new_user.id:05d}").strip()
     new_farmer = Farmer(
         farmer_code=farmer_code,
         user_id=clean_uid,
         name=req.name.strip(),
         mobile=req.mobile.strip(),
-        village=req.village.strip(),
-        taluka=req.taluka or req.village.strip(),
-        district=req.district or "North Goa",
-        state=req.state or "Goa",
+        email=req.email.strip() if req.email else None,
+        dob=req.dob if req.dob else None,
+        address=req.address.strip() if req.address else None,
+        village=req.village.strip() if req.village else "Main Village",
+        taluka=req.taluka.strip() if req.taluka else "Bicholim",
+        district=req.district.strip() if req.district else "North Goa",
+        state=req.state.strip() if req.state else "Goa",
         land_area_hectares=req.land_area or 2.5,
-        ekyc_status="VERIFIED"
+        ekyc_status=req.ekyc_status or "VERIFIED",
+        bank_name=req.bank_name.strip() if req.bank_name else "State Bank of India",
+        bank_account_no=req.bank_account_no.strip() if req.bank_account_no else "10293847561",
+        bank_ifsc=req.bank_ifsc.strip() if req.bank_ifsc else "SBIN0001234"
     )
     db.add(new_farmer)
     db.flush()
@@ -142,6 +178,7 @@ def register_farmer(req: FarmerRegisterRequest, db: Session = Depends(get_db)):
             "mobile": new_user.mobile,
             "village": new_farmer.village,
             "user_id": new_user.user_id,
+            "farmer_code": new_farmer.farmer_code,
             "preferred_language": new_user.preferred_language,
             "role": "farmer"
         }
@@ -165,6 +202,7 @@ def register_centre(req: CentreRegisterRequest, db: Session = Depends(get_db)):
         mobile=req.contact_number or "9876543210",
         password_hash=pw_hash,
         role="centre",
+        centre_id=clean_id,
         status="ACTIVE"
     )
     db.add(new_user)
@@ -212,7 +250,21 @@ def register_centre(req: CentreRegisterRequest, db: Session = Depends(get_db)):
     }
 
 @router.get("/auth/me")
-def get_me(current_user: User = Depends(get_current_user)):
+def get_me(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    cid = getattr(current_user, "centre_id", None)
+    if current_user.role == "centre" and not cid:
+        cid = "CENTRE-GOA-01"
+
+    farmer_code = None
+    if current_user.role == "farmer":
+        f = db.query(Farmer).filter(Farmer.user_id == current_user.user_id).first()
+        if f: farmer_code = f.farmer_code
+
+    agent_code = None
+    if current_user.role == "agent":
+        a = db.query(Agent).filter(Agent.user_id == current_user.user_id).first()
+        if a: agent_code = a.agent_code
+
     return {
         "id": current_user.id,
         "user_id": current_user.user_id,
@@ -220,6 +272,9 @@ def get_me(current_user: User = Depends(get_current_user)):
         "email": current_user.email,
         "mobile": current_user.mobile,
         "role": current_user.role,
+        "centre_id": cid,
+        "farmer_code": farmer_code,
+        "agent_code": agent_code,
         "preferred_language": current_user.preferred_language,
         "status": current_user.status
     }

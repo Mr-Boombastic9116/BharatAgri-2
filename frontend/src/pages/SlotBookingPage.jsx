@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { getCentres, getSlots, bookSlot, getCentreDetails, getOperatingConfig, getDailyCapacity } from '../services/api';
-import { Calendar, Clock, MapPin, Wheat, AlertCircle, ArrowLeft, Scale, CheckCircle2, Info } from 'lucide-react';
+import { getCentres, getSlots, bookSlot, getCentreDetails, getOperatingConfig, getDailyCapacity, getEstimatedPrice } from '../services/api';
+import { Calendar, Clock, MapPin, Wheat, AlertCircle, ArrowLeft, Scale, CheckCircle2, Info, TrendingUp } from 'lucide-react';
 import { formatDateDisplay } from '../utils/dateUtils';
 import DateInput from '../components/DateInput';
 
@@ -40,6 +40,9 @@ export default function SlotBookingPage({ user, onBookingSuccess, navigate }) {
   const [supportedCropsList, setSupportedCropsList] = useState(['Paddy', 'Wheat', 'Maize']);
   const [crop, setCrop] = useState('Paddy');
   const [quantity, setQuantity] = useState('');
+
+  const [priceInfo, setPriceInfo] = useState(null);
+  const [loadingPrice, setLoadingPrice] = useState(false);
 
   const [slots, setSlots] = useState([]);
   const [selectedSlotId, setSelectedSlotId] = useState(null);
@@ -84,6 +87,22 @@ export default function SlotBookingPage({ user, onBookingSuccess, navigate }) {
       }
     }
   }, [selectedCentreId, centres]);
+
+  // Fetch real-time official MSP & estimated procurement price
+  useEffect(() => {
+    if (crop) {
+      const qVal = parseFloat(quantity) > 0 ? parseFloat(quantity) : 10;
+      setLoadingPrice(true);
+      getEstimatedPrice({
+        crop,
+        quantity: qVal,
+        centre_id: selectedCentreId
+      })
+        .then(data => setPriceInfo(data))
+        .catch(() => setPriceInfo(null))
+        .finally(() => setLoadingPrice(false));
+    }
+  }, [crop, quantity, selectedCentreId]);
 
   // Fetch slots, operating config, and daily capacity whenever selectedCentreId or date changes
   useEffect(() => {
@@ -336,11 +355,69 @@ export default function SlotBookingPage({ user, onBookingSuccess, navigate }) {
             </div>
           </div>
 
+          {/* Price Intelligence & MSP Estimates (Prompt 2 - Section 11) */}
+          {priceInfo && (
+            <div style={{
+              background: 'var(--bg-card)',
+              border: '1px solid var(--border)',
+              borderRadius: '12px',
+              padding: '16px',
+              marginBottom: '1.25rem',
+              boxShadow: 'var(--shadow-sm)'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', borderBottom: '1px solid var(--border)', paddingBottom: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <TrendingUp size={18} style={{ color: 'var(--primary)' }} />
+                  <span style={{ fontWeight: 700, color: 'var(--secondary)', fontSize: '0.95rem' }}>
+                    Government MSP & BharatAgri Price Estimate
+                  </span>
+                  <span className="badge badge-warning" style={{ fontSize: '0.7rem', fontWeight: 800, padding: '2px 8px' }}>
+                    ESTIMATE
+                  </span>
+                </div>
+                <span style={{ fontSize: '0.75rem', color: 'var(--muted)' }}>
+                  Advisory estimate • Non-guaranteed
+                </span>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', textAlign: 'center' }}>
+                <div style={{ background: 'var(--bg-page)', padding: '10px', borderRadius: '8px', border: '1px solid var(--border)' }}>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--muted)', fontWeight: 600, textTransform: 'uppercase' }}>Official MSP</div>
+                  <div style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--secondary)', marginTop: '2px' }}>
+                    ₹{priceInfo.official_msp?.toLocaleString('en-IN')}
+                    <span style={{ fontSize: '0.75rem', fontWeight: 500, color: 'var(--muted)' }}> / Q</span>
+                  </div>
+                </div>
+
+                <div style={{ background: 'var(--primary-light)', padding: '10px', borderRadius: '8px', border: '1px solid var(--primary-border)' }}>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--primary-hover)', fontWeight: 600, textTransform: 'uppercase' }}>Estimated Price</div>
+                  <div style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--primary)', marginTop: '2px' }}>
+                    ₹{priceInfo.estimated_price?.toLocaleString('en-IN')}
+                    <span style={{ fontSize: '0.75rem', fontWeight: 500, color: 'var(--primary-hover)' }}> / Q</span>
+                  </div>
+                </div>
+
+                <div style={{ background: 'var(--info-bg)', padding: '10px', borderRadius: '8px', border: '1px solid var(--border)' }}>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--info-text)', fontWeight: 600, textTransform: 'uppercase' }}>Estimated Total Value</div>
+                  <div style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--info-text)', marginTop: '2px' }}>
+                    ₹{((parseFloat(quantity) || 0) > 0 ? (parseFloat(quantity) * (priceInfo.estimated_price || 0)) : (priceInfo.estimated_price || 0)).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                  </div>
+                </div>
+              </div>
+
+              {priceInfo.explanation && (
+                <div style={{ marginTop: '10px', fontSize: '0.8rem', color: 'var(--muted)', lineHeight: 1.4 }}>
+                  <strong>Intelligence Rationale:</strong> {priceInfo.explanation}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Daily Quintal Capacity Status Bar */}
           {dailyCapacityInfo && !error && !noticeInfo && (
             <div style={{
-              background: 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)',
-              border: '1px solid #bbf7d0',
+              background: 'var(--primary-light)',
+              border: '1px solid var(--primary-border)',
               borderRadius: '10px',
               padding: '12px 16px',
               marginBottom: '1.25rem',
@@ -350,13 +427,13 @@ export default function SlotBookingPage({ user, onBookingSuccess, navigate }) {
               gap: '1rem',
               fontSize: '0.9rem'
             }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#166534', fontWeight: 600 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--primary-hover)', fontWeight: 600 }}>
                 <Scale size={18} />
                 <span>Daily Quintal Limit for {formatDateDisplay(date)}:</span>
               </div>
-              <div style={{ color: '#14532d', fontWeight: 800 }}>
+              <div style={{ color: 'var(--primary)', fontWeight: 800 }}>
                 {dailyCapacityInfo.booked_quintals} / {dailyCapacityInfo.max_quintals_per_day} Quintals Booked 
-                <span style={{ marginLeft: '8px', color: '#16a34a', fontWeight: 600 }}>
+                <span style={{ marginLeft: '8px', color: 'var(--primary)', fontWeight: 600 }}>
                   ({dailyCapacityInfo.available_quintals} Quintals Available)
                 </span>
               </div>
@@ -447,6 +524,16 @@ export default function SlotBookingPage({ user, onBookingSuccess, navigate }) {
               <div><strong>Location:</strong> {currentCentreDetails ? currentCentreDetails.location : ''}</div>
               <div><strong>Date:</strong> {formatDateDisplay(date)}</div>
               <div><strong>Time Slot:</strong> {currentSlotObj ? `${currentSlotObj.start_time} - ${currentSlotObj.end_time}` : ''}</div>
+              {priceInfo && (
+                <div style={{ marginTop: '0.5rem', paddingTop: '0.5rem', borderTop: '1px dashed #cbd5e1' }}>
+                  <div><strong>Official MSP:</strong> ₹{priceInfo.official_msp?.toLocaleString('en-IN')} / Q</div>
+                  <div><strong>Estimated Procurement Price:</strong> ₹{priceInfo.estimated_price?.toLocaleString('en-IN')} / Q <span className="badge badge-warning" style={{ fontSize: '0.65rem' }}>ESTIMATE</span></div>
+                  <div><strong>Estimated Total Value:</strong> ₹{((parseFloat(quantity) || 0) * (priceInfo.estimated_price || 0)).toLocaleString('en-IN', { maximumFractionDigits: 2 })}</div>
+                  <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '4px', fontStyle: 'italic' }}>
+                    * Non-guaranteed estimate. Final payment is calculated based on certified weighment and laboratory quality grading at gate pass.
+                  </div>
+                </div>
+              )}
             </div>
 
             <div style={{ display: 'flex', gap: '1rem' }}>

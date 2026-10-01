@@ -14,7 +14,7 @@ class Booking(Base):
     crop = Column(String(100), nullable=False)
     quantity = Column(Numeric(10, 2), nullable=False)
     status = Column(
-        Enum('CONFIRMED', 'CHECKED_IN', 'COLLECTED', 'QUALITY_CHECKED', 'WEIGHED', 'PROCURED', 'STORED', 'PAYMENT_INITIATED', 'PAID', 'REJECTED', 'EXPIRED'),
+        String(50),
         nullable=False,
         default='CONFIRMED',
         index=True

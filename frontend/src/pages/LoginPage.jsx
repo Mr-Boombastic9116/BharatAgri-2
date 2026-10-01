@@ -20,8 +20,18 @@ export default function LoginPage({ initialRole = 'farmer', onLoginSuccess, navi
   const [isRegistering, setIsRegistering] = useState(false);
   const [regName, setRegName] = useState('');
   const [regMobile, setRegMobile] = useState('');
+  const [regEmail, setRegEmail] = useState('');
+  const [regDob, setRegDob] = useState('1985-05-15');
   const [regVillage, setRegVillage] = useState('Ponda');
+  const [regTaluka, setRegTaluka] = useState('Ponda');
+  const [regDistrict, setRegDistrict] = useState('North Goa');
+  const [regState, setRegState] = useState('Goa');
+  const [regLandArea, setRegLandArea] = useState('2.5');
+  const [regBankName, setRegBankName] = useState('State Bank of India');
+  const [regBankAccount, setRegBankAccount] = useState('10293847561');
+  const [regBankIfsc, setRegBankIfsc] = useState('SBIN0001234');
   const [regId, setRegId] = useState('');
+  const [regFarmerCode, setRegFarmerCode] = useState('');
   const [regPassword, setRegPassword] = useState('');
   const [regLanguage, setRegLanguage] = useState('English');
 
@@ -85,14 +95,26 @@ export default function LoginPage({ initialRole = 'farmer', onLoginSuccess, navi
           setLoading(false);
           return;
         }
-        registeredUser = await registerFarmer(
-          regName.trim(),
-          regMobile.trim(),
-          regVillage.trim(),
-          regId.trim(),
-          regPassword,
-          regLanguage
-        );
+        const cleanFarmerCode = regFarmerCode.trim() || `FRM-2026-${Math.floor(10000 + Math.random() * 90000)}`;
+        registeredUser = await registerFarmer({
+          name: regName.trim(),
+          mobile: regMobile.trim(),
+          email: regEmail.trim() || undefined,
+          dob: regDob || undefined,
+          village: regVillage.trim(),
+          taluka: regTaluka.trim(),
+          district: regDistrict.trim(),
+          state: regState.trim(),
+          land_area: parseFloat(regLandArea) || 2.5,
+          user_id: regId.trim(),
+          user_code: regId.trim(),
+          farmer_id: cleanFarmerCode,
+          bank_name: regBankName.trim(),
+          bank_account_no: regBankAccount.trim(),
+          bank_ifsc: regBankIfsc.trim(),
+          password: regPassword,
+          preferred_language: regLanguage
+        });
       } else if (role === 'centre') {
         registeredUser = await registerCentre(
           regName.trim(),
@@ -297,7 +319,7 @@ export default function LoginPage({ initialRole = 'farmer', onLoginSuccess, navi
                   required
                   value={regId}
                   onChange={(e) => setRegId(e.target.value)}
-                  placeholder="Choose unique ID"
+                  placeholder="Choose unique user ID"
                   style={{ width: '100%', padding: '0.7rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', backgroundColor: 'var(--bg-page)', color: 'var(--secondary)' }}
                 />
               </div>
@@ -318,34 +340,164 @@ export default function LoginPage({ initialRole = 'farmer', onLoginSuccess, navi
             </div>
 
             {role === 'farmer' ? (
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.3rem', color: 'var(--secondary)' }}>
-                    Mobile Number *
-                  </label>
-                  <input
-                    type="tel"
-                    required
-                    value={regMobile}
-                    onChange={(e) => setRegMobile(e.target.value)}
-                    placeholder="10-digit mobile"
-                    style={{ width: '100%', padding: '0.7rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', backgroundColor: 'var(--bg-page)', color: 'var(--secondary)' }}
-                  />
+              <>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.3rem', color: 'var(--secondary)' }}>
+                      Farmer ID (Optional / Auto)
+                    </label>
+                    <input
+                      type="text"
+                      value={regFarmerCode}
+                      onChange={(e) => setRegFarmerCode(e.target.value)}
+                      placeholder="e.g. FRM-2026-00042"
+                      style={{ width: '100%', padding: '0.7rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', backgroundColor: 'var(--bg-page)', color: 'var(--secondary)' }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.3rem', color: 'var(--secondary)' }}>
+                      Mobile Number *
+                    </label>
+                    <input
+                      type="tel"
+                      required
+                      value={regMobile}
+                      onChange={(e) => setRegMobile(e.target.value)}
+                      placeholder="10-digit mobile"
+                      style={{ width: '100%', padding: '0.7rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', backgroundColor: 'var(--bg-page)', color: 'var(--secondary)' }}
+                    />
+                  </div>
                 </div>
 
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.3rem', color: 'var(--secondary)' }}>
-                    Village / Locality *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={regVillage}
-                    onChange={(e) => setRegVillage(e.target.value)}
-                    style={{ width: '100%', padding: '0.7rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', backgroundColor: 'var(--bg-page)', color: 'var(--secondary)' }}
-                  />
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.3rem', color: 'var(--secondary)' }}>
+                      Email Address
+                    </label>
+                    <input
+                      type="email"
+                      value={regEmail}
+                      onChange={(e) => setRegEmail(e.target.value)}
+                      placeholder="farmer@example.com"
+                      style={{ width: '100%', padding: '0.7rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', backgroundColor: 'var(--bg-page)', color: 'var(--secondary)' }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.3rem', color: 'var(--secondary)' }}>
+                      Date of Birth
+                    </label>
+                    <input
+                      type="date"
+                      value={regDob}
+                      onChange={(e) => setRegDob(e.target.value)}
+                      style={{ width: '100%', padding: '0.7rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', backgroundColor: 'var(--bg-page)', color: 'var(--secondary)' }}
+                    />
+                  </div>
                 </div>
-              </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.75rem' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.3rem', color: 'var(--secondary)' }}>
+                      State *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={regState}
+                      onChange={(e) => setRegState(e.target.value)}
+                      style={{ width: '100%', padding: '0.7rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', backgroundColor: 'var(--bg-page)', color: 'var(--secondary)' }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.3rem', color: 'var(--secondary)' }}>
+                      District *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={regDistrict}
+                      onChange={(e) => setRegDistrict(e.target.value)}
+                      style={{ width: '100%', padding: '0.7rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', backgroundColor: 'var(--bg-page)', color: 'var(--secondary)' }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.3rem', color: 'var(--secondary)' }}>
+                      Taluka / Block *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={regTaluka}
+                      onChange={(e) => setRegTaluka(e.target.value)}
+                      style={{ width: '100%', padding: '0.7rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', backgroundColor: 'var(--bg-page)', color: 'var(--secondary)' }}
+                    />
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '1rem' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.3rem', color: 'var(--secondary)' }}>
+                      Village / Locality *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={regVillage}
+                      onChange={(e) => setRegVillage(e.target.value)}
+                      style={{ width: '100%', padding: '0.7rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', backgroundColor: 'var(--bg-page)', color: 'var(--secondary)' }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.3rem', color: 'var(--secondary)' }}>
+                      Land Area (Ha) *
+                    </label>
+                    <input
+                      type="number"
+                      step="0.1"
+                      required
+                      value={regLandArea}
+                      onChange={(e) => setRegLandArea(e.target.value)}
+                      style={{ width: '100%', padding: '0.7rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', backgroundColor: 'var(--bg-page)', color: 'var(--secondary)' }}
+                    />
+                  </div>
+                </div>
+
+                {/* Bank Details (Encrypted/Masked storage) */}
+                <div style={{ border: '1px dashed var(--border)', borderRadius: 'var(--radius-sm)', padding: '0.85rem', backgroundColor: 'var(--primary-light)' }}>
+                  <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--primary-hover)', marginBottom: '0.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span>SECURE BANKING ACCOUNT (FOR DIRECT BENEFIT MSP TRANSFER)</span>
+                    {regBankAccount.length > 4 && (
+                      <span style={{ fontSize: '0.75rem', color: 'var(--muted)' }}>
+                        Preview: {'*'.repeat(Math.max(0, regBankAccount.length - 4)) + regBankAccount.slice(-4)}
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '0.75rem' }}>
+                    <div>
+                      <input
+                        type="text"
+                        required
+                        value={regBankAccount}
+                        onChange={(e) => setRegBankAccount(e.target.value)}
+                        placeholder="Bank Account Number"
+                        style={{ width: '100%', padding: '0.6rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', backgroundColor: 'var(--bg-card)', color: 'var(--secondary)' }}
+                      />
+                    </div>
+                    <div>
+                      <input
+                        type="text"
+                        required
+                        value={regBankIfsc}
+                        onChange={(e) => setRegBankIfsc(e.target.value.toUpperCase())}
+                        placeholder="IFSC Code (e.g. SBIN0001234)"
+                        style={{ width: '100%', padding: '0.6rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', backgroundColor: 'var(--bg-card)', color: 'var(--secondary)' }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </>
             ) : (
               <div>
                 <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.3rem', color: 'var(--secondary)' }}>

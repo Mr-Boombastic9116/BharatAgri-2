@@ -277,10 +277,10 @@ export default function DateInput({
             top: 'calc(100% + 6px)',
             left: 0,
             zIndex: 1100,
-            backgroundColor: '#ffffff',
+            backgroundColor: 'var(--bg-card, #ffffff)',
             borderRadius: '10px',
             border: '1px solid var(--border, #cbd5e1)',
-            boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.15), 0 8px 10px -6px rgba(0, 0, 0, 0.1)',
+            boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.25), 0 8px 10px -6px rgba(0, 0, 0, 0.15)',
             padding: '14px',
             width: '280px',
             userSelect: 'none'

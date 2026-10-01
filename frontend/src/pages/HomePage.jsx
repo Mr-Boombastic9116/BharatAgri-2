@@ -25,7 +25,7 @@ export default function HomePage({ navigate }) {
     <div className="home-page">
       {/* Hero Section */}
       <section style={{ 
-        backgroundColor: '#ffffff', 
+        backgroundColor: 'var(--bg-card)', 
         borderBottom: '1px solid var(--border)',
         padding: '4rem 0 3.5rem 0',
         textAlign: 'center'
@@ -44,7 +44,7 @@ export default function HomePage({ navigate }) {
             marginBottom: '1.25rem',
             border: '1px solid var(--primary-border)'
           }}>
-            <Sprout size={16} /> Official Procurement Portal Prototype
+            <Sprout size={16} /> Official Procurement Portal
           </div>
 
           <h1 style={{ 

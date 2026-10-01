@@ -46,21 +46,31 @@ export async function getHealth() {
 // ----------------------------------------------------
 // FARMERS
 // ----------------------------------------------------
-export async function registerFarmer(name, mobile, village, userId, password, preferredLanguage) {
-  const res = await fetch(`${API_BASE}/farmers/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      name,
+export async function registerFarmer(nameOrPayload, mobile, village, userId, password, preferredLanguage) {
+  let bodyPayload;
+  if (typeof nameOrPayload === 'object' && nameOrPayload !== null) {
+    bodyPayload = nameOrPayload;
+  } else {
+    bodyPayload = {
+      name: nameOrPayload,
       mobile,
       village,
       user_id: userId,
       password,
       preferred_language: preferredLanguage
-    })
+    };
+  }
+
+  const res = await fetch(`${API_BASE}/farmers/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(bodyPayload)
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error?.message || data.error || 'Farmer registration failed');
+  if (!res.ok) {
+    const msg = data.error?.message || data.detail?.message || data.detail || data.error || 'Farmer registration failed';
+    throw new Error(msg);
+  }
   return data.user;
 }
 
@@ -96,10 +106,13 @@ export async function registerCentre(centreName, centreId, password, location, c
   return data.user;
 }
 
-export async function getCentres() {
-  const res = await fetch(`${API_BASE}/centres`);
+export async function getCentres(params = {}) {
+  const query = new URLSearchParams(params).toString();
+  const url = query ? `${API_BASE}/centres?${query}` : `${API_BASE}/centres`;
+  const res = await fetch(url);
   if (!res.ok) throw new Error('Failed to fetch procurement centres');
-  return res.json();
+  const data = await res.json();
+  return Array.isArray(data) ? data : (data.data || data);
 }
 
 export async function getCentreDetails(centreId) {
@@ -244,6 +257,17 @@ export async function getOperatingConfig(centreId) {
   });
   if (!res.ok) throw new Error('Failed to fetch operating config');
   return res.json();
+}
+
+export async function updateOperatingConfig(centreId, config) {
+  const res = await fetch(`${API_BASE}/centres/${encodeURIComponent(centreId)}/operating-config`, {
+    method: 'PUT',
+    headers: getAuthHeaders(),
+    body: JSON.stringify(config)
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error?.message || data.detail || 'Failed to update operating configuration');
+  return data;
 }
 
 export async function updateOperatingDays(centreId, operatingDays) {
@@ -495,60 +519,85 @@ export async function getGovernmentKPIs() {
   return data.data || data;
 }
 
-export async function getProcurementTrend() {
-  const res = await fetch(`${API_BASE}/government/analytics/procurement-trend`, {
+export async function getProcurementTrend(state) {
+  const params = state && state !== 'Nationwide' ? `?state=${encodeURIComponent(state)}` : '';
+  const res = await fetch(`${API_BASE}/government/analytics/procurement-trend${params}`, {
     headers: getAuthHeaders()
   });
   const data = await res.json();
   return data.data || [];
 }
 
-export async function getCropDistribution() {
-  const res = await fetch(`${API_BASE}/government/analytics/crop-distribution`, {
+export async function getCropDistribution(state) {
+  const params = state && state !== 'Nationwide' ? `?state=${encodeURIComponent(state)}` : '';
+  const res = await fetch(`${API_BASE}/government/analytics/crop-distribution${params}`, {
     headers: getAuthHeaders()
   });
   const data = await res.json();
   return data.data || [];
 }
 
-export async function getGeographyProcurement() {
-  const res = await fetch(`${API_BASE}/government/analytics/state-district-procurement`, {
+export async function getGeographyProcurement(state) {
+  const params = state && state !== 'Nationwide' ? `?state=${encodeURIComponent(state)}` : '';
+  const res = await fetch(`${API_BASE}/government/analytics/state-district-procurement${params}`, {
     headers: getAuthHeaders()
   });
   const data = await res.json();
   return data.data || [];
 }
 
-export async function getForecastVsActual() {
-  const res = await fetch(`${API_BASE}/government/analytics/forecast-vs-actual`, {
+export async function getForecastVsActual(state) {
+  const params = state && state !== 'Nationwide' ? `?state=${encodeURIComponent(state)}` : '';
+  const res = await fetch(`${API_BASE}/government/analytics/forecast-vs-actual${params}`, {
     headers: getAuthHeaders()
   });
   const data = await res.json();
   return data.data || [];
 }
 
-export async function getCentreUtilizationAnalytics() {
-  const res = await fetch(`${API_BASE}/government/analytics/centre-utilization`, {
+export async function getCentreUtilizationAnalytics(state) {
+  const params = state && state !== 'Nationwide' ? `?state=${encodeURIComponent(state)}` : '';
+  const res = await fetch(`${API_BASE}/government/analytics/centre-utilization${params}`, {
     headers: getAuthHeaders()
   });
   const data = await res.json();
   return data.data || [];
 }
 
-export async function getPaymentsSummary() {
-  const res = await fetch(`${API_BASE}/government/analytics/payments-summary`, {
+export async function getPaymentsSummary(state) {
+  const params = state && state !== 'Nationwide' ? `?state=${encodeURIComponent(state)}` : '';
+  const res = await fetch(`${API_BASE}/government/analytics/payments-summary${params}`, {
     headers: getAuthHeaders()
   });
   const data = await res.json();
   return data.data || [];
 }
 
-export async function getAnomaliesSummary() {
-  const res = await fetch(`${API_BASE}/government/analytics/anomalies-summary`, {
+export async function getAnomaliesSummary(state) {
+  const params = state && state !== 'Nationwide' ? `?state=${encodeURIComponent(state)}` : '';
+  const res = await fetch(`${API_BASE}/government/analytics/anomalies-summary${params}`, {
     headers: getAuthHeaders()
   });
   const data = await res.json();
   return data.data || {};
+}
+
+export async function getGovernmentCentres(state) {
+  const params = state && state !== 'Nationwide' ? `?state=${encodeURIComponent(state)}` : '';
+  const res = await fetch(`${API_BASE}/government/centres${params}`, {
+    headers: getAuthHeaders()
+  });
+  const data = await res.json();
+  return Array.isArray(data) ? data : (data.data || []);
+}
+
+export async function getGovernmentCentreDetail(centreId) {
+  const res = await fetch(`${API_BASE}/government/centres/${encodeURIComponent(centreId)}/detail`, {
+    headers: getAuthHeaders()
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error?.message || data.detail || 'Failed to fetch centre detail');
+  return data.data || data;
 }
 
 // ----------------------------------------------------
@@ -624,4 +673,220 @@ export async function registerFarmerByAgent(payload) {
   const data = await res.json();
   if (!res.ok) throw new Error(data.error?.message || data.detail || 'Agent registration of farmer failed');
   return data;
+}
+
+// ----------------------------------------------------
+// GOVERNMENT — STATE FILTER SUPPORT
+// ----------------------------------------------------
+export async function getAvailableStates() {
+  const res = await fetch(`${API_BASE}/government/states`, {
+    headers: getAuthHeaders()
+  });
+  const data = await res.json();
+  return data.states || [];
+}
+
+export async function getGovernmentKPIsWithState(state) {
+  const params = state && state !== 'Nationwide' ? `?state=${encodeURIComponent(state)}` : '';
+  const res = await fetch(`${API_BASE}/government/kpis${params}`, {
+    headers: getAuthHeaders()
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error?.message || data.detail || 'Failed to load Government KPIs');
+  return data.data || data;
+}
+
+export async function getProcurementTrendWithState(state) {
+  const params = state && state !== 'Nationwide' ? `?state=${encodeURIComponent(state)}` : '';
+  const res = await fetch(`${API_BASE}/government/analytics/procurement-trend${params}`, {
+    headers: getAuthHeaders()
+  });
+  const data = await res.json();
+  return data.data || [];
+}
+
+export async function getCropDistributionWithState(state) {
+  const params = state && state !== 'Nationwide' ? `?state=${encodeURIComponent(state)}` : '';
+  const res = await fetch(`${API_BASE}/government/analytics/crop-distribution${params}`, {
+    headers: getAuthHeaders()
+  });
+  const data = await res.json();
+  return data.data || [];
+}
+
+export async function getGeographyProcurementWithState(state) {
+  const params = state && state !== 'Nationwide' ? `?state=${encodeURIComponent(state)}` : '';
+  const res = await fetch(`${API_BASE}/government/analytics/state-district-procurement${params}`, {
+    headers: getAuthHeaders()
+  });
+  const data = await res.json();
+  return data.data || [];
+}
+
+// ----------------------------------------------------
+// PRICE & MSP INTELLIGENCE
+// ----------------------------------------------------
+export async function getMspPrices(params = {}) {
+  const query = new URLSearchParams(params).toString();
+  const res = await fetch(`${API_BASE}/price/msp?${query}`, {
+    headers: getAuthHeaders()
+  });
+  const data = await res.json();
+  return data.data || data;
+}
+
+export async function getEstimatedPrice(payload) {
+  const res = await fetch(`${API_BASE}/price/estimate`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify(payload)
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error?.message || data.detail || 'Price estimation failed');
+  return data.data || data;
+}
+
+export async function getPriceIntelligence(params = {}) {
+  const query = new URLSearchParams(params).toString();
+  const url = query ? `${API_BASE}/price-intelligence?${query}` : `${API_BASE}/price-intelligence`;
+  const res = await fetch(url, { headers: getAuthHeaders() });
+  const data = await res.json();
+  return data;
+}
+
+export async function getStateCropSupplyDemand(state) {
+  let url = `${API_BASE}/price-intelligence`;
+  if (state && state !== 'Nationwide') url += `?state=${encodeURIComponent(state)}`;
+  const res = await fetch(url, { headers: getAuthHeaders() });
+  const data = await res.json();
+  return data.data || data;
+}
+
+export async function getCentreOperationalIntelligence(centreId) {
+  const res = await fetch(`${API_BASE}/centres/${encodeURIComponent(centreId)}/operational-intelligence`, {
+    headers: getAuthHeaders()
+  });
+  if (!res.ok) throw new Error('Failed to fetch centre operational intelligence');
+  const data = await res.json();
+  return data;
+}
+
+// ----------------------------------------------------
+// TRUCK ROUTES & GOVERNMENT APPROVAL
+// ----------------------------------------------------
+export async function getTruckRoutePredictions(params = {}) {
+  const query = new URLSearchParams(params).toString();
+  const res = await fetch(`${API_BASE}/trucks/routes/predictions?${query}`, {
+    headers: getAuthHeaders()
+  });
+  const data = await res.json();
+  return data.data || [];
+}
+
+export async function generateTruckRoutePredictions(payload = {}) {
+  const res = await fetch(`${API_BASE}/trucks/routes/predict`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify(payload)
+  });
+  const data = await res.json();
+  return data;
+}
+
+export async function approveTruckRoute(routeId, comments) {
+  const res = await fetch(`${API_BASE}/trucks/routes/${encodeURIComponent(routeId)}/approve`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ comments: comments || '' })
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error?.message || data.detail || 'Approval failed');
+  return data;
+}
+
+export async function rejectTruckRoute(routeId, reason, comments) {
+  const res = await fetch(`${API_BASE}/trucks/routes/${encodeURIComponent(routeId)}/reject`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ rejection_reason: reason, comments: comments || '' })
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error?.message || data.detail || 'Rejection failed');
+  return data;
+}
+
+export async function scheduleTruckRoute(routeId) {
+  const res = await fetch(`${API_BASE}/trucks/routes/${encodeURIComponent(routeId)}/schedule`, {
+    method: 'POST',
+    headers: getAuthHeaders()
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error?.message || data.detail || 'Scheduling failed');
+  return data;
+}
+
+export async function updateTruckRoute(routeId, payload) {
+  const res = await fetch(`${API_BASE}/trucks/routes/${encodeURIComponent(routeId)}`, {
+    method: 'PUT',
+    headers: getAuthHeaders(),
+    body: JSON.stringify(payload)
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error?.message || data.detail || 'Update failed');
+  return data;
+}
+
+// ----------------------------------------------------
+// FARMER CROPS CRUD
+// ----------------------------------------------------
+export async function getFarmerCrops(farmerId) {
+  const res = await fetch(`${API_BASE}/farmers/${encodeURIComponent(farmerId)}/crops`, {
+    headers: getAuthHeaders()
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error('Failed to fetch farmer crops');
+  return Array.isArray(data) ? data : (data.data || []);
+}
+
+export async function addFarmerCrop(farmerId, payload) {
+  const res = await fetch(`${API_BASE}/farmers/${encodeURIComponent(farmerId)}/crops`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify(payload)
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error?.message || data.detail || 'Failed to add crop');
+  return data.crop || data;
+}
+
+export async function updateFarmerCrop(farmerId, cropId, payload) {
+  const res = await fetch(`${API_BASE}/farmers/${encodeURIComponent(farmerId)}/crops/${cropId}`, {
+    method: 'PUT',
+    headers: getAuthHeaders(),
+    body: JSON.stringify(payload)
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error?.message || data.detail || 'Failed to update crop');
+  return data.crop || data;
+}
+
+export async function deleteFarmerCrop(farmerId, cropId) {
+  const res = await fetch(`${API_BASE}/farmers/${encodeURIComponent(farmerId)}/crops/${cropId}`, {
+    method: 'DELETE',
+    headers: getAuthHeaders()
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error?.message || data.detail || 'Failed to delete crop');
+  return data;
+}
+
+export async function updateFarmerProfile(farmerId, payload) {
+  const res = await fetch(`${API_BASE}/farmers/${encodeURIComponent(farmerId)}`, {
+    method: 'PUT',
+    headers: getAuthHeaders(),
+    body: JSON.stringify(payload)
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error?.message || data.detail || 'Failed to update profile');
+  return data.farmer || data;
 }

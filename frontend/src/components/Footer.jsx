@@ -6,7 +6,7 @@ export default function Footer() {
       <div className="container">
         <p><strong>BHARATAGRI</strong> — Smart Agricultural Procurement Platform</p>
         <p style={{ marginTop: '0.25rem', fontSize: '0.8rem' }}>
-          Smart Procurement. Better Farming. | Public Procurement Platform Prototype
+          Smart Procurement. Better Farming. | Public Procurement Platform
         </p>
       </div>
     </footer>

@@ -23,7 +23,7 @@ export default function AppointmentCard({ booking }) {
 
       {/* QR Code Section */}
       <div style={{
-        backgroundColor: '#ffffff',
+        backgroundColor: 'var(--bg-card)',
         border: '2px solid var(--border)',
         borderRadius: 'var(--radius-md)',
         padding: '1.25rem',

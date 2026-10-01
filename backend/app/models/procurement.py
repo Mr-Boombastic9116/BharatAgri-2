@@ -62,10 +62,13 @@ class ProcurementRecord(Base):
     farmer_id = Column(String(100), nullable=False, index=True)
     centre_id = Column(String(50), nullable=False, index=True)
     crop = Column(String(100), nullable=False)
+    quality_grade = Column(String(20), default="GRADE_A")
+    moisture_content_pct = Column(Numeric(5, 2), default=12.50)
     procured_quantity_quintals = Column(Numeric(10, 2), nullable=False)
     msp_rate_per_quintal = Column(Numeric(10, 2), nullable=False)
     total_procurement_value = Column(Numeric(12, 2), nullable=False)
     status = Column(String(50), default="CONFIRMED")
+    warehouse_location = Column(String(150), nullable=True)
     created_at = Column(DateTime, server_default=func.now())
 
     booking = relationship("Booking")

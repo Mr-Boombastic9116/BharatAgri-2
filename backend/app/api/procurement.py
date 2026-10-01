@@ -25,10 +25,27 @@ def record_collection(req: CollectionCreate, db: Session = Depends(get_db)):
     if not booking:
         raise HTTPException(status_code=404, detail="Booking not found.")
 
-    if booking.status not in ["BOOKED", "CHECKED_IN", "CONFIRMED"]:
+    if booking.status == "RECEIVED":
+        existing_col = db.query(CollectionRecord).filter(CollectionRecord.booking_id == booking.id).first()
+        if existing_col:
+            return {
+                "success": True,
+                "message": "Collection already recorded for this booking",
+                "collection_id": existing_col.collection_id,
+                "booking_id": booking.id,
+                "appointment_id": booking.appointment_id,
+                "data": {
+                    "collection_id": existing_col.collection_id,
+                    "booking_id": booking.id,
+                    "appointment_id": booking.appointment_id,
+                    "status": "RECEIVED"
+                }
+            }
+
+    if booking.status not in ["BOOKED", "CHECKED_IN", "CONFIRMED", "ARRIVED", "VERIFIED", "RECEIVED"]:
         raise HTTPException(
             status_code=400,
-            detail=f"Cannot record collection for booking in state '{booking.status}'. Farmer must be booked/checked-in."
+            detail=f"Cannot record collection for booking in state '{booking.status}'. Farmer must be booked/checked-in/arrived."
         )
 
     col_count = db.query(CollectionRecord).count() + 1
@@ -48,17 +65,17 @@ def record_collection(req: CollectionCreate, db: Session = Depends(get_db)):
         collection_method="DIRECT_CENTRE" if not req.truck_number else "TRUCK_GATE",
         truck_number=req.truck_number or "DIRECT_ARRIVAL",
         collected_by=req.collected_by or "Procurement Staff",
-        status="COLLECTED"
+        status="RECEIVED"
     )
     db.add(col)
 
     old_st = booking.status
-    booking.status = "COLLECTED"
+    booking.status = "RECEIVED"
 
     db.add(BookingStatusHistory(
         booking_id=booking.id,
         old_status=old_st,
-        new_status="COLLECTED",
+        new_status="RECEIVED",
         changed_by=req.collected_by or "Procurement Staff",
         notes=f"Produce received at collection dock ({collected_qty} Quintals)"
     ))
@@ -76,20 +93,38 @@ def record_collection(req: CollectionCreate, db: Session = Depends(get_db)):
         "success": True,
         "message": "Collection recorded successfully",
         "collection_id": collection_id,
-        "data": {"collection_id": collection_id}
+        "booking_id": booking.id,
+        "appointment_id": booking.appointment_id,
+        "data": {
+            "collection_id": collection_id,
+            "booking_id": booking.id,
+            "appointment_id": booking.appointment_id,
+            "status": "RECEIVED"
+        }
     }
 
 @router.post("/quality", status_code=201)
 def record_quality_check(req: QualityCheckCreate, db: Session = Depends(get_db)):
-    col = db.query(CollectionRecord).filter(CollectionRecord.collection_id == req.collection_id).first()
+    col = None
+    if req.collection_id:
+        col = db.query(CollectionRecord).filter(CollectionRecord.collection_id == req.collection_id).first()
+    if not col and req.booking_id:
+        col = db.query(CollectionRecord).filter(CollectionRecord.booking_id == req.booking_id).first()
+
     if not col:
         raise HTTPException(status_code=404, detail="Collection record not found.")
 
     booking = db.query(Booking).filter(Booking.id == col.booking_id).first()
 
-    existing_qc = db.query(QualityCheck).filter(QualityCheck.collection_id == req.collection_id).first()
+    existing_qc = db.query(QualityCheck).filter(QualityCheck.collection_id == col.collection_id).first()
     if existing_qc:
-        raise HTTPException(status_code=400, detail="Quality check already completed for this collection.")
+        return {
+            "success": True,
+            "message": "Quality check already completed for this collection",
+            "check_id": existing_qc.check_id,
+            "passed": existing_qc.passed,
+            "data": {"check_id": existing_qc.check_id, "passed": existing_qc.passed}
+        }
 
     check_count = db.query(QualityCheck).count() + 1
     check_id = f"QC-{col.centre_id}-{check_count:05d}"
@@ -99,7 +134,7 @@ def record_quality_check(req: QualityCheckCreate, db: Session = Depends(get_db))
 
     qc = QualityCheck(
         check_id=check_id,
-        collection_id=req.collection_id,
+        collection_id=col.collection_id,
         moisture_content_pct=req.moisture_content_pct,
         foreign_matter_pct=req.foreign_matter_pct,
         broken_grains_pct=req.broken_grains_pct or req.damaged_grains_pct or 0.0,
@@ -126,7 +161,7 @@ def record_quality_check(req: QualityCheckCreate, db: Session = Depends(get_db))
         action="QUALITY_CHECK_COMPLETED",
         entity="QUALITY_CHECK",
         entity_id=check_id,
-        new_value=f"Collection: {req.collection_id}, Grade: {qc.quality_grade}, Passed: {req.passed}"
+        new_value=f"Collection: {col.collection_id}, Grade: {qc.quality_grade}, Passed: {req.passed}"
     ))
 
     db.commit()
@@ -147,6 +182,8 @@ def record_weighment(req: WeighmentCreate, db: Session = Depends(get_db)):
         qc_rec = db.query(QualityCheck).filter(QualityCheck.check_id == req.quality_check_id).first()
         if qc_rec:
             col = db.query(CollectionRecord).filter(CollectionRecord.collection_id == qc_rec.collection_id).first()
+    elif req.booking_id:
+        col = db.query(CollectionRecord).filter(CollectionRecord.booking_id == req.booking_id).first()
 
     if not col:
         raise HTTPException(status_code=404, detail="Collection record not found.")
@@ -157,7 +194,13 @@ def record_weighment(req: WeighmentCreate, db: Session = Depends(get_db)):
 
     existing_wb = db.query(Weighment).filter(Weighment.collection_id == col.collection_id).first()
     if existing_wb:
-        raise HTTPException(status_code=400, detail="Weighment already recorded for this collection.")
+        return {
+            "success": True,
+            "message": "Weighment already recorded for this collection",
+            "weighment_id": existing_wb.weighment_id,
+            "net_weight_quintals": float(existing_wb.net_weight_quintals),
+            "data": {"weighment_id": existing_wb.weighment_id, "net_weight_quintals": float(existing_wb.net_weight_quintals)}
+        }
 
     net_wt = round(req.gross_weight_quintals - req.tare_weight_quintals, 2)
     if net_wt <= 0:
@@ -225,8 +268,12 @@ def record_procurement(req: ProcureCreate, db: Session = Depends(get_db)):
             booking = db.query(Booking).filter(Booking.id == req.booking_id).first()
         if req.collection_id:
             col = db.query(CollectionRecord).filter(CollectionRecord.collection_id == req.collection_id).first()
-            if col:
-                wb = db.query(Weighment).filter(Weighment.collection_id == col.collection_id).first()
+        if not col and booking:
+            col = db.query(CollectionRecord).filter(CollectionRecord.booking_id == booking.id).first()
+        if col and not booking:
+            booking = db.query(Booking).filter(Booking.id == col.booking_id).first()
+        if col and not wb:
+            wb = db.query(Weighment).filter(Weighment.collection_id == col.collection_id).first()
 
     if not booking or not col or not wb:
         raise HTTPException(status_code=400, detail="Cannot procure without matching booking, collection, and weighment.")
@@ -237,6 +284,10 @@ def record_procurement(req: ProcureCreate, db: Session = Depends(get_db)):
     rate = req.msp_rate_per_quintal or req.rate_per_quintal_inr or 2300.0
     tot_val = round(procured_qty * rate, 2)
 
+    qc = db.query(QualityCheck).filter(QualityCheck.collection_id == col.collection_id).first() if col else None
+    grade = (qc.quality_grade if qc else "GRADE_A")
+    moisture = (float(qc.moisture_content_pct) if qc else 12.50)
+
     proc = ProcurementRecord(
         procurement_id=procurement_id,
         booking_id=booking.id,
@@ -244,6 +295,8 @@ def record_procurement(req: ProcureCreate, db: Session = Depends(get_db)):
         farmer_id=booking.farmer_id,
         centre_id=booking.centre_id,
         crop=booking.crop,
+        quality_grade=grade,
+        moisture_content_pct=moisture,
         procured_quantity_quintals=procured_qty,
         msp_rate_per_quintal=rate,
         total_procurement_value=tot_val,
@@ -270,7 +323,7 @@ def record_procurement(req: ProcureCreate, db: Session = Depends(get_db)):
     )
     db.add(storage)
 
-    # Automatically initialize Payment in PENDING / INITIATED state
+    # Automatically initialize Payment in INITIATED state
     pay_count = db.query(Payment).count() + 1
     payment_id = f"PAY-{booking.centre_id}-{pay_count:05d}"
     pay = Payment(
@@ -287,14 +340,14 @@ def record_procurement(req: ProcureCreate, db: Session = Depends(get_db)):
     db.add(pay)
 
     old_st = booking.status
-    booking.status = "PROCURED"
+    booking.status = "PAYMENT_INITIATED"
 
     db.add(BookingStatusHistory(
         booking_id=booking.id,
         old_status=old_st,
-        new_status="PROCURED",
+        new_status="PAYMENT_INITIATED",
         changed_by=req.procurement_officer or "PROCUREMENT_MANAGER",
-        notes=f"Procured {procured_qty}Q at MSP {rate}. Assigned Lot: {lot_id}"
+        notes=f"Procured {procured_qty}Q at MSP {rate}. Stored at {lot_id}. Payment initiated Rs {tot_val}"
     ))
 
     db.add(AuditLog(

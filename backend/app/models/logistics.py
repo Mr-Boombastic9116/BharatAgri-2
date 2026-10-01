@@ -51,3 +51,38 @@ class TruckCollectionRoute(Base):
     estimated_quantity_quintals = Column(Numeric(10, 2), nullable=False)
     visited = Column(Boolean, default=False)
     visited_at = Column(DateTime, nullable=True)
+
+class TruckRoutePrediction(Base):
+    __tablename__ = "truck_route_predictions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    route_code = Column(String(50), unique=True, nullable=False, index=True)
+    origin_centre_id = Column(String(50), nullable=False, index=True)
+    origin_centre_name = Column(String(150), nullable=False)
+    destination_centre_id = Column(String(50), nullable=False, index=True)
+    destination_centre_name = Column(String(150), nullable=False)
+    destination_state = Column(String(50), nullable=False)
+    crop = Column(String(100), nullable=False)
+    quantity_quintals = Column(Numeric(10, 2), nullable=False)
+    truck_capacity_quintals = Column(Numeric(10, 2), nullable=False, default=200.00)
+    estimated_distance_km = Column(Numeric(8, 2), nullable=False)
+    departure_date = Column(Date, nullable=False)
+    expected_arrival_date = Column(Date, nullable=False)
+    reason = Column(String(255), nullable=False)
+    status = Column(String(50), nullable=False, default="PREDICTED", index=True)
+    reviewed_by = Column(String(100), nullable=True)
+    reviewed_at = Column(DateTime, nullable=True)
+    rejection_reason = Column(String(255), nullable=True)
+    created_at = Column(DateTime, server_default=func.now())
+
+
+class TruckRouteApproval(Base):
+    __tablename__ = "truck_route_approvals"
+
+    id = Column(Integer, primary_key=True, index=True)
+    route_prediction_id = Column(Integer, ForeignKey("truck_route_predictions.id", ondelete="CASCADE"), nullable=False)
+    action = Column(String(50), nullable=False)
+    action_by = Column(String(100), nullable=False)
+    comments = Column(String(255), nullable=True)
+    created_at = Column(DateTime, server_default=func.now())
+

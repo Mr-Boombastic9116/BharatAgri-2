@@ -234,3 +234,253 @@ npm run build
 
 - **Dark Mode**: Persisted across sessions via `localStorage` with modern CSS custom property tokens.
 - **Language Support**: Instant runtime language switching between **English (en)**, **Hindi (hi)**, and **Marathi (mr)**, with full UI translation bundles located in `frontend/src/locales/`.
+
+---
+
+## 11. Project Directory Structure
+
+```text
+BharatAgri-main/
+│
+├── README.md                        # This file
+├── .env                             # Local runtime configuration (gitignored)
+├── .env.example                     # Environment variable template
+├── requirements.txt                 # All Python backend + AI/ML dependencies
+├── start-local.bat                  # One-click Windows launcher
+├── start-local.sh                   # One-click Linux/macOS launcher
+│
+├── database/
+│   └── bharatagri_iteration2.sql    # SINGLE self-contained schema + seed SQL file
+│
+├── backend/
+│   └── app/
+│       ├── main.py                  # FastAPI application factory & router registration
+│       ├── database.py              # SQLAlchemy engine, session factory
+│       ├── models/                  # SQLAlchemy ORM table definitions
+│       │   ├── user.py              # Users, roles, sessions
+│       │   ├── farmer.py            # Farmer profiles, land, crops
+│       │   ├── agent.py             # Agent assignments, cluster coverage
+│       │   ├── centre.py            # Procurement centres, operating hours, holidays
+│       │   ├── booking.py           # Slot reservations, QR codes
+│       │   ├── procurement.py       # Collection → QC → Weighment → Procurement → Lot
+│       │   ├── storage.py           # Warehouse bin-lot mapping
+│       │   ├── payment.py           # DBT payment records
+│       │   ├── truck.py             # Truck fleet, routes, dispatch requests
+│       │   ├── inventory.py         # Bardan jute bag stock & consumption
+│       │   ├── complaint.py         # Grievance tickets
+│       │   └── audit.py             # Tamper-evident audit log entries
+│       │
+│       └── api/                     # FastAPI route modules (one per domain)
+│           ├── auth.py              # Login, JWT, /me
+│           ├── farmers.py           # Farmer profile, crops, registration
+│           ├── agents.py            # Agent dashboard, assigned farmers, assisted booking
+│           ├── centres.py           # Centre listing, congestion, redirection, holidays
+│           ├── slots.py             # Slot availability, capacity checks
+│           ├── bookings.py          # Booking creation, QR generation
+│           ├── qr.py                # QR gate check-in verification
+│           ├── procurement.py       # Full 8-stage lifecycle endpoints
+│           ├── storage.py           # Warehouse storage allocation
+│           ├── inventory.py         # Bardan forecast & stock management
+│           ├── trucks.py            # Truck routing, dispatch, OR-Tools integration
+│           ├── price.py             # MSP rates, market prices, price intelligence
+│           ├── ai.py                # XGBoost forecast, Isolation Forest, congestion
+│           ├── government.py        # National command centre analytics & state filters
+│           ├── complaints.py        # Grievance redressal API
+│           ├── audit.py             # Audit log access
+│           ├── health.py            # System health & DB ping
+│           └── stats.py             # Aggregate KPI statistics
+│
+├── ml/
+│   ├── data/                        # Raw historical dataset CSVs for training
+│   ├── preprocessing/               # Feature engineering & normalization scripts
+│   ├── training/
+│   │   ├── train_forecast.py        # XGBoost Regressor training pipeline
+│   │   └── train_anomaly.py         # Isolation Forest training pipeline
+│   ├── inference/
+│   │   └── optimizer.py             # Google OR-Tools MIP truck fleet optimizer
+│   ├── evaluation/                  # Model evaluation notebooks & metrics
+│   └── models/                      # Serialized model artifacts (.pkl)
+│       ├── supply_forecast_xgboost.pkl
+│       └── anomaly_isolation_forest.pkl
+│
+├── frontend/
+│   ├── index.html
+│   ├── vite.config.js
+│   ├── package.json
+│   └── src/
+│       ├── main.jsx                 # React DOM entry point
+│       ├── App.jsx                  # Root router & protected route wrappers
+│       ├── index.css                # Global CSS design tokens (dark/light themes)
+│       ├── context/                 # React Context providers (Auth, Theme, Language)
+│       ├── components/              # Shared UI components (Navbar, Sidebar, Charts)
+│       ├── services/                # Axios API client + per-domain service modules
+│       ├── utils/                   # Date helpers, QR renderers, formatters
+│       ├── locales/                 # i18n translation JSON bundles
+│       │   ├── en.json
+│       │   ├── hi.json
+│       │   └── mr.json
+│       └── pages/                   # Full-page React views per role
+│           ├── LoginPage.jsx
+│           ├── HomePage.jsx
+│           ├── FarmerDashboard.jsx
+│           ├── AgentDashboard.jsx
+│           ├── CentreDashboard.jsx
+│           ├── GovernmentDashboard.jsx
+│           ├── SlotBookingPage.jsx
+│           ├── BookingConfirmationPage.jsx
+│           └── AboutUsPage.jsx
+│
+├── backend/tests/
+│   └── test_api.py                  # Full pytest integration test suite (18 suites)
+│
+└── scripts/                         # Utility scripts (DB seed helpers, model retrain)
+```
+
+---
+
+## 12. Role-by-Role Feature Walkthrough
+
+### 👨‍🌾 Farmer Role
+After logging in as a Farmer, the dashboard provides:
+
+| Feature | Description |
+| :--- | :--- |
+| **My Profile** | View registered land holdings (acres/hectares), bank account details (for DBT), aadhaar-verified identity |
+| **My Crops** | View all registered crops with variety, season, and expected yield |
+| **Slot Booking** | Select a procurement centre, crop, estimated quantity → receive a QR-coded booking pass |
+| **My Bookings** | View booking status (`BOOKED → CHECKED_IN → PROCURED → PAID`) |
+| **QR Pass** | Download or display the verifiable QR code for gate entry |
+| **Lot Traceability** | Track a specific Lot ID through every stage of the procurement lifecycle |
+| **DBT Payment Status** | Monitor Direct Benefit Transfer payment initiation and credit confirmation |
+| **Helpdesk / Complaints** | Submit and track grievance tickets with resolution timelines |
+| **MSP Price Intelligence** | View current MSP rates, market prices, and price trend analysis for registered crops |
+
+---
+
+### 🧑‍💼 Field Agent Role
+After logging in as a Field Agent, the dashboard provides:
+
+| Feature | Description |
+| :--- | :--- |
+| **Cluster Overview** | View the geographic cluster and all farmers assigned to this agent |
+| **Assigned Farmers** | Full farmer roster with registration status, land, and crop details |
+| **Farmer Registration** | Register new farmers including land records, bank details, and crop declarations |
+| **e-KYC Verification** | Initiate and track Aadhaar-based identity verification for registered farmers |
+| **Assisted Booking** | Book a procurement slot on behalf of a farmer in the cluster |
+| **Farmer Complaints** | View and escalate grievances raised by assigned farmers |
+| **Agent Analytics** | Booking success rates, farmer onboarding metrics, cluster-level KPIs |
+
+---
+
+### 🏭 Procurement Centre Role
+After logging in as a Procurement Centre operator, the dashboard provides:
+
+| Feature | Description |
+| :--- | :--- |
+| **Gate Operations** | QR code scanner for controlled single-use check-in, booking verification |
+| **Collection Records** | Register inward arrival — capture truck number, bags, gross weight |
+| **Quality Inspection (QC)** | Record moisture %, foreign matter %, grade (A/B/C/Rejected) |
+| **Electronic Weighment** | Capture gross, tare, and computed net weight in quintals |
+| **Procurement & Lot Generation** | Finalize procurement at MSP, auto-generate immutable Lot ID |
+| **Storage Allocation** | Assign lot to warehouse bin / godown rack |
+| **Bardan (Jute Bag) Inventory** | Monitor bag stock levels, consumption rate, shortage warnings |
+| **Truck Dispatch Requests** | Submit outward dispatch requests to logistics for optimized routing |
+| **Centre Holidays** | View and manage centre operating-day exceptions and holiday schedules |
+| **DBT Payment Initiation** | Trigger Direct Benefit Transfer payment for completed lots |
+
+---
+
+### 🏛️ Government / National Command Centre Role
+After logging in as Government administrator, the dashboard provides:
+
+| Feature | Description |
+| :--- | :--- |
+| **National KPIs** | Aggregate view — total farmers onboarded, quintals procured, MSP value disbursed, active centres |
+| **State Filter** | Filter all analytics by state / union territory in real time |
+| **Supply Forecast (XGBoost)** | AI-powered 7–30 day arrival forecasts per crop, per region |
+| **Congestion Monitor** | Real-time operational utilization index across all active centres (LOW/MEDIUM/HIGH/CRITICAL) |
+| **Centre Redirection** | Initiate emergency capacity redirection to alternate centres |
+| **OR-Tools Truck Optimization** | Submit fleet optimization requests and view route assignments |
+| **Procurement Anomaly Detection** | Isolation Forest flagged anomalies — weight discrepancies, volume spikes, outlier patterns |
+| **Bardan National Overview** | National jute bag stock projection vs incoming harvest volumes |
+| **Payment Monitoring** | DBT payment disbursement tracking across states and crops |
+| **Audit Logs** | Tamper-evident access and modification records for compliance |
+
+---
+
+## 13. MSP & Price Intelligence
+
+The Price Intelligence module provides crop-specific pricing context at both the farmer and government tiers:
+
+- **Minimum Support Price (MSP)**: Fetched from the live database for every crop variety. MSP rates are crop-season specific and government-notified.
+- **Market Price Comparison**: Compares the prevailing market mandi price against the government MSP to flag whether the farmer is better served by direct procurement or open market.
+- **Procurement Price**: The actual effective price at which a lot is procured (at or above MSP, per policy).
+- **Price Trend Chart**: Rolling 30-day market price trend for major crops — visual indicator of seasonal price movements.
+- **Price Intelligence Endpoint**: `GET /api/price/intelligence?crop=<crop_name>&state=<state>`
+
+---
+
+## 14. Deployment Notes
+
+### Environment Variables
+
+All sensitive runtime configuration is controlled via the `.env` file at the project root. **Never commit `.env` to source control.** Use `.env.example` as the template:
+
+```bash
+cp .env.example .env
+# Edit .env with your actual DB credentials and JWT secret
+```
+
+### Production Recommendations
+
+| Concern | Recommendation |
+| :--- | :--- |
+| **Database** | Use a managed MySQL 8.0 instance (Cloud SQL, RDS, or PlanetScale) with SSL enabled |
+| **Backend** | Deploy FastAPI via `gunicorn + uvicorn workers` behind an Nginx reverse proxy |
+| **Frontend** | Run `npm run build` → serve `frontend/dist/` from Nginx or deploy to Vercel / Netlify |
+| **JWT Secret** | Generate a cryptographically strong 64+ character random key; rotate quarterly |
+| **CORS** | Update `ALLOWED_ORIGINS` in `backend/app/main.py` to restrict to your production domain |
+| **ML Models** | Mount the `ml/models/` directory as a persistent volume; schedule periodic retraining |
+| **HTTPS** | Always terminate TLS at the reverse proxy layer using Let's Encrypt or a managed cert |
+
+---
+
+## 15. Troubleshooting
+
+| Symptom | Likely Cause | Fix |
+| :--- | :--- | :--- |
+| `Connection refused` on API calls | Backend not running or wrong port | Verify `uvicorn` is started on port 5000; check `.env` `PORT` value |
+| `Access denied for user 'root'` | MySQL not started or wrong credentials | Start XAMPP MySQL; confirm `.env` `DB_USER`/`DB_PASSWORD` |
+| `jwt decode error` | Expired or malformed token | Clear localStorage in browser; log in again |
+| `500 Internal Server Error` on AI endpoints | ML model `.pkl` files missing | Run `python ml/training/train_forecast.py` and `python ml/training/train_anomaly.py` to generate models |
+| `No module named 'ortools'` | OR-Tools not installed | Run `pip install ortools` or `pip install -r requirements.txt` |
+| `CORS error` in browser | Origin mismatch | Add `http://localhost:3000` to `ALLOWED_ORIGINS` in `backend/app/main.py` |
+| Frontend blank after login | Router or auth context error | Check browser console; ensure `VITE_API_URL` in `frontend/.env` points to `http://localhost:5000` |
+| `UnicodeEncodeError` in pytest output | Terminal not UTF-8 | Run `chcp 65001` in Windows terminal before running pytest |
+| Centre shows as "not found" | Booking centre identity mismatch | Resolved in Iteration 2 via `resolve_centre` helper in `bookings.py` |
+
+---
+
+## 16. Contributing
+
+This project is structured for clean module extension. When adding new features:
+
+1. **Schema changes**: Add migrations to `database/bharatagri_iteration2.sql` only — do not create additional SQL files.
+2. **New API route**: Create a new file in `backend/app/api/`, add the router in `backend/app/main.py`.
+3. **New model**: Add the SQLAlchemy ORM class in `backend/app/models/`, import in `backend/app/database.py`.
+4. **New frontend page**: Add a `.jsx` file in `frontend/src/pages/`, register the route in `frontend/src/App.jsx`.
+5. **ML changes**: Retrain using the scripts in `ml/training/` and save updated artifacts to `ml/models/`.
+6. **Tests**: Add test functions to `backend/tests/test_api.py` following the existing fixture and auth pattern.
+
+---
+
+## 17. License & Attribution
+
+This platform is built as a demonstration of a national-scale digital public infrastructure for agricultural procurement.
+
+- **Framework**: Built on FastAPI (Tiangolo), React (Meta), and Vite.
+- **AI/ML**: XGBoost (DMLC), scikit-learn (INRIA), Google OR-Tools (Google LLC).
+- **Icons**: Lucide React icon library.
+- **Charts**: Recharts composable charting library.
+
+© 2026 BharatAgri Iteration 2. All rights reserved.

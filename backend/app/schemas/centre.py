@@ -17,6 +17,13 @@ class OperatingConfigResponse(BaseModel):
 class OperatingDaysUpdate(BaseModel):
     operating_days: Union[str, List[str]]
 
+class OperatingConfigUpdate(BaseModel):
+    operating_days: Optional[Union[str, List[str]]] = None
+    opening_time: Optional[str] = None
+    closing_time: Optional[str] = None
+    supported_crops: Optional[Union[str, List[str]]] = None
+    max_daily_capacity_quintals: Optional[float] = None
+
 class NonOperationalDateCreate(BaseModel):
     date: str
     reason: Optional[str] = "Non-operational date"

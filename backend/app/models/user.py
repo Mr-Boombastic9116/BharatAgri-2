@@ -17,6 +17,7 @@ class User(Base):
     mobile = Column(String(20), nullable=False)
     password_hash = Column(String(255), nullable=False)
     role = Column(Enum('farmer', 'agent', 'centre', 'government'), nullable=False, index=True)
+    centre_id = Column(String(50), nullable=True, index=True)
     preferred_language = Column(String(20), default="English")
     status = Column(String(20), default="ACTIVE", index=True)
 

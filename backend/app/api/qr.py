@@ -50,12 +50,12 @@ def verify_appointment_qr(req: VerifyQRRequest, db: Session = Depends(get_db)):
             "message": f"Appointment belongs to centre '{booking.centre_id}', not this centre."
         }
 
-    if booking.status in ["CHECKED_IN", "VERIFIED", "COLLECTED", "PROCURED", "PAID"]:
+    if booking.status in ["COLLECTED", "RECEIVED", "QUALITY_CHECKED", "WEIGHED", "PROCURED", "STORED", "PAYMENT_INITIATED", "PAID"]:
         return {
             "success": False,
-            "code": "ALREADY_VERIFIED",
-            "error": "ALREADY VERIFIED",
-            "message": f"Appointment pass has already been checked-in (Status: {booking.status})."
+            "code": "ALREADY_PROCESSED",
+            "error": "ALREADY PROCESSED",
+            "message": f"Appointment has already progressed past arrival (Status: {booking.status})."
         }
 
     if booking.status == "REJECTED":
@@ -76,10 +76,10 @@ def verify_appointment_qr(req: VerifyQRRequest, db: Session = Depends(get_db)):
             "message": f"Scheduled arrival date ({slot.date}) has already passed."
         }
 
-    # Verify and transition to CHECKED_IN
+    # Verify and transition to ARRIVED
     verified_at = datetime.utcnow()
     old_st = booking.status
-    booking.status = "CHECKED_IN"
+    booking.status = "ARRIVED"
     booking.verified_at = verified_at
 
     # Update QRCode record
@@ -92,9 +92,9 @@ def verify_appointment_qr(req: VerifyQRRequest, db: Session = Depends(get_db)):
     db.add(BookingStatusHistory(
         booking_id=booking.id,
         old_status=old_st,
-        new_status="CHECKED_IN",
+        new_status="ARRIVED",
         changed_by=req.centre_id,
-        notes="QR code scanned at arrival gate"
+        notes="QR code scanned at arrival gate — Farmer Arrived"
     ))
 
     # Audit
@@ -104,7 +104,7 @@ def verify_appointment_qr(req: VerifyQRRequest, db: Session = Depends(get_db)):
         entity="BOOKING",
         entity_id=booking.appointment_id,
         old_value=old_st,
-        new_value="CHECKED_IN"
+        new_value="ARRIVED"
     ))
 
     db.commit()
@@ -131,7 +131,7 @@ def verify_appointment_qr(req: VerifyQRRequest, db: Session = Depends(get_db)):
             "start_time": slot.start_time if slot else "09:00 AM",
             "end_time": slot.end_time if slot else "11:00 AM",
             "time_slot": f"{slot.start_time} - {slot.end_time}" if slot else "09:00 AM - 11:00 AM",
-            "status": "CHECKED_IN",
+            "status": "ARRIVED",
             "verified_at": str(verified_at)
         }
     }

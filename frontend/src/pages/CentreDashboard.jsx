@@ -8,12 +8,20 @@ import {
   deleteSlot, 
   verifyQrToken,
   getOperatingConfig,
+  updateOperatingConfig,
   updateOperatingDays,
   addNonOperationalDate,
   removeNonOperationalDate,
   getDailyCapacity,
   updateDailyCapacity,
-  applyScheduleRange
+  applyScheduleRange,
+  recordCollection,
+  recordQualityCheck,
+  recordWeighment,
+  recordProcurement,
+  completePayment,
+  getCentreOperationalIntelligence,
+  getEstimatedPrice
 } from '../services/api';
 import StatusBadge from '../components/StatusBadge';
 import { Html5Qrcode } from 'html5-qrcode';
@@ -39,7 +47,12 @@ import {
   ChevronLeft,
   ChevronRight,
   ListFilter,
-  Wheat
+  Wheat,
+  Brain,
+  Truck,
+  Package,
+  Activity,
+  AlertTriangle
 } from 'lucide-react';
 import { formatDateDisplay } from '../utils/dateUtils';
 import DateInput from '../components/DateInput';
@@ -49,6 +62,10 @@ const WEEKDAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Satur
 export default function CentreDashboard({ user }) {
   // Navigation tab state: 'overview' | 'appointments' | 'slots' | 'config'
   const [activeTab, setActiveTab] = useState('overview');
+
+  // Resolve the correct centre identifier from the token
+  // The token stores centre_id when the logged-in user is a centre manager
+  const centreId = user?.centre_id || user?.user_id;
 
   const todayStr = new Date().toISOString().split('T')[0];
   const [selectedDate, setSelectedDate] = useState(todayStr);
@@ -115,6 +132,27 @@ export default function CentreDashboard({ user }) {
   const hasScannedRef = useRef(false);
   const [updatingStatusId, setUpdatingStatusId] = useState(null);
 
+  // Arrived Farmer Procurement Modal State
+  const [selectedArrivedBooking, setSelectedArrivedBooking] = useState(null);
+  const [procurementForm, setProcurementForm] = useState({
+    actual_quantity: '',
+    actual_weight: '',
+    quality_grade: 'GRADE_A',
+    moisture_pct: '12.0',
+    warehouse_location: 'Bay A-1',
+    notes: '',
+    payment_amount: ''
+  });
+  const [procurementStep, setProcurementStep] = useState('received'); // 'received' | 'quality' | 'weighment' | 'storage' | 'payment' | 'complete'
+  const [workflowRecordIds, setWorkflowRecordIds] = useState({
+    collection_id: null,
+    check_id: null,
+    weighment_id: null,
+    payment_id: null
+  });
+  const [submittingProcurement, setSubmittingProcurement] = useState(false);
+  const [procurementError, setProcurementError] = useState('');
+
   // Quick Date Navigation Handlers
   const handlePrevDay = () => {
     const d = new Date(selectedDate);
@@ -155,24 +193,31 @@ export default function CentreDashboard({ user }) {
     return matched;
   };
 
+  // Operational Intelligence State (AI / Predictive Logistics)
+  const [opIntelligence, setOpIntelligence] = useState(null);
+
   const loadCentreData = () => {
-    if (user && user.user_id) {
+    if (user && centreId) {
       setLoading(true);
       Promise.all([
-        getCentreBookings(user.user_id, selectedDate),
-        getSlots(user.user_id, selectedDate),
-        getOperatingConfig(user.user_id),
-        getDailyCapacity(user.user_id, selectedDate)
+        getCentreBookings(centreId, selectedDate),
+        getSlots(centreId, selectedDate),
+        getOperatingConfig(centreId),
+        getDailyCapacity(centreId, selectedDate),
+        getCentreOperationalIntelligence(centreId).catch(() => null)
       ])
-        .then(([bookingsData, slotsData, configData, capData]) => {
+        .then(([bookingsData, slotsData, configData, capData, intelData]) => {
           setBookings(bookingsData);
           setSlots(slotsData);
           setOperatingDays(parseDaysArray(configData.operating_days));
           setNonOperationalDates(configData.non_operational_dates || []);
           setDailyCapacityInfo(capData);
           setEditDailyQuintalVal(capData.max_quintals_per_day || 500);
+          if (intelData?.intelligence) {
+            setOpIntelligence(intelData.intelligence);
+          }
         })
-        .catch(err => setError('Failed to load centre data.'))
+        .catch(err => setError('Failed to load centre data: ' + (err.message || '')))
         .finally(() => setLoading(false));
     }
   };
@@ -205,6 +250,163 @@ export default function CentreDashboard({ user }) {
       setError(err.message || 'Failed to update status.');
     } finally {
       setUpdatingStatusId(null);
+    }
+  };
+
+  const handleOpenProcurementModal = async (b) => {
+    setSelectedArrivedBooking(b);
+    setWorkflowRecordIds({ collection_id: null, check_id: null, weighment_id: null, payment_id: null });
+    const qty = parseFloat(b.quantity || 1);
+    let msp = 2300;
+    let estPrice = 2345;
+    try {
+      const pRes = await getEstimatedPrice({ crop: b.crop, quantity: qty, centre_id: centreId });
+      if (pRes) {
+        msp = pRes.official_msp || 2300;
+        estPrice = pRes.estimated_price || 2345;
+      }
+    } catch (e) {
+      console.warn("Price lookup fallback", e);
+    }
+
+    setProcurementForm({
+      actual_quantity: b.quantity || '',
+      actual_weight: b.quantity || '',
+      quality_grade: 'GRADE_A',
+      moisture_pct: '12.0',
+      warehouse_location: 'Bay A-1',
+      notes: 'Initial receipt and moisture inspection verified at mandi.',
+      official_msp: msp,
+      estimated_price: estPrice,
+      msp_reference_value: (qty * msp).toFixed(2),
+      estimated_value: (qty * estPrice).toFixed(2),
+      payment_amount: (qty * estPrice).toFixed(2)
+    });
+
+    if (b.status === 'ARRIVED' || b.status === 'VERIFIED' || b.status === 'BOOKED' || b.status === 'CONFIRMED') {
+      setProcurementStep('received');
+    } else if (b.status === 'RECEIVED') {
+      setProcurementStep('quality');
+    } else if (b.status === 'QUALITY_CHECKED') {
+      setProcurementStep('weighment');
+    } else if (b.status === 'WEIGHED') {
+      setProcurementStep('storage');
+    } else if (b.status === 'STORED' || b.status === 'PAYMENT_INITIATED') {
+      setProcurementStep('payment');
+    } else if (b.status === 'PAID') {
+      setProcurementStep('complete');
+    } else {
+      setProcurementStep('received');
+    }
+    setProcurementError('');
+  };
+
+  const handleProcessWorkflowStep = async (targetStatus) => {
+    if (!selectedArrivedBooking) return;
+    
+    // Resolve actual numeric booking ID (existing database primary key)
+    const rawBookingId = selectedArrivedBooking.id !== undefined && selectedArrivedBooking.id !== null
+      ? selectedArrivedBooking.id
+      : selectedArrivedBooking.booking_id;
+    const numericBookingId = typeof rawBookingId === 'number' ? rawBookingId : parseInt(rawBookingId, 10);
+
+    if (isNaN(numericBookingId) || numericBookingId <= 0) {
+      setProcurementError('Invalid booking record: Missing or non-numeric database booking ID.');
+      return;
+    }
+
+    const appointmentDisplay = selectedArrivedBooking.appointment_id || `Booking #${numericBookingId}`;
+    setSubmittingProcurement(true);
+    setProcurementError('');
+    try {
+      if (targetStatus === 'RECEIVED') {
+        const colRes = await recordCollection({
+          booking_id: numericBookingId,
+          farmer_id: selectedArrivedBooking.farmer_id || selectedArrivedBooking.farmer_name,
+          centre_id: centreId,
+          crop: selectedArrivedBooking.crop,
+          collected_quantity: parseFloat(procurementForm.actual_quantity || selectedArrivedBooking.quantity),
+          gross_weight_quintals: parseFloat(procurementForm.actual_weight || selectedArrivedBooking.quantity),
+          collected_by: user?.name || 'Procurement Staff'
+        });
+        const colId = colRes?.collection_id || colRes?.data?.collection_id;
+        if (colId) {
+          setWorkflowRecordIds(prev => ({ ...prev, collection_id: colId }));
+        }
+        setProcurementStep('quality');
+      } else if (targetStatus === 'QUALITY_CHECKED') {
+        const qcRes = await recordQualityCheck({
+          collection_id: workflowRecordIds.collection_id || undefined,
+          booking_id: numericBookingId,
+          quality_grade: procurementForm.quality_grade,
+          moisture_content_pct: parseFloat(procurementForm.moisture_pct || 12.0),
+          foreign_matter_pct: 1.2,
+          broken_grains_pct: 0.5,
+          damaged_grains_pct: 0.2,
+          inspector_name: user?.name || 'Inspector',
+          passed: true,
+          notes: procurementForm.notes
+        });
+        const qId = qcRes?.check_id || qcRes?.data?.check_id;
+        if (qId) {
+          setWorkflowRecordIds(prev => ({ ...prev, check_id: qId }));
+        }
+        setProcurementStep('weighment');
+      } else if (targetStatus === 'WEIGHED') {
+        const gross = parseFloat(procurementForm.actual_weight || procurementForm.actual_quantity || selectedArrivedBooking.quantity);
+        const tare = 0.5;
+        const wbRes = await recordWeighment({
+          collection_id: workflowRecordIds.collection_id || undefined,
+          quality_check_id: workflowRecordIds.check_id || undefined,
+          booking_id: numericBookingId,
+          gross_weight_quintals: gross + tare,
+          tare_weight_quintals: tare,
+          operator_name: user?.name || 'Scale Operator'
+        });
+        const wbId = wbRes?.weighment_id || wbRes?.data?.weighment_id;
+        if (wbId) {
+          setWorkflowRecordIds(prev => ({ ...prev, weighment_id: wbId }));
+        }
+        setProcurementStep('storage');
+      } else if (targetStatus === 'STORED') {
+        const procRes = await recordProcurement({
+          booking_id: numericBookingId,
+          collection_id: workflowRecordIds.collection_id || undefined,
+          weighment_id: workflowRecordIds.weighment_id || undefined,
+          farmer_id: selectedArrivedBooking.farmer_id || selectedArrivedBooking.farmer_name,
+          centre_id: centreId,
+          crop: selectedArrivedBooking.crop,
+          procured_quantity_quintals: parseFloat(procurementForm.actual_weight || selectedArrivedBooking.quantity),
+          rate_per_quintal_inr: parseFloat(procurementForm.official_msp || 2300),
+          warehouse_location: procurementForm.warehouse_location
+        });
+        const payId = procRes?.payment_id || procRes?.data?.payment_id;
+        if (payId) {
+          setWorkflowRecordIds(prev => ({ ...prev, payment_id: payId }));
+        }
+        setProcurementStep('payment');
+      } else if (targetStatus === 'PAID') {
+        if (workflowRecordIds.payment_id) {
+          await completePayment(workflowRecordIds.payment_id);
+        } else {
+          await updateBookingStatus(selectedArrivedBooking.appointment_id || String(numericBookingId), 'PAID');
+        }
+        setProcurementStep('complete');
+      }
+
+      setSuccessMsg(`Workflow updated to ${targetStatus} for ${appointmentDisplay}!`);
+      
+      // Update local booking status immediately
+      setBookings(prev => prev.map(item => {
+        const match = item.id === numericBookingId || item.appointment_id === selectedArrivedBooking.appointment_id;
+        return match ? { ...item, status: targetStatus } : item;
+      }));
+
+      loadCentreData();
+    } catch (err) {
+      setProcurementError(err.message || `Failed to process ${targetStatus}`);
+    } finally {
+      setSubmittingProcurement(false);
     }
   };
 
@@ -813,8 +1015,8 @@ export default function CentreDashboard({ user }) {
                 <div className="card shadow-sm" style={{
                   padding: '20px',
                   borderRadius: '12px',
-                  border: '1px solid #e2e8f0',
-                  background: '#ffffff',
+                  border: '1px solid var(--border)',
+                  background: 'var(--bg-card)',
                   display: 'flex',
                   flexDirection: 'column',
                   justifyContent: 'space-between',
@@ -824,7 +1026,7 @@ export default function CentreDashboard({ user }) {
                     <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--muted)', letterSpacing: '0.5px', textTransform: 'uppercase' }}>
                       DAILY QUINTAL CAPACITY
                     </span>
-                    <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: '#e0f2fe', color: '#0284c7', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: 'var(--info-bg)', color: 'var(--info-text)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       <Scale size={20} />
                     </div>
                   </div>
@@ -832,7 +1034,7 @@ export default function CentreDashboard({ user }) {
                     <div style={{ fontSize: '1.65rem', fontWeight: 800, color: 'var(--secondary)', lineHeight: 1.2 }}>
                       {dailyCapacityInfo.max_quintals_per_day || 0} <span style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--muted)' }}>Quintals</span>
                     </div>
-                    <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
+                    <div style={{ fontSize: '0.8rem', color: 'var(--muted)', marginTop: '4px' }}>
                       Max daily limit for {formatDateDisplay(selectedDate)}
                     </div>
                   </div>
@@ -842,8 +1044,8 @@ export default function CentreDashboard({ user }) {
                 <div className="card shadow-sm" style={{
                   padding: '20px',
                   borderRadius: '12px',
-                  border: '1px solid #e2e8f0',
-                  background: '#ffffff',
+                  border: '1px solid var(--border)',
+                  background: 'var(--bg-card)',
                   display: 'flex',
                   flexDirection: 'column',
                   justifyContent: 'space-between',
@@ -853,15 +1055,15 @@ export default function CentreDashboard({ user }) {
                     <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--muted)', letterSpacing: '0.5px', textTransform: 'uppercase' }}>
                       BOOKED
                     </span>
-                    <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: '#f0fdf4', color: '#16a34a', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: 'var(--success-bg)', color: 'var(--success-text)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       <Wheat size={20} />
                     </div>
                   </div>
                   <div>
-                    <div style={{ fontSize: '1.65rem', fontWeight: 800, color: '#15803d', lineHeight: 1.2 }}>
-                      {dailyCapacityInfo.booked_quintals || 0} <span style={{ fontSize: '0.95rem', fontWeight: 600, color: '#166534' }}>Quintals</span>
+                    <div style={{ fontSize: '1.65rem', fontWeight: 800, color: 'var(--primary)', lineHeight: 1.2 }}>
+                      {dailyCapacityInfo.booked_quintals || 0} <span style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--primary-hover)' }}>Quintals</span>
                     </div>
-                    <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
+                    <div style={{ fontSize: '0.8rem', color: 'var(--muted)', marginTop: '4px' }}>
                       Booked total for {formatDateDisplay(selectedDate)}
                     </div>
                   </div>
@@ -871,8 +1073,8 @@ export default function CentreDashboard({ user }) {
                 <div className="card shadow-sm" style={{
                   padding: '20px',
                   borderRadius: '12px',
-                  border: '1px solid #e2e8f0',
-                  background: '#ffffff',
+                  border: '1px solid var(--border)',
+                  background: 'var(--bg-card)',
                   display: 'flex',
                   flexDirection: 'column',
                   justifyContent: 'space-between',
@@ -882,15 +1084,15 @@ export default function CentreDashboard({ user }) {
                     <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--muted)', letterSpacing: '0.5px', textTransform: 'uppercase' }}>
                       REMAINING
                     </span>
-                    <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: '#fff7ed', color: '#ea580c', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: 'var(--warning-bg)', color: 'var(--warning-text)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       <Clock size={20} />
                     </div>
                   </div>
                   <div>
-                    <div style={{ fontSize: '1.65rem', fontWeight: 800, color: '#c2410c', lineHeight: 1.2 }}>
-                      {Math.max(0, (dailyCapacityInfo.max_quintals_per_day || 0) - (dailyCapacityInfo.booked_quintals || 0))} <span style={{ fontSize: '0.95rem', fontWeight: 600, color: '#9a3412' }}>Quintals</span>
+                    <div style={{ fontSize: '1.65rem', fontWeight: 800, color: 'var(--warning-text)', lineHeight: 1.2 }}>
+                      {Math.max(0, (dailyCapacityInfo.max_quintals_per_day || 0) - (dailyCapacityInfo.booked_quintals || 0))} <span style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--muted)' }}>Quintals</span>
                     </div>
-                    <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
+                    <div style={{ fontSize: '0.8rem', color: 'var(--muted)', marginTop: '4px' }}>
                       Remaining = Max ({dailyCapacityInfo.max_quintals_per_day || 0}) − Booked ({dailyCapacityInfo.booked_quintals || 0})
                     </div>
                   </div>
@@ -900,8 +1102,8 @@ export default function CentreDashboard({ user }) {
                 <div className="card shadow-sm" style={{
                   padding: '20px',
                   borderRadius: '12px',
-                  border: '1px solid #e2e8f0',
-                  background: '#ffffff',
+                  border: '1px solid var(--border)',
+                  background: 'var(--bg-card)',
                   display: 'flex',
                   flexDirection: 'column',
                   justifyContent: 'space-between',
@@ -911,20 +1113,223 @@ export default function CentreDashboard({ user }) {
                     <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--muted)', letterSpacing: '0.5px', textTransform: 'uppercase' }}>
                       Total Appointments
                     </span>
-                    <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: '#f3e8ff', color: '#7c3aed', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: 'rgba(124, 58, 237, 0.15)', color: '#a78bfa', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       <Users size={20} />
                     </div>
                   </div>
                   <div>
-                    <div style={{ fontSize: '1.65rem', fontWeight: 800, color: '#6d28d9', lineHeight: 1.2 }}>
+                    <div style={{ fontSize: '1.65rem', fontWeight: 800, color: 'var(--secondary)', lineHeight: 1.2 }}>
                       {totalBookingsCount} <span style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--muted)' }}>Farmers</span>
                     </div>
-                    <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
+                    <div style={{ fontSize: '0.8rem', color: 'var(--muted)', marginTop: '4px' }}>
                       {remainingCapacitySelectedDate} slot capacity available
                     </div>
                   </div>
                 </div>
               </div>
+
+              {/* CENTRE OPERATIONAL INTELLIGENCE / PREDICTIVE AI (Prompt 2 - Section 1) */}
+              {opIntelligence && (
+                <div className="card shadow-sm mb-4" style={{ padding: '24px', borderTop: '4px solid #6366f1', background: 'var(--bg-card)', borderRadius: '12px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px', borderBottom: '1px solid var(--border)', paddingBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <Brain size={22} color="#6366f1" />
+                      <div>
+                        <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--secondary)', margin: 0 }}>
+                          Centre Operational Intelligence & Forecasting
+                        </h3>
+                        <span style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>
+                          Real-time yard throughput, congestion surveillance, and fleet requirements
+                        </span>
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                      <span className="badge badge-confirmed" style={{ fontSize: '0.72rem', fontWeight: 700 }}>
+                        CONFIRMED DATA: ACTUAL
+                      </span>
+                      <span className="badge badge-warning" style={{ fontSize: '0.72rem', fontWeight: 700 }}>
+                        MODEL FORECAST: PREDICTED
+                      </span>
+                      <span className="badge" style={{ backgroundColor: 'rgba(99, 102, 241, 0.2)', color: '#818cf8', fontSize: '0.72rem', fontWeight: 700 }}>
+                        FLEET / INVENTORY: ESTIMATED
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Operational Intelligence Cards Grid */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '16px' }}>
+                    {/* Card 1: Expected Arrivals & Procurement */}
+                    <div style={{ background: 'var(--bg-page)', padding: '16px', borderRadius: '10px', border: '1px solid var(--border)' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                        <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase' }}>
+                          7-Day Arrivals & Procurement
+                        </span>
+                        <span className="badge badge-warning" style={{ fontSize: '0.65rem' }}>
+                          {opIntelligence.expected_arrivals?.label || 'Predicted'}
+                        </span>
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginTop: '6px' }}>
+                        <div>
+                          <span style={{ fontSize: '0.72rem', color: 'var(--muted)', display: 'block' }}>Expected Arrivals</span>
+                          <strong style={{ fontSize: '1.25rem', color: 'var(--secondary)' }}>
+                            {opIntelligence.expected_arrivals?.value || 0} <span style={{ fontSize: '0.75rem', fontWeight: 500 }}>Q</span>
+                          </strong>
+                          <span style={{ fontSize: '0.68rem', color: 'var(--muted)', display: 'block' }}>[Predicted]</span>
+                        </div>
+                        <div>
+                          <span style={{ fontSize: '0.72rem', color: 'var(--muted)', display: 'block' }}>Expected Procurement</span>
+                          <strong style={{ fontSize: '1.25rem', color: 'var(--primary)' }}>
+                            {opIntelligence.expected_procurement?.value || 0} <span style={{ fontSize: '0.75rem', fontWeight: 500 }}>Q</span>
+                          </strong>
+                          <span style={{ fontSize: '0.68rem', color: 'var(--muted)', display: 'block' }}>[Predicted]</span>
+                        </div>
+                      </div>
+                      <div style={{ fontSize: '0.72rem', color: 'var(--muted)', marginTop: '8px' }}>
+                        {opIntelligence.expected_arrivals?.basis}
+                      </div>
+                    </div>
+
+                    {/* Card 2: Yard Utilization Forecast */}
+                    <div style={{ background: 'var(--bg-page)', padding: '16px', borderRadius: '10px', border: '1px solid var(--border)' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                        <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase' }}>
+                          Storage Utilization
+                        </span>
+                        <div style={{ display: 'flex', gap: '4px' }}>
+                          <span className="badge badge-confirmed" style={{ fontSize: '0.65rem' }}>
+                            Actual
+                          </span>
+                          <span className="badge badge-warning" style={{ fontSize: '0.65rem' }}>
+                            Predicted
+                          </span>
+                        </div>
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginTop: '6px' }}>
+                        <div>
+                          <span style={{ fontSize: '0.72rem', color: 'var(--muted)', display: 'block' }}>Current Utilization</span>
+                          <strong style={{ fontSize: '1.25rem', color: 'var(--secondary)' }}>
+                            {opIntelligence.utilization_forecast?.current_utilization_percent || 0}%
+                          </strong>
+                          <span style={{ fontSize: '0.68rem', color: 'var(--primary)', fontWeight: 700, display: 'block' }}>[Actual]</span>
+                        </div>
+                        <div>
+                          <span style={{ fontSize: '0.72rem', color: 'var(--muted)', display: 'block' }}>Predicted Utilization</span>
+                          <strong style={{ fontSize: '1.25rem', color: '#6366f1' }}>
+                            {opIntelligence.utilization_forecast?.predicted_utilization_percent || 0}%
+                          </strong>
+                          <span style={{ fontSize: '0.68rem', color: '#d97706', fontWeight: 700, display: 'block' }}>[Predicted]</span>
+                        </div>
+                      </div>
+                      <div style={{ fontSize: '0.72rem', color: 'var(--muted)', marginTop: '8px' }}>
+                        Current: {opIntelligence.utilization_forecast?.current_storage_quintals?.toLocaleString()} Q / Total: {opIntelligence.utilization_forecast?.total_storage_quintals?.toLocaleString()} Q
+                      </div>
+                    </div>
+
+                    {/* Card 3: Yard Congestion Level */}
+                    <div style={{ background: 'var(--bg-page)', padding: '16px', borderRadius: '10px', border: '1px solid var(--border)' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                        <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase' }}>
+                          Yard Congestion Status
+                        </span>
+                        <span className="badge badge-warning" style={{ fontSize: '0.65rem' }}>
+                          Predicted
+                        </span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '6px' }}>
+                        <div style={{
+                          padding: '6px 14px',
+                          borderRadius: '8px',
+                          fontWeight: 800,
+                          fontSize: '1.1rem',
+                          backgroundColor: opIntelligence.congestion_prediction?.level === 'CRITICAL' ? 'var(--danger-bg)' : opIntelligence.congestion_prediction?.level === 'HIGH' ? 'var(--warning-bg)' : opIntelligence.congestion_prediction?.level === 'MEDIUM' ? 'var(--warning-bg)' : 'var(--success-bg)',
+                          color: opIntelligence.congestion_prediction?.level === 'CRITICAL' ? 'var(--danger-text)' : opIntelligence.congestion_prediction?.level === 'HIGH' ? 'var(--warning-text)' : opIntelligence.congestion_prediction?.level === 'MEDIUM' ? 'var(--warning-text)' : 'var(--success-text)'
+                        }}>
+                          {opIntelligence.congestion_prediction?.level || 'LOW'}
+                        </div>
+                        <span style={{ fontSize: '0.72rem', color: 'var(--muted)' }}>
+                          Load: {opIntelligence.congestion_prediction?.load_ratio_percent || 0}%
+                        </span>
+                      </div>
+                      <p style={{ fontSize: '0.75rem', color: 'var(--muted)', margin: '8px 0 0 0', lineHeight: 1.35 }}>
+                        {opIntelligence.congestion_prediction?.description}
+                      </p>
+                    </div>
+
+                    {/* Card 4: Truck Fleet Requirement */}
+                    <div style={{ background: 'var(--bg-page)', padding: '16px', borderRadius: '10px', border: '1px solid var(--border)' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                        <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase' }}>
+                          Truck Requirement
+                        </span>
+                        <span className="badge" style={{ backgroundColor: 'rgba(99, 102, 241, 0.2)', color: '#818cf8', fontSize: '0.65rem' }}>
+                          Estimated
+                        </span>
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px', textAlign: 'center', marginTop: '6px' }}>
+                        <div style={{ background: 'var(--bg-card)', padding: '6px', borderRadius: '6px', border: '1px solid var(--border)' }}>
+                          <span style={{ fontSize: '0.68rem', color: 'var(--muted)', display: 'block' }}>Required</span>
+                          <strong style={{ fontSize: '1.1rem', color: 'var(--secondary)' }}>{opIntelligence.truck_requirement?.estimated_required || 0}</strong>
+                          <span style={{ fontSize: '0.62rem', color: 'var(--muted)', display: 'block' }}>[Estimated]</span>
+                        </div>
+                        <div style={{ background: 'var(--bg-card)', padding: '6px', borderRadius: '6px', border: '1px solid var(--border)' }}>
+                          <span style={{ fontSize: '0.68rem', color: 'var(--muted)', display: 'block' }}>Available</span>
+                          <strong style={{ fontSize: '1.1rem', color: 'var(--primary)' }}>{opIntelligence.truck_requirement?.available || 0}</strong>
+                          <span style={{ fontSize: '0.62rem', color: 'var(--primary)', display: 'block' }}>[Actual]</span>
+                        </div>
+                        <div style={{ background: 'var(--bg-card)', padding: '6px', borderRadius: '6px', border: '1px solid var(--border)' }}>
+                          <span style={{ fontSize: '0.68rem', color: 'var(--muted)', display: 'block' }}>Shortfall</span>
+                          <strong style={{ fontSize: '1.1rem', color: (opIntelligence.truck_requirement?.shortfall || 0) > 0 ? 'var(--danger)' : 'var(--primary)' }}>
+                            {opIntelligence.truck_requirement?.shortfall || 0}
+                          </strong>
+                          <span style={{ fontSize: '0.62rem', color: 'var(--muted)', display: 'block' }}>[Estimated]</span>
+                        </div>
+                      </div>
+                      <div style={{ fontSize: '0.72rem', color: 'var(--muted)', marginTop: '8px' }}>
+                        {opIntelligence.truck_requirement?.basis}
+                      </div>
+                    </div>
+
+                    {/* Card 5: Bardan Requirement */}
+                    <div style={{ background: 'var(--bg-page)', padding: '16px', borderRadius: '10px', border: '1px solid var(--border)', gridColumn: 'span 2' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                        <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase' }}>
+                          Bardan (Jute Bag) Requirement & Stock
+                        </span>
+                        <span className="badge" style={{ backgroundColor: 'rgba(99, 102, 241, 0.2)', color: '#818cf8', fontSize: '0.65rem' }}>
+                          Estimated
+                        </span>
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px', textAlign: 'center', marginTop: '6px' }}>
+                        <div style={{ background: 'var(--bg-card)', padding: '8px', borderRadius: '6px', border: '1px solid var(--border)' }}>
+                          <span style={{ fontSize: '0.68rem', color: 'var(--muted)', display: 'block' }}>Current Stock</span>
+                          <strong style={{ fontSize: '1.15rem', color: 'var(--secondary)' }}>{opIntelligence.bardan_requirement?.current_stock_bags?.toLocaleString() || 0}</strong>
+                          <span style={{ fontSize: '0.65rem', color: 'var(--primary)', fontWeight: 700, display: 'block' }}>[Actual]</span>
+                        </div>
+                        <div style={{ background: 'var(--bg-card)', padding: '8px', borderRadius: '6px', border: '1px solid var(--border)' }}>
+                          <span style={{ fontSize: '0.68rem', color: 'var(--muted)', display: 'block' }}>Exp. Consumption</span>
+                          <strong style={{ fontSize: '1.15rem', color: 'var(--info)' }}>{opIntelligence.bardan_requirement?.expected_consumption_bags?.toLocaleString() || 0}</strong>
+                          <span style={{ fontSize: '0.65rem', color: 'var(--muted)', display: 'block' }}>[Estimated]</span>
+                        </div>
+                        <div style={{ background: 'var(--bg-card)', padding: '8px', borderRadius: '6px', border: '1px solid var(--border)' }}>
+                          <span style={{ fontSize: '0.68rem', color: 'var(--muted)', display: 'block' }}>Projected Need</span>
+                          <strong style={{ fontSize: '1.15rem', color: '#818cf8' }}>{opIntelligence.bardan_requirement?.projected_requirement_bags?.toLocaleString() || 0}</strong>
+                          <span style={{ fontSize: '0.65rem', color: 'var(--muted)', display: 'block' }}>[Estimated]</span>
+                        </div>
+                        <div style={{ background: 'var(--bg-card)', padding: '8px', borderRadius: '6px', border: '1px solid var(--border)' }}>
+                          <span style={{ fontSize: '0.68rem', color: 'var(--muted)', display: 'block' }}>Potential Shortage</span>
+                          <strong style={{ fontSize: '1.15rem', color: (opIntelligence.bardan_requirement?.potential_shortage_bags || 0) > 0 ? 'var(--danger)' : 'var(--primary)' }}>
+                            {opIntelligence.bardan_requirement?.potential_shortage_bags || 0}
+                          </strong>
+                          <span style={{ fontSize: '0.65rem', color: 'var(--muted)', display: 'block' }}>[Estimated]</span>
+                        </div>
+                      </div>
+                      <div style={{ fontSize: '0.72rem', color: 'var(--muted)', marginTop: '8px' }}>
+                        {opIntelligence.bardan_requirement?.basis}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
 
 
               {/* HIERARCHY ITEM 3: CROP-WISE DAILY SUMMARY (IMPORTANT - Directly ABOVE Time Slots) */}
@@ -1151,7 +1556,17 @@ export default function CentreDashboard({ user }) {
                                       </button>
                                     )}
 
-                                    {b.status !== 'REJECTED' && b.status !== 'VERIFIED' && (
+                                    {['ARRIVED', 'VERIFIED', 'RECEIVED', 'QUALITY_CHECKED', 'WEIGHED', 'STORED', 'PAYMENT_INITIATED'].includes(b.status) && (
+                                      <button 
+                                        className="btn btn-primary btn-sm"
+                                        onClick={() => handleOpenProcurementModal(b)}
+                                        title="Open Procurement & Weighment Workflow"
+                                      >
+                                        <Scale size={14} /> Process ({b.status})
+                                      </button>
+                                    )}
+
+                                    {b.status !== 'REJECTED' && b.status !== 'PAID' && (
                                       <button 
                                         className="btn btn-danger btn-sm"
                                         onClick={() => handleStatusChange(b.appointment_id || b.booking_id, 'REJECTED')}
@@ -1942,7 +2357,7 @@ export default function CentreDashboard({ user }) {
               </label>
               <div style={{ display: 'flex', gap: '0.5rem' }}>
                 <input 
-                  type="text"
+                  type="text" 
                   className="form-control"
                   placeholder="Enter Appointment ID (e.g. PF-260915-001)"
                   value={manualToken}
@@ -1959,6 +2374,303 @@ export default function CentreDashboard({ user }) {
               </div>
             </div>
 
+          </div>
+        </div>
+      )}
+
+      {/* DETAILED PROCUREMENT PROCESSING MODAL FOR ARRIVED FARMERS */}
+      {selectedArrivedBooking && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.65)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1100,
+          padding: '1rem'
+        }}>
+          <div className="card shadow-lg" style={{
+            maxWidth: '680px',
+            width: '100%',
+            maxHeight: '90vh',
+            overflowY: 'auto',
+            padding: '2rem',
+            position: 'relative'
+          }}>
+            <button
+              onClick={() => setSelectedArrivedBooking(null)}
+              style={{
+                position: 'absolute',
+                top: '1.25rem',
+                right: '1.25rem',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                color: 'var(--muted)'
+              }}
+            >
+              <X size={20} />
+            </button>
+
+            <div style={{ borderBottom: '1px solid var(--border)', paddingBottom: '1rem', marginBottom: '1.25rem' }}>
+              <span style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--primary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                Mandi Mandated Procurement Inspection
+              </span>
+              <h2 style={{ fontSize: '1.4rem', color: 'var(--secondary)', marginTop: '0.2rem' }}>
+                Procurement Intake: {selectedArrivedBooking.farmer_name}
+              </h2>
+              <p style={{ fontSize: '0.85rem', color: 'var(--muted)', margin: '4px 0 0 0' }}>
+                Booking ID: <strong>{selectedArrivedBooking.appointment_id || selectedArrivedBooking.booking_id}</strong> • Crop: <strong>{selectedArrivedBooking.crop}</strong> • Booked: <strong>{selectedArrivedBooking.quantity} Quintals</strong>
+              </p>
+            </div>
+
+            {procurementError && (
+              <div style={{ padding: '0.75rem 1rem', borderRadius: 'var(--radius-sm)', marginBottom: '1rem', backgroundColor: 'var(--danger-bg)', color: 'var(--danger-text)', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem' }}>
+                <AlertCircle size={16} />
+                <span>{procurementError}</span>
+              </div>
+            )}
+
+            {/* Workflow Progress Steps */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.5rem', borderBottom: '1px solid var(--border)', paddingBottom: '1rem', overflowX: 'auto', gap: '0.5rem' }}>
+              {[
+                ['RECEIVED', '1. Intake'],
+                ['QUALITY_CHECKED', '2. Quality Check'],
+                ['WEIGHED', '3. Weighment'],
+                ['STORED', '4. Storage'],
+                ['PAID', '5. DBT Payment']
+              ].map(([st, label]) => {
+                const isCurrent = (
+                  (st === 'RECEIVED' && procurementStep === 'received') ||
+                  (st === 'QUALITY_CHECKED' && procurementStep === 'quality') ||
+                  (st === 'WEIGHED' && procurementStep === 'weighment') ||
+                  (st === 'STORED' && procurementStep === 'storage') ||
+                  (st === 'PAID' && (procurementStep === 'payment' || procurementStep === 'complete'))
+                );
+                return (
+                  <div key={st} style={{
+                    fontSize: '0.75rem',
+                    fontWeight: 700,
+                    padding: '0.35rem 0.65rem',
+                    borderRadius: '9999px',
+                    backgroundColor: isCurrent ? 'var(--primary)' : 'var(--bg-page)',
+                    color: isCurrent ? '#ffffff' : 'var(--muted)',
+                    whiteSpace: 'nowrap'
+                  }}>
+                    {label}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Form Step Inputs */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                <div>
+                  <label className="form-label" style={{ fontSize: '0.8rem' }}>Actual Quantity Received (Quintals)</label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    className="form-control"
+                    value={procurementForm.actual_quantity}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      const qNum = parseFloat(val) || 0;
+                      const msp = procurementForm.official_msp || 2300;
+                      const est = procurementForm.estimated_price || 2345;
+                      setProcurementForm(f => ({
+                        ...f,
+                        actual_quantity: val,
+                        actual_weight: val,
+                        msp_reference_value: (qNum * msp).toFixed(2),
+                        estimated_value: (qNum * est).toFixed(2),
+                        payment_amount: (qNum * est).toFixed(2)
+                      }));
+                    }}
+                  />
+                </div>
+                <div>
+                  <label className="form-label" style={{ fontSize: '0.8rem' }}>Certified Gross Weight (Quintals)</label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    className="form-control"
+                    value={procurementForm.actual_weight}
+                    onChange={(e) => setProcurementForm(f => ({ ...f, actual_weight: e.target.value }))}
+                  />
+                </div>
+              </div>
+
+              {/* Price Intelligence & Procurement Payment Breakdown (Prompt 2 - Section 12) */}
+              <div style={{
+                background: '#f8fafc',
+                border: '1px solid #e2e8f0',
+                borderRadius: '8px',
+                padding: '12px 16px',
+                display: 'grid',
+                gridTemplateColumns: 'repeat(3, 1fr)',
+                gap: '12px',
+                textAlign: 'center'
+              }}>
+                <div style={{ background: '#ffffff', padding: '10px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+                  <span style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 700, textTransform: 'uppercase', display: 'block' }}>
+                    MSP Reference Value
+                  </span>
+                  <strong style={{ fontSize: '1.15rem', color: '#1e293b', display: 'block', marginTop: '2px' }}>
+                    ₹ {Number(procurementForm.msp_reference_value || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  </strong>
+                  <span style={{ fontSize: '0.68rem', color: '#64748b' }}>
+                    {procurementForm.actual_quantity || 0} Q × ₹{procurementForm.official_msp || 2300}/Q MSP
+                  </span>
+                </div>
+
+                <div style={{ background: '#ffffff', padding: '10px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+                  <span style={{ fontSize: '0.72rem', color: '#0284c7', fontWeight: 700, textTransform: 'uppercase', display: 'block' }}>
+                    Estimated Value
+                  </span>
+                  <strong style={{ fontSize: '1.15rem', color: '#0284c7', display: 'block', marginTop: '2px' }}>
+                    ₹ {Number(procurementForm.estimated_value || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  </strong>
+                  <span style={{ fontSize: '0.68rem', color: '#0284c7' }}>
+                    {procurementForm.actual_quantity || 0} Q × ₹{procurementForm.estimated_price || 2345}/Q Estimate
+                  </span>
+                </div>
+
+                <div style={{ background: '#f0fdf4', padding: '10px', borderRadius: '6px', border: '1px solid #bbf7d0' }}>
+                  <span style={{ fontSize: '0.72rem', color: '#166534', fontWeight: 700, textTransform: 'uppercase', display: 'block' }}>
+                    Actual Payment
+                  </span>
+                  <strong style={{ fontSize: '1.2rem', color: '#15803d', display: 'block', marginTop: '2px' }}>
+                    ₹ {Number(procurementForm.payment_amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  </strong>
+                  <span style={{ fontSize: '0.68rem', color: '#166534', fontWeight: 600 }}>
+                    Certified Weighed Payout
+                  </span>
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                <div>
+                  <label className="form-label" style={{ fontSize: '0.8rem' }}>Quality Grade</label>
+                  <select
+                    className="form-control"
+                    value={procurementForm.quality_grade}
+                    onChange={(e) => setProcurementForm(f => ({ ...f, quality_grade: e.target.value }))}
+                  >
+                    <option value="GRADE_A">Grade A (FAQ Premium)</option>
+                    <option value="GRADE_B">Grade B (Standard Commercial)</option>
+                    <option value="GRADE_C">Grade C (Sub-standard)</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="form-label" style={{ fontSize: '0.8rem' }}>Moisture Content (%)</label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    className="form-control"
+                    value={procurementForm.moisture_pct}
+                    onChange={(e) => setProcurementForm(f => ({ ...f, moisture_pct: e.target.value }))}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="form-label" style={{ fontSize: '0.8rem' }}>Warehouse Bay / Storage Location</label>
+                <input
+                  type="text"
+                  className="form-control"
+                  value={procurementForm.warehouse_location}
+                  onChange={(e) => setProcurementForm(f => ({ ...f, warehouse_location: e.target.value }))}
+                  placeholder="e.g. Bay A-1, Stack 4"
+                />
+              </div>
+
+              <div>
+                <label className="form-label" style={{ fontSize: '0.8rem' }}>Quality Inspection & Tare Notes</label>
+                <textarea
+                  className="form-control"
+                  rows={2}
+                  value={procurementForm.notes}
+                  onChange={(e) => setProcurementForm(f => ({ ...f, notes: e.target.value }))}
+                />
+              </div>
+
+              {/* Action Buttons across State-Driven Workflow */}
+              <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', marginTop: '1rem' }}>
+                <button
+                  type="button"
+                  className="btn btn-outline"
+                  onClick={() => setSelectedArrivedBooking(null)}
+                >
+                  Close
+                </button>
+
+                {procurementStep === 'received' && (
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    disabled={submittingProcurement}
+                    onClick={() => handleProcessWorkflowStep('RECEIVED')}
+                  >
+                    {submittingProcurement ? 'Saving...' : '1. Confirm Receipt (RECEIVED)'}
+                  </button>
+                )}
+
+                {procurementStep === 'quality' && (
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    disabled={submittingProcurement}
+                    onClick={() => handleProcessWorkflowStep('QUALITY_CHECKED')}
+                  >
+                    {submittingProcurement ? 'Saving...' : '2. Record Quality Check'}
+                  </button>
+                )}
+
+                {procurementStep === 'weighment' && (
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    disabled={submittingProcurement}
+                    onClick={() => handleProcessWorkflowStep('WEIGHED')}
+                  >
+                    {submittingProcurement ? 'Saving...' : '3. Record Weighment (WEIGHED)'}
+                  </button>
+                )}
+
+                {procurementStep === 'storage' && (
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    disabled={submittingProcurement}
+                    onClick={() => handleProcessWorkflowStep('STORED')}
+                  >
+                    {submittingProcurement ? 'Saving...' : '4. Store Lot & Initiate Payment'}
+                  </button>
+                )}
+
+                {procurementStep === 'payment' && (
+                  <button
+                    type="button"
+                    className="btn btn-success"
+                    disabled={submittingProcurement}
+                    onClick={() => handleProcessWorkflowStep('PAID')}
+                  >
+                    {submittingProcurement ? 'Saving...' : '5. Record Final DBT Payment (PAID)'}
+                  </button>
+                )}
+
+                {procurementStep === 'complete' && (
+                  <span style={{ color: 'var(--success)', fontWeight: 800, padding: '0.5rem 1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <Check size={18} /> Procurement & Payment Fully Recorded!
+                  </span>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       )}

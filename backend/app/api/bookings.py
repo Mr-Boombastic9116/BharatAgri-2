@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, text, cast, String
 
 from backend.app.core.database import get_db
+from backend.app.core.helpers import resolve_centre
 from backend.app.models.booking import Booking, BookingStatusHistory, QRCode
 from backend.app.models.centre import Slot, DailyCapacity, NonOperationalDate, ProcurementCentre
 from backend.app.models.farmer import Farmer
@@ -43,9 +44,10 @@ def create_booking(req: BookingCreate, db: Session = Depends(get_db)):
     w_name = get_weekday_name(slot_date)
 
     # 2. Centre check & Operating Days
-    centre = db.query(ProcurementCentre).filter(ProcurementCentre.centre_id == req.centre_id).first()
+    centre = resolve_centre(req.centre_id, db)
     if not centre:
         raise HTTPException(status_code=404, detail="Procurement Centre does not exist.")
+    actual_centre_id = centre.centre_id
 
     if centre.operating_days and centre.operating_days != "[object Object]":
         allowed = [d.strip().lower() for d in centre.operating_days.split(",") if d.strip()]
@@ -53,7 +55,10 @@ def create_booking(req: BookingCreate, db: Session = Depends(get_db)):
             raise HTTPException(status_code=400, detail=f"{centre.centre_name} is closed on {w_name}s.")
 
     # 3. Holiday Check
-    holiday = db.query(NonOperationalDate).filter(NonOperationalDate.centre_id == req.centre_id, NonOperationalDate.date == slot_date).first()
+    holiday = db.query(NonOperationalDate).filter(
+        NonOperationalDate.centre_id == actual_centre_id,
+        NonOperationalDate.date == slot_date
+    ).first()
     if holiday:
         raise HTTPException(status_code=400, detail=f"Centre Closed on {slot_date} ({holiday.reason}).")
 
@@ -63,13 +68,13 @@ def create_booking(req: BookingCreate, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="Sorry, this slot is now full.")
 
     # 5. Daily Capacity check
-    cap_row = db.query(DailyCapacity).filter(DailyCapacity.centre_id == req.centre_id, DailyCapacity.date == slot_date).first()
+    cap_row = db.query(DailyCapacity).filter(DailyCapacity.centre_id == actual_centre_id, DailyCapacity.date == slot_date).first()
     max_q = float(cap_row.max_quintals_per_day) if cap_row else float(centre.max_daily_capacity_quintals or 800.0)
 
     sum_booked = float(
         db.query(func.coalesce(func.sum(Booking.quantity), 0))
         .join(Slot, Booking.slot_id == Slot.id)
-        .filter(Booking.centre_id == req.centre_id, Slot.date == slot_date, Booking.status != "REJECTED")
+        .filter(Booking.centre_id == actual_centre_id, Slot.date == slot_date, Booking.status != "REJECTED")
         .scalar()
     )
 
@@ -175,18 +180,19 @@ def check_capacity_and_redirect(
     quantity: float = Query(...),
     db: Session = Depends(get_db)
 ):
-    centre = db.query(ProcurementCentre).filter(ProcurementCentre.centre_id == centre_id).first()
+    centre = resolve_centre(centre_id, db)
     if not centre:
         raise HTTPException(status_code=404, detail="Centre not found.")
+    actual_centre_id = centre.centre_id
 
     # Check capacity of requested centre
-    cap_row = db.query(DailyCapacity).filter(DailyCapacity.centre_id == centre_id, DailyCapacity.date == date_str).first()
+    cap_row = db.query(DailyCapacity).filter(DailyCapacity.centre_id == actual_centre_id, DailyCapacity.date == date_str).first()
     max_q = float(cap_row.max_quintals_per_day) if cap_row else float(centre.max_daily_capacity_quintals or 800.0)
 
     sum_booked = float(
         db.query(func.coalesce(func.sum(Booking.quantity), 0))
         .join(Slot, Booking.slot_id == Slot.id)
-        .filter(Booking.centre_id == centre_id, Slot.date == date_str, Booking.status != "REJECTED")
+        .filter(Booking.centre_id == actual_centre_id, Slot.date == date_str, Booking.status != "REJECTED")
         .scalar()
     )
 
@@ -293,7 +299,7 @@ def get_farmer_bookings(farmer_id: str, db: Session = Depends(get_db)):
         result.append({
             "id": b.id,
             "appointment_id": b.appointment_id,
-            "booking_id": b.appointment_id,
+            "booking_id": b.id,
             "farmer_id": b.farmer_id,
             "farmer_name": f_name,
             "farmer_mobile": f_mobile,
@@ -337,7 +343,7 @@ def get_centre_bookings(centre_id: str, date: Optional[str] = None, db: Session 
         result.append({
             "id": b.id,
             "appointment_id": b.appointment_id,
-            "booking_id": b.appointment_id,
+            "booking_id": b.id,
             "farmer_id": b.farmer_id,
             "farmer_name": f_name,
             "farmer_mobile": f_mobile,
@@ -351,7 +357,7 @@ def get_centre_bookings(centre_id: str, date: Optional[str] = None, db: Session 
             "end_time": s.end_time,
             "time_slot": f"{s.start_time} - {s.end_time}",
             "status": b.status,
-            "verification_status": "VERIFIED ✓" if b.status in ["VERIFIED", "COLLECTED", "PROCURED", "PAID"] else "NOT VERIFIED",
+            "verification_status": "VERIFIED ✓" if b.status in ["VERIFIED", "ARRIVED", "CHECKED_IN", "RECEIVED", "COLLECTED", "QUALITY_CHECKED", "WEIGHED", "PROCURED", "STORED", "PAYMENT_INITIATED", "PAID"] else "NOT VERIFIED",
             "qr_token": b.qr_token,
             "verified_at": str(b.verified_at) if b.verified_at else None,
             "created_at": str(b.created_at)
@@ -368,14 +374,18 @@ def update_booking_status(booking_id: str, req: StatusUpdateRequest, db: Session
     if not b:
         raise HTTPException(status_code=404, detail="Appointment not found.")
 
-    valid_statuses = ['CONFIRMED', 'CHECKED_IN', 'COLLECTED', 'QUALITY_CHECKED', 'WEIGHED', 'PROCURED', 'STORED', 'PAYMENT_INITIATED', 'PAID', 'REJECTED', 'EXPIRED']
+    valid_statuses = [
+        'BOOKED', 'CONFIRMED', 'CHECKED_IN', 'VERIFIED', 'ARRIVED', 'RECEIVED',
+        'COLLECTED', 'QUALITY_CHECKED', 'WEIGHED', 'PROCURED', 'STORED',
+        'PAYMENT_INITIATED', 'PAID', 'REJECTED', 'EXPIRED', 'CANCELLED'
+    ]
     new_st = req.status.upper()
     if new_st not in valid_statuses:
         raise HTTPException(status_code=400, detail="Invalid booking status.")
 
     old_st = b.status
     b.status = new_st
-    if new_st in ["CHECKED_IN", "VERIFIED"] and not b.verified_at:
+    if new_st in ["CHECKED_IN", "VERIFIED", "ARRIVED", "RECEIVED"] and not b.verified_at:
         b.verified_at = datetime.utcnow()
 
     # Log history

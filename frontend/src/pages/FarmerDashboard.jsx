@@ -1,10 +1,14 @@
 import React, { useEffect, useState } from 'react';
-import { getFarmerBookings, getFarmerProfile, getTraceabilityLot, createComplaint, getComplaints } from '../services/api';
+import {
+  getFarmerBookings, getFarmerProfile, getTraceabilityLot, createComplaint, getComplaints,
+  getFarmerCrops, addFarmerCrop, updateFarmerCrop, deleteFarmerCrop, updateFarmerProfile
+} from '../services/api';
 import StatusBadge from '../components/StatusBadge';
 import AppointmentCard from '../components/AppointmentCard';
 import {
   Calendar, PlusCircle, User, Hash, Clock, QrCode, X, Phone, MapPin,
-  Package, DollarSign, MessageSquare, ShieldCheck, CheckCircle, FileText
+  Package, DollarSign, MessageSquare, ShieldCheck, CheckCircle, FileText,
+  Edit, Trash2, Plus, Save
 } from 'lucide-react';
 import { formatDateDisplay } from '../utils/dateUtils';
 import { useTranslation } from '../context/LanguageContext';
@@ -14,6 +18,7 @@ export default function FarmerDashboard({ user, navigate }) {
   const [activeTab, setActiveTab] = useState('overview');
   const [bookings, setBookings] = useState([]);
   const [farmerProfile, setFarmerProfile] = useState(null);
+  const [crops, setCrops] = useState([]);
   const [complaints, setComplaints] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -30,22 +35,124 @@ export default function FarmerDashboard({ user, navigate }) {
   const [compDesc, setCompDesc] = useState('');
   const [compMsg, setCompMsg] = useState(null);
 
+  // Profile editing
+  const [editingProfile, setEditingProfile] = useState(false);
+  const [profileForm, setProfileForm] = useState({});
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileMsg, setProfileMsg] = useState(null);
+
+  // Crop CRUD
+  const [showAddCrop, setShowAddCrop] = useState(false);
+  const [cropForm, setCropForm] = useState({ crop_name: '', season: 'Kharif 2026-27', sowing_date: '', expected_harvest_date: '', estimated_quantity_quintals: '' });
+  const [editingCropId, setEditingCropId] = useState(null);
+  const [cropMsg, setCropMsg] = useState(null);
+  const [cropSaving, setCropSaving] = useState(false);
+
+  const farmerIdentifier = user?.user_id;
+
   useEffect(() => {
     if (user && user.user_id) {
       Promise.all([
         getFarmerBookings(user.user_id),
         getFarmerProfile(user.user_id).catch(() => null),
-        getComplaints().catch(() => [])
+        getComplaints().catch(() => []),
+        getFarmerCrops(user.user_id).catch(() => [])
       ])
-        .then(([bData, pData, cData]) => {
+        .then(([bData, pData, cData, cropsData]) => {
           setBookings(bData || []);
           setFarmerProfile(pData);
           setComplaints(cData || []);
+          setCrops(cropsData || (pData?.crops || []));
+          if (pData) {
+            setProfileForm({
+              name: pData.name || '',
+              mobile: pData.mobile || '',
+              email: pData.email || '',
+              address: pData.address || '',
+              village: pData.village || '',
+              taluka: pData.taluka || '',
+              district: pData.district || '',
+              state: pData.state || '',
+              land_area_hectares: pData.land_area_hectares || '',
+              bank_name: pData.bank_name || '',
+              bank_account_no: pData.bank_account_no || '',
+              bank_ifsc: pData.bank_ifsc || ''
+            });
+          }
         })
         .catch((err) => console.error('Error loading farmer data:', err))
         .finally(() => setLoading(false));
     }
   }, [user]);
+
+  const handleSaveProfile = async (e) => {
+    e.preventDefault();
+    setProfileSaving(true);
+    setProfileMsg(null);
+    try {
+      const updated = await updateFarmerProfile(farmerIdentifier, profileForm);
+      setFarmerProfile(prev => ({ ...prev, ...updated }));
+      setProfileMsg({ type: 'success', text: 'Profile updated successfully.' });
+      setEditingProfile(false);
+    } catch (err) {
+      setProfileMsg({ type: 'error', text: err.message || 'Profile update failed' });
+    } finally {
+      setProfileSaving(false);
+    }
+  };
+
+  const handleAddCrop = async (e) => {
+    e.preventDefault();
+    setCropSaving(true);
+    setCropMsg(null);
+    try {
+      const payload = {
+        ...cropForm,
+        estimated_quantity_quintals: parseFloat(cropForm.estimated_quantity_quintals),
+        sowing_date: cropForm.sowing_date || null,
+        expected_harvest_date: cropForm.expected_harvest_date || null
+      };
+      if (editingCropId) {
+        const updated = await updateFarmerCrop(farmerIdentifier, editingCropId, payload);
+        setCrops(prev => prev.map(c => c.id === editingCropId ? updated : c));
+        setCropMsg({ type: 'success', text: `Crop '${updated.crop_name}' updated.` });
+        setEditingCropId(null);
+      } else {
+        const newCrop = await addFarmerCrop(farmerIdentifier, payload);
+        setCrops(prev => [...prev, newCrop]);
+        setCropMsg({ type: 'success', text: `Crop '${newCrop.crop_name}' added.` });
+      }
+      setShowAddCrop(false);
+      setCropForm({ crop_name: '', season: 'Kharif 2026-27', sowing_date: '', expected_harvest_date: '', estimated_quantity_quintals: '' });
+    } catch (err) {
+      setCropMsg({ type: 'error', text: err.message || 'Failed to save crop' });
+    } finally {
+      setCropSaving(false);
+    }
+  };
+
+  const handleDeleteCrop = async (cropId, cropName) => {
+    if (!window.confirm(`Remove crop '${cropName}' from your profile?`)) return;
+    try {
+      await deleteFarmerCrop(farmerIdentifier, cropId);
+      setCrops(prev => prev.filter(c => c.id !== cropId));
+      setCropMsg({ type: 'success', text: `Crop '${cropName}' removed.` });
+    } catch (err) {
+      setCropMsg({ type: 'error', text: err.message });
+    }
+  };
+
+  const handleEditCrop = (crop) => {
+    setEditingCropId(crop.id);
+    setCropForm({
+      crop_name: crop.crop_name,
+      season: crop.season || 'Kharif 2026-27',
+      sowing_date: crop.sowing_date ? crop.sowing_date.split('T')[0] : '',
+      expected_harvest_date: crop.expected_harvest_date ? crop.expected_harvest_date.split('T')[0] : '',
+      estimated_quantity_quintals: crop.estimated_quantity_quintals || ''
+    });
+    setShowAddCrop(true);
+  };
 
   const handleViewTraceability = async (bookingIdOrLot) => {
     try {
@@ -64,7 +171,7 @@ export default function FarmerDashboard({ user, navigate }) {
     setCompMsg(null);
     try {
       await createComplaint({
-        centre_id: 'CENTRE-GOA-01',
+        centre_id: farmerProfile?.preferred_centre || 'CENTRE-GOA-01',
         category: compCategory,
         priority: 'MEDIUM',
         subject: compSubject,
@@ -305,63 +412,160 @@ export default function FarmerDashboard({ user, navigate }) {
 
       {/* TAB 2: PROFILE & MY CROPS */}
       {activeTab === 'profile' && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '1.5rem' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+          {/* Profile Info & Edit Form */}
           <div className="card">
-            <h3 style={{ fontSize: '1.1rem', marginBottom: '1rem', color: 'var(--secondary)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <User size={18} color="var(--primary)" /> Cultivator Profile & Land Holdings
-            </h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem', fontSize: '0.9rem' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' }}>
-                <span style={{ color: 'var(--muted)' }}>Farmer Code:</span>
-                <strong>{farmerProfile?.farmer_code || user.user_id}</strong>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' }}>
-                <span style={{ color: 'var(--muted)' }}>Registered Name:</span>
-                <strong>{user.name}</strong>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' }}>
-                <span style={{ color: 'var(--muted)' }}>Mobile Number:</span>
-                <strong>{user.mobile || '9800000004'}</strong>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' }}>
-                <span style={{ color: 'var(--muted)' }}>Village / District:</span>
-                <strong>{farmerProfile?.village || 'Ponda'}, {farmerProfile?.district || 'North Goa'}</strong>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' }}>
-                <span style={{ color: 'var(--muted)' }}>State:</span>
-                <strong>{farmerProfile?.state || 'Goa'}</strong>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' }}>
-                <span style={{ color: 'var(--muted)' }}>Cultivated Land Area:</span>
-                <strong>{farmerProfile?.land_area_hectares || '2.5'} Hectares</strong>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ color: 'var(--muted)' }}>DBT Bank Account:</span>
-                <strong style={{ color: 'var(--primary)' }}>SBI A/C ending in ...4921 (Aadhaar Seeded)</strong>
-              </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+              <h3 style={{ fontSize: '1.1rem', color: 'var(--secondary)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <User size={18} color="var(--primary)" /> Cultivator Profile & Land Holdings
+              </h3>
+              <button
+                onClick={() => { setEditingProfile(!editingProfile); setProfileMsg(null); }}
+                style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.45rem 0.9rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', backgroundColor: 'var(--bg-card)', color: 'var(--secondary)', cursor: 'pointer', fontWeight: 600, fontSize: '0.85rem' }}
+              >
+                <Edit size={14} /> {editingProfile ? 'Cancel Edit' : 'Edit Profile'}
+              </button>
             </div>
+
+            {profileMsg && (
+              <div style={{ padding: '0.65rem 0.85rem', marginBottom: '0.85rem', borderRadius: 'var(--radius-sm)', backgroundColor: profileMsg.type === 'success' ? 'var(--success-bg)' : 'var(--danger-bg)', color: profileMsg.type === 'success' ? 'var(--success-text)' : 'var(--danger-text)', fontSize: '0.875rem' }}>
+                {profileMsg.text}
+              </div>
+            )}
+
+            {editingProfile ? (
+              <form onSubmit={handleSaveProfile} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.85rem' }}>
+                {[['Name', 'name', 'text'], ['Mobile', 'mobile', 'text'], ['Email', 'email', 'email'], ['Village', 'village', 'text'], ['Taluka', 'taluka', 'text'], ['District', 'district', 'text'], ['State', 'state', 'text'], ['Land Area (Ha)', 'land_area_hectares', 'number'], ['Bank Name', 'bank_name', 'text'], ['Account No', 'bank_account_no', 'text'], ['IFSC Code', 'bank_ifsc', 'text']].map(([label, field, type]) => (
+                  <div key={field}>
+                    <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--secondary)', display: 'block', marginBottom: '0.25rem' }}>{label}</label>
+                    <input
+                      type={type}
+                      value={profileForm[field] || ''}
+                      onChange={e => setProfileForm(p => ({ ...p, [field]: e.target.value }))}
+                      style={{ width: '100%', padding: '0.55rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', backgroundColor: 'var(--bg-card)', color: 'var(--secondary)', fontSize: '0.875rem' }}
+                    />
+                  </div>
+                ))}
+                <div style={{ gridColumn: '1 / -1', display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
+                  <button type="submit" disabled={profileSaving} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.55rem 1.25rem', borderRadius: 'var(--radius-sm)', backgroundColor: 'var(--primary)', color: '#fff', border: 'none', fontWeight: 700, cursor: 'pointer', fontSize: '0.875rem', opacity: profileSaving ? 0.65 : 1 }}>
+                    <Save size={14} /> {profileSaving ? 'Saving...' : 'Save Changes'}
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', fontSize: '0.9rem' }}>
+                {[
+                  ['Farmer ID / Code', farmerProfile?.farmer_code || user.farmer_code || user.user_id],
+                  ['User ID / Login Code', farmerProfile?.user_id || user.user_id],
+                  ['Registered Name', farmerProfile?.name || user.name],
+                  ['Mobile Number', farmerProfile?.mobile || user.mobile || '—'],
+                  ['Email', farmerProfile?.email || '—'],
+                  ['Date of Birth', farmerProfile?.dob || '—'],
+                  ['Village / Taluka', `${farmerProfile?.village || '—'} / ${farmerProfile?.taluka || '—'}`],
+                  ['District / State', `${farmerProfile?.district || '—'}, ${farmerProfile?.state || '—'}`],
+                  ['Cultivated Land Area', `${farmerProfile?.land_area_hectares || '—'} Hectares`],
+                  ['e-KYC Status', farmerProfile?.ekyc_status || 'VERIFIED'],
+                  ['DBT Bank Account', farmerProfile?.bank_name ? (
+                    `${farmerProfile.bank_name} — ` +
+                    (farmerProfile.bank_account_no && farmerProfile.bank_account_no.length > 4
+                      ? '*'.repeat(farmerProfile.bank_account_no.length - 4) + farmerProfile.bank_account_no.slice(-4)
+                      : farmerProfile.bank_account_no || 'N/A') +
+                    ` (IFSC: ${farmerProfile.bank_ifsc || 'N/A'})`
+                  ) : 'Not configured']
+                ].map(([label, value]) => (
+                  <div key={label} style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' }}>
+                    <span style={{ color: 'var(--muted)' }}>{label}:</span>
+                    <strong style={{ color: 'var(--secondary)', textAlign: 'right', maxWidth: '60%' }}>{value}</strong>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
+          {/* Crops Section */}
           <div className="card">
-            <h3 style={{ fontSize: '1.1rem', marginBottom: '1rem', color: 'var(--secondary)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <Package size={18} color="#0284c7" /> Approved Crops & Expected Harvest
-            </h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              {(farmerProfile?.crops || ['Paddy', 'Wheat', 'Maize']).map((crop, idx) => (
-                <div key={idx} style={{ padding: '1rem', backgroundColor: 'var(--bg-page)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
-                    <strong style={{ fontSize: '1rem', color: 'var(--secondary)' }}>{crop}</strong>
-                    <span style={{ padding: '0.15rem 0.5rem', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 600, backgroundColor: 'var(--success-bg)', color: 'var(--success-text)' }}>
-                      MSP ELIGIBLE
-                    </span>
-                  </div>
-                  <div style={{ fontSize: '0.85rem', color: 'var(--muted)', display: 'flex', justifyContent: 'space-between' }}>
-                    <span>Govt MSP Benchmark: ₹ 2,300/Q</span>
-                    <span>Expected Yield: 45 Quintals</span>
-                  </div>
-                </div>
-              ))}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+              <h3 style={{ fontSize: '1.1rem', color: 'var(--secondary)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Package size={18} color="#0284c7" /> My Crops & Harvest Estimates
+              </h3>
+              <button
+                onClick={() => { setShowAddCrop(!showAddCrop); setEditingCropId(null); setCropForm({ crop_name: '', season: 'Kharif 2026-27', sowing_date: '', expected_harvest_date: '', estimated_quantity_quintals: '' }); }}
+                style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.45rem 0.9rem', borderRadius: 'var(--radius-sm)', backgroundColor: 'var(--primary)', color: '#fff', border: 'none', fontWeight: 600, cursor: 'pointer', fontSize: '0.85rem' }}
+              >
+                <Plus size={14} /> {showAddCrop ? 'Cancel' : 'Add Crop'}
+              </button>
             </div>
+
+            {cropMsg && (
+              <div style={{ padding: '0.65rem 0.85rem', marginBottom: '0.85rem', borderRadius: 'var(--radius-sm)', backgroundColor: cropMsg.type === 'success' ? 'var(--success-bg)' : 'var(--danger-bg)', color: cropMsg.type === 'success' ? 'var(--success-text)' : 'var(--danger-text)', fontSize: '0.875rem' }}>
+                {cropMsg.text}
+              </div>
+            )}
+
+            {showAddCrop && (
+              <form onSubmit={handleAddCrop} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.75rem', marginBottom: '1.25rem', padding: '1rem', backgroundColor: 'var(--bg-page)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
+                <div>
+                  <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--secondary)', display: 'block', marginBottom: '0.25rem' }}>Crop Name *</label>
+                  <select value={cropForm.crop_name} onChange={e => setCropForm(p => ({ ...p, crop_name: e.target.value }))} required style={{ width: '100%', padding: '0.55rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', backgroundColor: 'var(--bg-card)', color: 'var(--secondary)' }}>
+                    <option value="">Select crop</option>
+                    {['Paddy', 'Wheat', 'Maize', 'Soybean', 'Cotton', 'Jowar', 'Bajra', 'Gram', 'Tur', 'Groundnut', 'Sunflower', 'Sugarcane'].map(c => <option key={c}>{c}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--secondary)', display: 'block', marginBottom: '0.25rem' }}>Season</label>
+                  <select value={cropForm.season} onChange={e => setCropForm(p => ({ ...p, season: e.target.value }))} style={{ width: '100%', padding: '0.55rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', backgroundColor: 'var(--bg-card)', color: 'var(--secondary)' }}>
+                    {['Kharif 2026-27', 'Rabi 2026-27', 'Zaid 2027', 'Kharif 2025-26', 'Rabi 2025-26'].map(s => <option key={s}>{s}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--secondary)', display: 'block', marginBottom: '0.25rem' }}>Sowing Date</label>
+                  <input type="date" value={cropForm.sowing_date} onChange={e => setCropForm(p => ({ ...p, sowing_date: e.target.value }))} style={{ width: '100%', padding: '0.55rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', backgroundColor: 'var(--bg-card)', color: 'var(--secondary)' }} />
+                </div>
+                <div>
+                  <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--secondary)', display: 'block', marginBottom: '0.25rem' }}>Expected Harvest</label>
+                  <input type="date" value={cropForm.expected_harvest_date} onChange={e => setCropForm(p => ({ ...p, expected_harvest_date: e.target.value }))} style={{ width: '100%', padding: '0.55rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', backgroundColor: 'var(--bg-card)', color: 'var(--secondary)' }} />
+                </div>
+                <div>
+                  <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--secondary)', display: 'block', marginBottom: '0.25rem' }}>Estimated Qty (Quintals) *</label>
+                  <input type="number" min={0.1} step={0.1} required value={cropForm.estimated_quantity_quintals} onChange={e => setCropForm(p => ({ ...p, estimated_quantity_quintals: e.target.value }))} style={{ width: '100%', padding: '0.55rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', backgroundColor: 'var(--bg-card)', color: 'var(--secondary)' }} />
+                </div>
+                <div style={{ display: 'flex', alignItems: 'flex-end', gap: '0.5rem' }}>
+                  <button type="submit" disabled={cropSaving} style={{ flex: 1, padding: '0.55rem', borderRadius: 'var(--radius-sm)', backgroundColor: 'var(--primary)', color: '#fff', border: 'none', fontWeight: 700, cursor: 'pointer', fontSize: '0.875rem', opacity: cropSaving ? 0.65 : 1 }}>
+                    {cropSaving ? 'Saving...' : (editingCropId ? 'Update Crop' : 'Add Crop')}
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {crops.length === 0 ? (
+              <div style={{ padding: '1.5rem', textAlign: 'center', color: 'var(--muted)' }}>
+                <Package size={36} style={{ opacity: 0.3, marginBottom: '0.5rem' }} />
+                <p>No crops registered yet. Click "Add Crop" to register your harvest.</p>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                {crops.map((crop) => (
+                  <div key={crop.id} style={{ padding: '0.85rem 1rem', backgroundColor: 'var(--bg-page)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.3rem' }}>
+                        <strong style={{ fontSize: '1rem', color: 'var(--secondary)' }}>{crop.crop_name}</strong>
+                        <span style={{ padding: '0.15rem 0.5rem', borderRadius: '4px', fontSize: '0.72rem', fontWeight: 700, backgroundColor: 'var(--success-bg)', color: 'var(--success-text)' }}>MSP ELIGIBLE</span>
+                      </div>
+                      <div style={{ fontSize: '0.82rem', color: 'var(--muted)', display: 'flex', gap: '1.5rem', flexWrap: 'wrap' }}>
+                        <span>Season: <strong style={{ color: 'var(--secondary)' }}>{crop.season}</strong></span>
+                        <span>Estimated: <strong style={{ color: 'var(--primary)' }}>{crop.estimated_quantity_quintals} Q</strong></span>
+                        {crop.sowing_date && <span>Sown: {crop.sowing_date}</span>}
+                        {crop.expected_harvest_date && <span>Harvest: {crop.expected_harvest_date}</span>}
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '0.4rem' }}>
+                      <button onClick={() => handleEditCrop(crop)} style={{ padding: '0.35rem 0.65rem', borderRadius: '4px', border: '1px solid var(--border)', backgroundColor: 'var(--bg-card)', color: 'var(--secondary)', cursor: 'pointer', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}><Edit size={12} /> Edit</button>
+                      <button onClick={() => handleDeleteCrop(crop.id, crop.crop_name)} style={{ padding: '0.35rem 0.65rem', borderRadius: '4px', border: '1px solid var(--danger)', backgroundColor: 'var(--danger-bg)', color: 'var(--danger-text)', cursor: 'pointer', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}><Trash2 size={12} /> Remove</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}

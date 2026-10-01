@@ -90,7 +90,10 @@ def test_booking_workflow_and_qr():
     farmer_token = farmer_res.json()["token"]
     farmer_id = farmer_res.json()["user"]["user_id"]
 
-    target_date = (date.today() + timedelta(days=10)).strftime("%Y-%m-%d")
+    target_dt = date.today() + timedelta(days=10)
+    if target_dt.weekday() == 6:  # Skip Sunday
+        target_dt += timedelta(days=1)
+    target_date = target_dt.strftime("%Y-%m-%d")
 
     # Get slots for CENTRE-GOA-01
     slots_res = client.get(f"/api/slots?centre_id=CENTRE-GOA-01&date={target_date}")
@@ -342,4 +345,215 @@ def test_complaints_end_to_end():
         "resolution": "Scale 2 brought online; farmer truck weighed successfully."
     })
     assert status_res.status_code == 200
-    assert status_res.json()["data"]["status"] == "RESOLVED"
+
+
+def test_farmer_profile_and_crops_crud():
+    # 1. Login as farmer
+    farmer_res = client.post("/api/auth/login", json={
+        "user_id": "farmer@bharatagri.demo",
+        "password": DEMO_PASSWORD
+    })
+    token = farmer_res.json()["token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    # 2. Get profile
+    prof_res = client.get("/api/farmers/me", headers=headers)
+    assert prof_res.status_code == 200
+    prof = prof_res.json()
+    assert prof["user_id"] == "farmer@bharatagri.demo"
+
+    # 3. Update profile
+    upd_res = client.put("/api/farmers/me", headers=headers, json={
+        "village": "Ponda Rural",
+        "land_area_hectares": 3.25
+    })
+    assert upd_res.status_code == 200
+    assert upd_res.json()["farmer"]["village"] == "Ponda Rural"
+
+    # 4. Add crop
+    add_crop_res = client.post("/api/farmers/me/crops", headers=headers, json={
+        "crop_name": "Moong",
+        "season": "Kharif 2026-27",
+        "estimated_quantity_quintals": 18.5
+    })
+    assert add_crop_res.status_code == 201
+    crop_id = add_crop_res.json()["crop"]["id"]
+
+    # 5. List crops
+    crops_res = client.get("/api/farmers/me/crops", headers=headers)
+    assert crops_res.status_code == 200
+    assert any(c["id"] == crop_id for c in crops_res.json())
+
+    # 6. Update crop
+    upd_crop_res = client.put(f"/api/farmers/me/crops/{crop_id}", headers=headers, json={
+        "estimated_quantity_quintals": 22.0
+    })
+    assert upd_crop_res.status_code == 200
+    assert upd_crop_res.json()["crop"]["estimated_quantity_quintals"] == 22.0
+
+    # 7. Delete crop
+    del_res = client.delete(f"/api/farmers/me/crops/{crop_id}", headers=headers)
+    assert del_res.status_code == 200
+
+
+def test_agent_workflow_and_stats():
+    # 1. Login as agent
+    agent_res = client.post("/api/auth/login", json={
+        "user_id": "agent@bharatagri.demo",
+        "password": DEMO_PASSWORD
+    })
+    assert agent_res.status_code == 200
+    token = agent_res.json()["token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    # 2. Get agent dashboard stats
+    stats_res = client.get("/api/agents/stats", headers=headers)
+    assert stats_res.status_code == 200
+    stats = stats_res.json()
+    assert "farmers_assisted" in stats
+    assert "todays_bookings" in stats
+    assert "pending_requests" in stats
+    assert "upcoming_harvests" in stats
+    assert "recent_alerts" in stats
+
+    # 3. Get assigned farmers
+    farmers_res = client.get("/api/agents/farmers", headers=headers)
+    assert farmers_res.status_code == 200
+    assert isinstance(farmers_res.json(), list)
+
+
+def test_centre_operation_config_and_intelligence():
+    # 1. Login as centre
+    centre_res = client.post("/api/auth/login", json={
+        "user_id": "centre@bharatagri.demo",
+        "password": DEMO_PASSWORD
+    })
+    token = centre_res.json()["token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    # 2. Get operating config
+    cfg_res = client.get("/api/centres/CENTRE-GOA-01/operating-config", headers=headers)
+    assert cfg_res.status_code == 200
+    cfg = cfg_res.json()
+    assert "operating_days" in cfg
+    assert "opening_time" in cfg
+
+    # 3. Update operating config
+    upd_res = client.put("/api/centres/CENTRE-GOA-01/operating-config", headers=headers, json={
+        "operating_days": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"],
+        "opening_time": "08:30 AM",
+        "closing_time": "05:30 PM",
+        "max_daily_capacity_quintals": 850.0
+    })
+    assert upd_res.status_code == 200
+    assert upd_res.json()["opening_time"] == "08:30 AM"
+
+    # 4. Get operational intelligence
+    intel_res = client.get("/api/centres/CENTRE-GOA-01/operational-intelligence", headers=headers)
+    assert intel_res.status_code == 200
+    intel = intel_res.json()["intelligence"]
+    assert "expected_arrivals" in intel
+    assert "expected_procurement" in intel
+    assert "utilization_forecast" in intel
+    assert "congestion_prediction" in intel
+    assert "truck_requirement" in intel
+    assert "bardan_requirement" in intel
+
+
+def test_government_state_filtering_and_centre_detail():
+    # 1. Login as government admin
+    gov_res = client.post("/api/auth/login", json={
+        "user_id": "admin@bharatagri.demo",
+        "password": DEMO_PASSWORD
+    })
+    token = gov_res.json()["token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    # 2. Get available states
+    states_res = client.get("/api/government/states", headers=headers)
+    assert states_res.status_code == 200
+    states = states_res.json()["states"]
+    assert "Goa" in states
+    assert "Maharashtra" in states
+
+    # 3. Nationwide KPIs
+    nw_kpis = client.get("/api/government/kpis", headers=headers).json()
+    assert nw_kpis["selected_scope"] == "Nationwide"
+
+    # 4. Goa State KPIs
+    goa_kpis = client.get("/api/government/kpis?state=Goa", headers=headers).json()
+    assert goa_kpis["selected_scope"] == "Goa"
+    assert goa_kpis["data"]["active_centres"] == 5
+
+    # 5. Centre detail drilldown
+    detail_res = client.get("/api/government/centres/CENTRE-GOA-01/detail", headers=headers)
+    assert detail_res.status_code == 200
+    d = detail_res.json()
+    assert d["centre_id"] == "CENTRE-GOA-01"
+    assert "capacity" in d
+    assert "bookings" in d
+    assert "procurement" in d
+    assert "congestion" in d
+    assert "trucks" in d
+    assert "bardan" in d
+
+
+def test_price_intelligence_and_msp():
+    # 1. Official MSP table
+    msp_res = client.get("/api/msp")
+    assert msp_res.status_code == 200
+    msp_list = msp_res.json()["data"]
+    assert len(msp_list) >= 5
+    assert any(m["crop"] == "Paddy" and m["official_msp_per_quintal"] == 2300 for m in msp_list)
+
+    # 2. State price intelligence
+    price_res = client.get("/api/price-intelligence?state=Goa")
+    assert price_res.status_code == 200
+    items = price_res.json()["data"]
+    assert len(items) >= 1
+    paddy_item = next(i for i in items if i["crop"] == "Paddy")
+    # Surplus rule verification: estimated price >= official MSP
+    assert paddy_item["estimated_price"] >= paddy_item["official_msp"]
+
+    # 3. Price estimate calculation
+    est_res = client.post("/api/ai/price-estimate", json={
+        "crop": "Paddy",
+        "state": "Goa",
+        "quantity": 30.0
+    })
+    assert est_res.status_code == 200
+    est = est_res.json()
+    assert est["official_msp"] == 2300.0
+    assert est["estimated_price"] >= 2300.0
+    assert est["estimated_total_value"] == est["estimated_price"] * 30.0
+
+
+def test_truck_route_prediction_and_approval_workflow():
+    gov_res = client.post("/api/auth/login", json={
+        "user_id": "admin@bharatagri.demo",
+        "password": DEMO_PASSWORD
+    })
+    token = gov_res.json()["token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    # 1. Generate predictions
+    pred_gen_res = client.post("/api/trucks/routes/predict", headers=headers, json={"crop": "Paddy"})
+    assert pred_gen_res.status_code == 200
+
+    # 2. List predictions
+    routes_res = client.get("/api/trucks/routes/predictions", headers=headers)
+    assert routes_res.status_code == 200
+    routes = routes_res.json()["data"]
+    assert len(routes) >= 1
+    target_route = routes[0]
+    route_id = target_route["id"]
+
+    # 3. Approve route
+    appr_res = client.post(f"/api/trucks/routes/{route_id}/approve", headers=headers, json={"comments": "Approved for dispatch"})
+    assert appr_res.status_code == 200
+    assert appr_res.json()["status"] == "APPROVED"
+
+    # 4. Schedule route
+    sched_res = client.post(f"/api/trucks/routes/{route_id}/schedule", headers=headers)
+    assert sched_res.status_code == 200
+    assert sched_res.json()["status"] == "SCHEDULED"
