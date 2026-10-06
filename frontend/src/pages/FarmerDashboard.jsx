@@ -1,14 +1,15 @@
 import React, { useEffect, useState } from 'react';
 import {
   getFarmerBookings, getFarmerProfile, getTraceabilityLot, createComplaint, getComplaints,
-  getFarmerCrops, addFarmerCrop, updateFarmerCrop, deleteFarmerCrop, updateFarmerProfile
+  getFarmerCrops, addFarmerCrop, updateFarmerCrop, deleteFarmerCrop, updateFarmerProfile,
+  getBookingWorkflowStatus, getFarmerMarketIntelligence, getFarmerDailyIntelligence
 } from '../services/api';
 import StatusBadge from '../components/StatusBadge';
 import AppointmentCard from '../components/AppointmentCard';
 import {
   Calendar, PlusCircle, User, Hash, Clock, QrCode, X, Phone, MapPin,
   Package, DollarSign, MessageSquare, ShieldCheck, CheckCircle, FileText,
-  Edit, Trash2, Plus, Save
+  Edit, Trash2, Plus, Save, TrendingUp, AlertTriangle, Layers, Activity, ArrowRight, Sparkles
 } from 'lucide-react';
 import { formatDateDisplay } from '../utils/dateUtils';
 import { useTranslation } from '../context/LanguageContext';
@@ -48,7 +49,24 @@ export default function FarmerDashboard({ user, navigate }) {
   const [cropMsg, setCropMsg] = useState(null);
   const [cropSaving, setCropSaving] = useState(false);
 
+  // Intelligence & Live Workflow Tracker State
+  const [dailyIntel, setDailyIntel] = useState(null);
+  const [marketIntel, setMarketIntel] = useState(null);
+  const [marketIntelLoading, setMarketIntelLoading] = useState(false);
+  const [workflowData, setWorkflowData] = useState(null);
+  const [workflowLoading, setWorkflowLoading] = useState(false);
+  const [selectedWorkflowBooking, setSelectedWorkflowBooking] = useState(null);
+
   const farmerIdentifier = user?.user_id;
+
+  const loadWorkflowStatus = (bId) => {
+    if (!bId) return;
+    setWorkflowLoading(true);
+    getBookingWorkflowStatus(bId)
+      .then(data => setWorkflowData(data))
+      .catch(err => console.error('Error loading workflow status:', err))
+      .finally(() => setWorkflowLoading(false));
+  };
 
   useEffect(() => {
     if (user && user.user_id) {
@@ -56,13 +74,23 @@ export default function FarmerDashboard({ user, navigate }) {
         getFarmerBookings(user.user_id),
         getFarmerProfile(user.user_id).catch(() => null),
         getComplaints().catch(() => []),
-        getFarmerCrops(user.user_id).catch(() => [])
+        getFarmerCrops(user.user_id).catch(() => []),
+        getFarmerDailyIntelligence(user.user_id).catch(() => null)
       ])
-        .then(([bData, pData, cData, cropsData]) => {
+        .then(([bData, pData, cData, cropsData, dailyData]) => {
           setBookings(bData || []);
           setFarmerProfile(pData);
           setComplaints(cData || []);
           setCrops(cropsData || (pData?.crops || []));
+          setDailyIntel(dailyData);
+
+          // If there is an active booking, load its live 8-step workflow
+          const activeB = (bData || []).find(b => !['CANCELLED', 'REJECTED', 'EXPIRED'].includes(b.status));
+          if (activeB) {
+            setSelectedWorkflowBooking(activeB);
+            loadWorkflowStatus(activeB.appointment_id || activeB.id);
+          }
+
           if (pData) {
             setProfileForm({
               name: pData.name || '',
@@ -84,6 +112,16 @@ export default function FarmerDashboard({ user, navigate }) {
         .finally(() => setLoading(false));
     }
   }, [user]);
+
+  useEffect(() => {
+    if (activeTab === 'intelligence' && user?.user_id && !marketIntel) {
+      setMarketIntelLoading(true);
+      getFarmerMarketIntelligence(user.user_id)
+        .then(data => setMarketIntel(data))
+        .catch(err => console.error('Error fetching market intelligence:', err))
+        .finally(() => setMarketIntelLoading(false));
+    }
+  }, [activeTab, user, marketIntel]);
 
   const handleSaveProfile = async (e) => {
     e.preventDefault();
@@ -216,6 +254,7 @@ export default function FarmerDashboard({ user, navigate }) {
       <div style={{ display: 'flex', gap: '0.5rem', overflowX: 'auto', borderBottom: '1px solid var(--border)', paddingBottom: '0.25rem' }}>
         {[
           { id: 'overview', label: 'Dashboard & Appointments', icon: Calendar },
+          { id: 'intelligence', label: 'Market Intelligence & Insights', icon: TrendingUp },
           { id: 'profile', label: 'Profile & My Crops', icon: User },
           { id: 'procurement', label: 'Procurement & Lots', icon: Package },
           { id: 'payments', label: 'DBT Payments', icon: DollarSign },
@@ -247,6 +286,70 @@ export default function FarmerDashboard({ user, navigate }) {
       {/* TAB 1: OVERVIEW & BOOKINGS */}
       {activeTab === 'overview' && (
         <>
+          {/* DAILY INTELLIGENCE BANNER */}
+          {dailyIntel && (
+            <div style={{
+              background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, rgba(59, 130, 246, 0.08) 100%)',
+              border: '1px solid rgba(16, 185, 129, 0.3)',
+              borderRadius: 'var(--radius-md)',
+              padding: '1.25rem',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.85rem'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                  <Sparkles size={20} color="var(--primary)" />
+                  <span style={{ fontWeight: 800, fontSize: '0.95rem', color: 'var(--secondary)' }}>
+                    Kisan Daily Intelligence Summary • {dailyIntel.date}
+                  </span>
+                </div>
+                <span style={{ fontSize: '0.75rem', fontWeight: 700, padding: '0.2rem 0.6rem', borderRadius: '12px', backgroundColor: 'var(--primary-light)', color: 'var(--primary)' }}>
+                  State: {farmerProfile?.state || 'Goa'}
+                </span>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '0.75rem', fontSize: '0.85rem' }}>
+                {dailyIntel.active_appointment ? (
+                  <div style={{ backgroundColor: 'var(--bg-card)', padding: '0.75rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
+                    <span style={{ color: 'var(--muted)', display: 'block', fontSize: '0.75rem', fontWeight: 600 }}>APPOINTMENT STATUS</span>
+                    <strong style={{ color: 'var(--primary)' }}>{dailyIntel.active_appointment.crop} ({dailyIntel.active_appointment.quantity_quintals} Q)</strong>
+                    <div style={{ fontSize: '0.8rem', color: 'var(--secondary)', marginTop: '0.2rem' }}>
+                      Status: <span style={{ fontWeight: 700 }}>{dailyIntel.active_appointment.status}</span> • Slot: {dailyIntel.active_appointment.slot_date}
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ backgroundColor: 'var(--bg-card)', padding: '0.75rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
+                    <span style={{ color: 'var(--muted)', display: 'block', fontSize: '0.75rem', fontWeight: 600 }}>APPOINTMENT STATUS</span>
+                    <span style={{ color: 'var(--muted)' }}>No active booking. Slots available at nearby centres.</span>
+                  </div>
+                )}
+
+                {dailyIntel.crop_demand_alerts?.length > 0 && (
+                  <div style={{ backgroundColor: 'var(--bg-card)', padding: '0.75rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
+                    <span style={{ color: 'var(--muted)', display: 'block', fontSize: '0.75rem', fontWeight: 600 }}>DEMAND OPPORTUNITY</span>
+                    <strong style={{ color: 'var(--secondary)' }}>{dailyIntel.crop_demand_alerts[0].crop}</strong>
+                    <div style={{ fontSize: '0.8rem', color: 'var(--muted)', marginTop: '0.2rem' }}>
+                      {dailyIntel.crop_demand_alerts[0].message}
+                    </div>
+                  </div>
+                )}
+
+                {dailyIntel.price_intelligence_alerts?.length > 0 && (
+                  <div style={{ backgroundColor: 'var(--bg-card)', padding: '0.75rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
+                    <span style={{ color: 'var(--muted)', display: 'block', fontSize: '0.75rem', fontWeight: 600 }}>PRICE INTELLIGENCE ADVISORY</span>
+                    <strong style={{ color: 'var(--success)' }}>
+                      {dailyIntel.price_intelligence_alerts[0].crop} • AI Est: ₹{dailyIntel.price_intelligence_alerts[0].ai_estimated_price}/Q
+                    </strong>
+                    <div style={{ fontSize: '0.8rem', color: 'var(--muted)', marginTop: '0.2rem' }}>
+                      {dailyIntel.price_intelligence_alerts[0].advisory}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Quick Info Badges */}
           <div className="card" style={{ display: 'flex', gap: '2rem', flexWrap: 'wrap', alignItems: 'center' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
@@ -279,6 +382,107 @@ export default function FarmerDashboard({ user, navigate }) {
               </div>
             </div>
           </div>
+
+          {/* LIVE 8-STEP PROCUREMENT LIFECYCLE WORKFLOW TRACKER */}
+          {workflowData && (
+            <div className="card" style={{ padding: '1.5rem', border: '1px solid var(--primary-border)', backgroundColor: 'var(--bg-card)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '1.25rem' }}>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                    <Activity size={20} color="var(--primary)" />
+                    <h3 style={{ fontSize: '1.15rem', color: 'var(--secondary)', margin: 0, fontWeight: 800 }}>
+                      Live Intake & Procurement Lifecycle Tracker
+                    </h3>
+                  </div>
+                  <p style={{ fontSize: '0.85rem', color: 'var(--muted)', margin: '0.25rem 0 0 0' }}>
+                    Appointment: <strong style={{ color: 'var(--primary)' }}>{workflowData.appointment_id}</strong> ({workflowData.crop} • {workflowData.booked_quantity} Qtl at {workflowData.centre_name})
+                  </p>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                  <div style={{
+                    padding: '0.4rem 0.85rem', borderRadius: '16px',
+                    backgroundColor: 'var(--primary-light)', color: 'var(--primary)',
+                    fontWeight: 800, fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.4rem'
+                  }}>
+                    <span>Current Process:</span>
+                    <span style={{ textDecoration: 'underline' }}>{workflowData.current_process_name}</span>
+                  </div>
+                  <span style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>
+                    {workflowData.completed_count} of 8 Steps Complete ({workflowData.progress_percentage}%)
+                  </span>
+                </div>
+              </div>
+
+              {/* Progress Line */}
+              <div style={{ width: '100%', height: '6px', backgroundColor: 'var(--border)', borderRadius: '3px', marginBottom: '1.5rem', overflow: 'hidden' }}>
+                <div style={{ width: `${workflowData.progress_percentage}%`, height: '100%', backgroundColor: 'var(--primary)', transition: 'width 0.4s ease' }} />
+              </div>
+
+              {/* 8 Step Nodes */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '0.6rem', marginBottom: '1.25rem' }}>
+                {workflowData.steps.map((step) => {
+                  const isDone = step.completed;
+                  const isCurrent = !isDone && (workflowData.steps.find(s => !s.completed)?.step_id === step.step_id);
+
+                  return (
+                    <div
+                      key={step.step_id}
+                      style={{
+                        padding: '0.75rem 0.5rem',
+                        borderRadius: 'var(--radius-sm)',
+                        textAlign: 'center',
+                        backgroundColor: isDone ? 'rgba(16, 185, 129, 0.08)' : (isCurrent ? 'rgba(59, 130, 246, 0.12)' : 'var(--bg-page)'),
+                        border: isDone ? '1px solid rgba(16, 185, 129, 0.4)' : (isCurrent ? '2px solid var(--primary)' : '1px solid var(--border)')
+                      }}
+                    >
+                      <div style={{
+                        width: '28px', height: '28px', borderRadius: '50%',
+                        margin: '0 auto 0.4rem', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        backgroundColor: isDone ? 'var(--primary)' : (isCurrent ? '#3b82f6' : 'var(--border)'),
+                        color: '#ffffff', fontSize: '0.75rem', fontWeight: 800
+                      }}>
+                        {isDone ? '✓' : step.step_number}
+                      </div>
+                      <div style={{ fontSize: '0.8rem', fontWeight: 700, color: isDone ? 'var(--primary)' : (isCurrent ? '#1d4ed8' : 'var(--muted)') }}>
+                        {step.step_name}
+                      </div>
+                      <div style={{ fontSize: '0.7rem', color: 'var(--muted)', marginTop: '0.2rem' }}>
+                        {step.timestamp ? step.timestamp.split(' ')[1] || step.timestamp : (isCurrent ? 'In Progress' : 'Pending')}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Verified Metrics Chips */}
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.85rem', paddingTop: '0.85rem', borderTop: '1px solid var(--border)', fontSize: '0.85rem' }}>
+                {workflowData.actual_quantity_received && (
+                  <div style={{ padding: '0.35rem 0.75rem', borderRadius: '4px', backgroundColor: 'var(--bg-page)', border: '1px solid var(--border)' }}>
+                    <span style={{ color: 'var(--muted)' }}>Actual Weighed: </span>
+                    <strong style={{ color: 'var(--secondary)' }}>{workflowData.actual_quantity_received} Qtl</strong>
+                  </div>
+                )}
+                {workflowData.quality_result && (
+                  <div style={{ padding: '0.35rem 0.75rem', borderRadius: '4px', backgroundColor: 'var(--bg-page)', border: '1px solid var(--border)' }}>
+                    <span style={{ color: 'var(--muted)' }}>Quality Grade: </span>
+                    <strong style={{ color: 'var(--primary)' }}>{workflowData.quality_result.quality_grade} (Moisture: {workflowData.quality_result.moisture_content_pct}%)</strong>
+                  </div>
+                )}
+                {workflowData.payment_status && (
+                  <div style={{ padding: '0.35rem 0.75rem', borderRadius: '4px', backgroundColor: 'var(--bg-page)', border: '1px solid var(--border)' }}>
+                    <span style={{ color: 'var(--muted)' }}>DBT Payment: </span>
+                    <strong style={{ color: 'var(--success)' }}>{workflowData.payment_status.status} (₹{workflowData.payment_status.amount_inr?.toLocaleString()})</strong>
+                  </div>
+                )}
+                {workflowData.relevant_timestamp && (
+                  <div style={{ marginLeft: 'auto', color: 'var(--muted)', fontSize: '0.8rem', alignSelf: 'center' }}>
+                    Last Process Activity: {workflowData.relevant_timestamp}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Grid: Upcoming Appointment & Quick Action */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.5rem' }}>
@@ -759,6 +963,208 @@ export default function FarmerDashboard({ user, navigate }) {
         </div>
       )}
 
+      {/* TAB 6: MARKET INTELLIGENCE & INSIGHTS */}
+      {activeTab === 'intelligence' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+          {/* Advisory Notice Header */}
+          <div style={{
+            padding: '1.25rem',
+            backgroundColor: 'rgba(59, 130, 246, 0.08)',
+            border: '1px solid rgba(59, 130, 246, 0.25)',
+            borderRadius: 'var(--radius-md)'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.35rem' }}>
+              <TrendingUp size={20} color="var(--primary)" />
+              <h2 style={{ fontSize: '1.25rem', color: 'var(--secondary)', margin: 0, fontWeight: 800 }}>
+                Kisan Market Intelligence & Commodity Price Trends
+              </h2>
+            </div>
+            <p style={{ fontSize: '0.85rem', color: 'var(--muted)', margin: 0 }}>
+              Regional economic analytics for <strong>{farmerProfile?.state || 'Goa'}</strong> based on government procurement volumes,
+              current buffer targets, and official MSP price benchmarks.
+            </p>
+            <div style={{
+              marginTop: '0.75rem', padding: '0.6rem 0.85rem',
+              backgroundColor: 'var(--bg-card)', borderRadius: '4px',
+              borderLeft: '4px solid var(--primary)', fontSize: '0.8rem', color: 'var(--muted)'
+            }}>
+              ⚖️ <strong>Official Advisory Disclaimer:</strong> All procurement estimates represent machine learning projections grounded in historical intake, supply-demand balances, and statutory MSP minimum rate guarantees. No future personal income or speculative price guarantees are implied.
+            </div>
+          </div>
+
+          {marketIntelLoading ? (
+            <div className="card" style={{ padding: '3rem', textAlign: 'center', color: 'var(--muted)' }}>
+              Loading real-time market intelligence & model projections...
+            </div>
+          ) : marketIntel ? (
+            <>
+              {/* SECTION A & B: DEMAND TRENDS & SUPPLY DEFICITS */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '1.5rem' }}>
+                {/* HIGH DEMAND CROPS */}
+                <div className="card">
+                  <div className="card-header" style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <TrendingUp size={20} color="var(--primary)" />
+                    <h3 className="card-title">High Demand Commodities in State</h3>
+                  </div>
+                  <p style={{ fontSize: '0.85rem', color: 'var(--muted)', marginBottom: '1rem' }}>
+                    Crops currently experiencing elevated procurement velocity and strategic buffer restocking.
+                  </p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                    {marketIntel.high_demand_crops?.map((c, i) => (
+                      <div key={i} style={{ padding: '0.85rem', backgroundColor: 'var(--bg-page)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <strong style={{ fontSize: '0.95rem', color: 'var(--secondary)' }}>{c.crop_name}</strong>
+                          <span style={{ padding: '0.2rem 0.5rem', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 700, backgroundColor: 'var(--primary-light)', color: 'var(--primary)' }}>
+                            Demand: {c.demand_level}
+                          </span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', color: 'var(--muted)', marginTop: '0.4rem' }}>
+                          <span>Season: {c.season} • Trend: <strong style={{ color: 'var(--success)' }}>{c.demand_trend}</strong></span>
+                          <span>Official MSP: <strong>₹{c.official_msp}/Q</strong></span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* SUPPLY DEFICIT & SHORTAGES */}
+                <div className="card">
+                  <div className="card-header" style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <AlertTriangle size={20} color="#eab308" />
+                    <h3 className="card-title">State Supply Deficit Forecast</h3>
+                  </div>
+                  <p style={{ fontSize: '0.85rem', color: 'var(--muted)', marginBottom: '1rem' }}>
+                    Commodities where active procurement intake remains below the state's seasonal reserve quota.
+                  </p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                    {marketIntel.supply_shortages?.length > 0 ? (
+                      marketIntel.supply_shortages.map((s, i) => (
+                        <div key={i} style={{ padding: '0.85rem', backgroundColor: 'var(--bg-page)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <strong style={{ fontSize: '0.95rem', color: 'var(--secondary)' }}>{s.crop_name}</strong>
+                            <span style={{ padding: '0.2rem 0.5rem', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 700, backgroundColor: '#fef3c7', color: '#92400e' }}>
+                              Deficit: {s.projected_deficit_quintals.toLocaleString()} Q
+                            </span>
+                          </div>
+                          <p style={{ fontSize: '0.8rem', color: 'var(--muted)', margin: '0.4rem 0 0 0' }}>{s.reason}</p>
+                        </div>
+                      ))
+                    ) : (
+                      <div style={{ padding: '1rem', textAlign: 'center', color: 'var(--muted)', fontSize: '0.85rem' }}>
+                        Adequate seasonal buffer reserves maintained across state centres.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* SECTION C: PRICE OPPORTUNITIES (STRICT NON-GUARANTEE ADVISORY) */}
+              <div className="card">
+                <div className="card-header" style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Sparkles size={20} color="var(--primary)" />
+                  <h3 className="card-title">Estimated Procurement Price Indicators (AI XGBoost Model)</h3>
+                </div>
+                <p style={{ fontSize: '0.85rem', color: 'var(--muted)', marginBottom: '1rem' }}>
+                  Dynamic model evaluation respecting <code>FINAL ESTIMATED PRICE = MAX(AI ESTIMATE, OFFICIAL MSP)</code>.
+                </p>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem' }}>
+                  {marketIntel.price_opportunities?.map((p, i) => (
+                    <div key={i} style={{ padding: '1rem', borderRadius: 'var(--radius-sm)', backgroundColor: 'var(--bg-page)', border: '1px solid var(--border)' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                        <strong style={{ fontSize: '1rem', color: 'var(--secondary)' }}>{p.crop_name}</strong>
+                        <span style={{ fontSize: '0.75rem', padding: '0.2rem 0.5rem', borderRadius: '4px', backgroundColor: 'var(--primary-light)', color: 'var(--primary)', fontWeight: 700 }}>
+                          {p.season}
+                        </span>
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '0.75rem', fontSize: '0.85rem' }}>
+                        <div>
+                          <span style={{ color: 'var(--muted)', display: 'block', fontSize: '0.75rem' }}>OFFICIAL MSP</span>
+                          <strong style={{ color: 'var(--secondary)' }}>₹{p.official_msp}/Q</strong>
+                        </div>
+                        <div>
+                          <span style={{ color: 'var(--muted)', display: 'block', fontSize: '0.75rem' }}>AI ESTIMATED RATE</span>
+                          <strong style={{ color: 'var(--primary)' }}>₹{p.ai_estimated_procurement_price}/Q</strong>
+                        </div>
+                      </div>
+
+                      <div style={{ padding: '0.6rem', borderRadius: '4px', backgroundColor: 'var(--bg-card)', border: '1px solid var(--border)', fontSize: '0.8rem', color: 'var(--secondary)', lineHeight: 1.4 }}>
+                        💬 <em>"{p.advisory_note}"</em>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* SECTION D: FARMER-SPECIFIC CROPS COMPARATIVE ANALYSIS */}
+              <div className="card">
+                <div className="card-header" style={{ marginBottom: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Package size={20} color="var(--primary)" />
+                    <h3 className="card-title">My Registered Crops • Market Condition Benchmark</h3>
+                  </div>
+                  <div style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--primary)' }}>
+                    Portfolio Est. Total: ₹{marketIntel.total_estimated_portfolio_value?.toLocaleString()}
+                  </div>
+                </div>
+
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
+                    <thead>
+                      <tr style={{ borderBottom: '2px solid var(--border)', color: 'var(--muted)' }}>
+                        <th style={{ padding: '0.75rem 0.5rem' }}>CROP</th>
+                        <th style={{ padding: '0.75rem 0.5rem' }}>QUANTITY</th>
+                        <th style={{ padding: '0.75rem 0.5rem' }}>OFFICIAL MSP</th>
+                        <th style={{ padding: '0.75rem 0.5rem' }}>AI ESTIMATED PRICE</th>
+                        <th style={{ padding: '0.75rem 0.5rem' }}>EST. TOTAL VALUE</th>
+                        <th style={{ padding: '0.75rem 0.5rem' }}>DEMAND LEVEL</th>
+                        <th style={{ padding: '0.75rem 0.5rem' }}>PERISHABILITY</th>
+                        <th style={{ padding: '0.75rem 0.5rem' }}>MARKET ADVISORY</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {marketIntel.my_crops_intelligence?.map((c, i) => (
+                        <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
+                          <td style={{ padding: '0.75rem 0.5rem', fontWeight: 700, color: 'var(--secondary)' }}>{c.crop_name}</td>
+                          <td style={{ padding: '0.75rem 0.5rem' }}>{c.registered_quantity_quintals} Q</td>
+                          <td style={{ padding: '0.75rem 0.5rem' }}>₹{c.official_msp_rate}/Q</td>
+                          <td style={{ padding: '0.75rem 0.5rem', fontWeight: 700, color: 'var(--primary)' }}>₹{c.ai_estimated_procurement_price}/Q</td>
+                          <td style={{ padding: '0.75rem 0.5rem', fontWeight: 800, color: 'var(--success)' }}>₹{c.estimated_total_value?.toLocaleString()}</td>
+                          <td style={{ padding: '0.75rem 0.5rem' }}>
+                            <span style={{ padding: '0.2rem 0.4rem', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 700, backgroundColor: c.demand_level === 'HIGH' ? 'var(--primary-light)' : 'var(--bg-page)', color: c.demand_level === 'HIGH' ? 'var(--primary)' : 'var(--muted)' }}>
+                              {c.demand_level}
+                            </span>
+                          </td>
+                          <td style={{ padding: '0.75rem 0.5rem' }}>
+                            <span style={{
+                              fontSize: '0.75rem',
+                              fontWeight: 600,
+                              color: (c.is_perishable || c.perishability === 'HIGH' || c.perishability === 'CRITICAL' || c.perishability === 'MEDIUM') ? '#dc2626' : 'var(--muted)'
+                            }}>
+                              {(c.is_perishable || c.perishability === 'HIGH' || c.perishability === 'CRITICAL' || c.perishability === 'MEDIUM')
+                                ? `Perishable (${c.shelf_life || (c.approx_shelf_life_days ? `${c.approx_shelf_life_days}d` : '2-3 Days')})`
+                                : 'Not applicable'}
+                            </span>
+                          </td>
+                          <td style={{ padding: '0.75rem 0.5rem', fontSize: '0.8rem', color: 'var(--secondary)' }}>
+                            {c.market_condition_summary}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="card" style={{ padding: '2rem', textAlign: 'center', color: 'var(--muted)' }}>
+              Market intelligence data unavailable for current region.
+            </div>
+          )}
+        </div>
+      )}
+
       {/* QR PASS MODAL */}
       {selectedPassBooking && (
         <div style={{
@@ -838,6 +1244,60 @@ export default function FarmerDashboard({ user, navigate }) {
                 <strong style={{ color: 'var(--success)' }}>{traceModalLot.payment?.status || 'PAID'}</strong>
               </div>
             </div>
+
+            {/* Complete Traceability History / Lifecycle Timeline */}
+            {traceModalLot.lifecycle_stages && traceModalLot.lifecycle_stages.length > 0 && (
+              <div style={{ marginTop: '1.5rem', borderTop: '1px solid var(--border)', paddingTop: '1.25rem' }}>
+                <h4 style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--text-main)', marginBottom: '0.85rem' }}>
+                  End-to-End Procurement Lifecycle History
+                </h4>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                  {traceModalLot.lifecycle_stages.map((stage, idx) => (
+                    <div key={idx} style={{
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      gap: '0.85rem',
+                      padding: '0.65rem 0.85rem',
+                      backgroundColor: stage.status === 'COMPLETED' ? 'rgba(16, 185, 129, 0.06)' : 'var(--bg-page)',
+                      borderRadius: '6px',
+                      borderLeft: `4px solid ${stage.status === 'COMPLETED' ? '#10B981' : (stage.status === 'IN_PROGRESS' ? '#F59E0B' : '#94A3B8')}`
+                    }}>
+                      <div style={{
+                        width: '24px', height: '24px', borderRadius: '50%',
+                        backgroundColor: stage.status === 'COMPLETED' ? '#10B981' : (stage.status === 'IN_PROGRESS' ? '#F59E0B' : '#CBD5E1'),
+                        color: '#FFF', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: '0.75rem', fontWeight: 700, flexShrink: 0
+                      }}>
+                        {stage.stage_number}
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--text-main)' }}>
+                            {stage.stage_name}
+                          </span>
+                          <span style={{
+                            fontSize: '0.7rem',
+                            fontWeight: 700,
+                            padding: '2px 6px',
+                            borderRadius: '4px',
+                            backgroundColor: stage.status === 'COMPLETED' ? '#DCFCE7' : (stage.status === 'IN_PROGRESS' ? '#FEF3C7' : '#F1F5F9'),
+                            color: stage.status === 'COMPLETED' ? '#166534' : (stage.status === 'IN_PROGRESS' ? '#92400E' : '#475569')
+                          }}>
+                            {stage.status}
+                          </span>
+                        </div>
+                        <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                          Ref: <strong style={{ color: 'var(--text-main)' }}>{stage.reference}</strong> • Date: {stage.date}
+                        </div>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--muted)', marginTop: '2px' }}>
+                          {stage.details}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

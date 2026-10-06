@@ -1,0 +1,37 @@
+{
+  "model_name": "XGBoost Procurement Price Estimator",
+  "model_type": "REGRESSION",
+  "mae": 15.9998,
+  "rmse": 23.1719,
+  "r2_score": 0.9999,
+  "dataset_rows": 7871,
+  "feature_cols": [
+    "crop",
+    "state",
+    "district",
+    "season",
+    "official_msp",
+    "hist_proc_price",
+    "hist_proc_qty",
+    "demand_q",
+    "supply_q",
+    "surplus_q",
+    "storage_avail_ratio",
+    "trend_factor"
+  ],
+  "feature_importances": {
+    "crop": 0.0462,
+    "state": 0.0,
+    "district": 0.0,
+    "season": 0.0677,
+    "official_msp": 0.2705,
+    "hist_proc_price": 0.6156,
+    "hist_proc_qty": 0.0,
+    "demand_q": 0.0,
+    "supply_q": 0.0,
+    "surplus_q": 0.0,
+    "storage_avail_ratio": 0.0,
+    "trend_factor": 0.0
+  },
+  "evaluation_rule": "FINAL ESTIMATED PRICE = MAX(AI ESTIMATE, OFFICIAL MSP)"
+}

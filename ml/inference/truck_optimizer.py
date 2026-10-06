@@ -275,9 +275,8 @@ class TruckOptimizer:
         # Constraint 3: Total fleet limit
         solver.Add(solver.Sum([T[p[0], p[1]] for p in pairs]) <= total_available_trucks)
 
-        # Constraint 4: Bound total routes between 2 and 6 for operational feasibility
+        # Constraint 4: Upper bound total active routes for fleet feasibility (maximum 6 concurrent routes)
         solver.Add(solver.Sum([Y[p[0], p[1]] for p in pairs]) <= 6)
-        solver.Add(solver.Sum([Y[p[0], p[1]] for p in pairs]) >= min(2, len(pairs)))
 
         # Objective Function:
         # Maximize: (Yard Congestion Relief Benefit * X) - (Transport Cost * Distance * T)
@@ -324,10 +323,29 @@ class TruckOptimizer:
 
                     est_cost = round(dist * cost_per_km_inr * trucks_val, 2)
 
-                    reason = (
-                        f"Source storage is nearing capacity ({src_used:,.0f}/{src_cap:,.0f} Q, {round(src_used/max(src_cap, 1.0)*100, 1)}% full) "
-                        f"while destination has available storage ({dst_avail:,.0f} Q) and higher demand for {crop_name}."
-                    )
+                    fill_pct = round(src_used / max(src_cap, 1.0) * 100, 1)
+                    is_perish = crop_name.lower() in ["sugarcane", "tomato", "onion", "potato"]
+                    if fill_pct >= 80.0:
+                        reason = (
+                            f"Capacity Bottleneck: Source yard is {fill_pct}% full ({src_used:,.0f}/{src_cap:,.0f} Q). "
+                            f"Dispatching {qty_val:,.0f} Q to {dst['centre_name']} ({dst_avail:,.0f} Q headroom) over {dist:.0f} km "
+                            f"to prevent overflow (Est cost: ₹{est_cost:,.0f}, {trucks_val} trucks)."
+                        )
+                    elif is_perish:
+                        reason = (
+                            f"Perishable Crop Dispatch: {crop_name} requires priority evacuation to prevent quality loss. "
+                            f"Transferring {qty_val:,.0f} Q to destination cold/processing buffer at {dst['centre_name']} ({dist:.0f} km, {trucks_val} trucks)."
+                        )
+                    elif dst.get("sentiment") == "DEFICIT":
+                        reason = (
+                            f"Demand-Driven Movement: Source capacity is stable ({fill_pct}% used), but destination region has verified DEFICIT demand for {crop_name}. "
+                            f"Moving {qty_val:,.0f} Q to meet buffer quota ({dist:.0f} km, {trucks_val} trucks)."
+                        )
+                    else:
+                        reason = (
+                            f"Operational Rebalancing: Transferring {qty_val:,.0f} Q from {src['centre_name']} to {dst['centre_name']} "
+                            f"to optimize regional fleet utilization ({dist:.0f} km, {trucks_val} trucks)."
+                        )
 
                     routes.append({
                         "origin_centre_id": src["centre_id"],

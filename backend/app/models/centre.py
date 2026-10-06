@@ -21,6 +21,10 @@ class ProcurementCentre(Base):
     status = Column(String(20), default="OPERATIONAL")
     created_at = Column(DateTime, server_default=func.now())
 
+    @property
+    def total_capacity_quintals(self):
+        return self.total_storage_capacity_quintals
+
 class DailyCapacity(Base):
     __tablename__ = "daily_capacity"
     id = Column(Integer, primary_key=True, index=True)

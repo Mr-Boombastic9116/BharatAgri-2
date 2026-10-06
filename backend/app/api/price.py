@@ -9,7 +9,7 @@ from backend.app.core.database import get_db
 from backend.app.core.helpers import resolve_centre
 from backend.app.models.price import MspPrice, StateCropSupplyDemand, PriceEstimate
 from backend.app.models.centre import ProcurementCentre
-from backend.app.models.procurement import ProcurementRecord
+from backend.app.models.procurement import ProcurementRecord, StorageLot
 from backend.app.models.farmer import Farmer, FarmerCrop
 from backend.app.models.booking import Booking
 from backend.app.models.audit import AuditLog
@@ -22,6 +22,9 @@ class PriceEstimateRequest(BaseModel):
     quantity_quintals: Optional[float] = None
     centre_id: Optional[str] = None
     state: Optional[str] = None
+    district: Optional[str] = None
+    season: Optional[str] = None
+    official_msp: Optional[float] = None
 
 @router.get("/msp")
 @router.get("/price/msp")
@@ -115,12 +118,14 @@ def get_price_intelligence(
         if actual_avail and float(actual_avail) > 0:
             row.available_storage_quintals = max(0.0, float(actual_avail))
 
-        # Sum inventory usage for this state
-        actual_inv = db.query(func.coalesce(func.sum(ProcurementCentre.current_storage_usage_quintals), 0)).filter(
-            ProcurementCentre.state.ilike(f"%{row.state}%")
+        # Sum crop-specific inventory resting in storage lots for this state
+        crop_inv = db.query(func.coalesce(func.sum(StorageLot.quantity_quintals), 0)).join(
+            ProcurementCentre, StorageLot.centre_id == ProcurementCentre.centre_id
+        ).filter(
+            ProcurementCentre.state.ilike(f"%{row.state}%"),
+            StorageLot.crop.ilike(f"%{row.crop}%")
         ).scalar()
-        if actual_inv and float(actual_inv) > 0:
-            row.current_inventory_quintals = float(actual_inv)
+        row.current_inventory_quintals = round(float(crop_inv or 0), 2)
 
         # Check registered farmer harvest expectations for expected supply
         reg_supply = db.query(func.coalesce(func.sum(FarmerCrop.estimated_quantity_quintals), 0)).join(
@@ -132,8 +137,8 @@ def get_price_intelligence(
         if reg_supply and float(reg_supply) > 0:
             row.expected_supply_quintals = max(float(row.expected_supply_quintals), float(reg_supply))
 
-        # Recalculate surplus / deficit
-        surplus = float(row.expected_supply_quintals) - float(row.expected_demand_quintals)
+        # Mathematical consistency: Surplus / Deficit = Expected Supply - Expected Demand
+        surplus = round(float(row.expected_supply_quintals) - float(row.expected_demand_quintals), 2)
         row.surplus_deficit_quintals = surplus
         row.market_sentiment = "SURPLUS" if surplus > 2000 else "DEFICIT" if surplus < -1000 else "BALANCED"
 
@@ -156,13 +161,13 @@ def get_price_intelligence(
     query = db.query(StateCropSupplyDemand)
     is_state_filtered = False
 
-    target_state = state or state_id
-    if target_state and target_state.strip() and target_state.strip().lower() not in ["nationwide", "all", "all states"]:
+    target_state = state if (isinstance(state, str) and state.strip()) else (state_id if (isinstance(state_id, str) and state_id.strip()) else None)
+    if target_state and target_state.lower() not in ["nationwide", "all", "all states"]:
         query = query.filter(StateCropSupplyDemand.state.ilike(f"%{target_state.strip()}%"))
         is_state_filtered = True
 
-    target_crop = crop or crop_id
-    if target_crop and target_crop.strip():
+    target_crop = crop if (isinstance(crop, str) and crop.strip()) else (crop_id if (isinstance(crop_id, str) and crop_id.strip()) else None)
+    if target_crop:
         query = query.filter(StateCropSupplyDemand.crop.ilike(f"%{target_crop.strip()}%"))
 
     items = query.order_by(StateCropSupplyDemand.state.asc(), StateCropSupplyDemand.crop.asc()).all()
@@ -297,71 +302,49 @@ def calculate_price_estimate(
         avail_storage = 35000.0
         sentiment = "SURPLUS" if surplus_deficit > 2000 else "DEFICIT" if surplus_deficit < -1000 else "BALANCED"
 
-    # 4. Deterministic factor evaluations
-    ratio = demand / max(supply, 1.0)
-    
-    demand_level = "High" if ratio > 1.05 else "Moderate" if ratio >= 0.85 else "Low"
-    supply_level = "High" if supply > 150000 else "Moderate" if supply >= 30000 else "Low"
-    inventory_level = "Low" if surplus_deficit < -1000 else "Moderate" if surplus_deficit <= 15000 else "High"
-    storage_avail_level = "High" if avail_storage >= 25000 else "Moderate" if avail_storage >= 10000 else "Constrained"
-    hist_proc_level = "Stable"
+    # 4. Invoke XGBoost Price Engine with all multi-variable inputs
+    from ml.inference.price_engine import price_engine
+    from ml.inference.transport_priority import calculate_transport_priority
+    from backend.app.models.crop import CropMetadata
 
-    factors_dict = {
-        "Demand": demand_level,
-        "Expected Supply": supply_level,
-        "Inventory": inventory_level,
-        "Storage Availability": storage_avail_level,
-        "Historical Procurement": hist_proc_level
-    }
+    # Historical average procurement price from records
+    h_proc_data = db.query(
+        func.coalesce(func.sum(ProcurementRecord.total_procurement_value), 0),
+        func.coalesce(func.sum(ProcurementRecord.procured_quantity_quintals), 0)
+    ).filter(
+        ProcurementRecord.crop.ilike(f"%{crop_name}%")
+    ).first()
+    h_price = (float(h_proc_data[0]) / float(h_proc_data[1])) if (h_proc_data and float(h_proc_data[1]) > 0) else official_msp
+    h_qty = (float(h_proc_data[1]) / 100.0) if (h_proc_data and float(h_proc_data[1]) > 0) else 50.0
 
-    if surplus_deficit < -500:
-        # Deficit state: market demand pulls price above MSP
-        deficit_pct = min(0.12, abs(surplus_deficit) / max(demand, 1.0) * 0.25)
-        raw_estimated = official_msp * (1.0 + max(0.02, deficit_pct))
-        supply_status = "DEFICIT"
-        rationale_text = (
-            f"State crop demand ({demand:,.0f} Q) exceeds available supply ({supply:,.0f} Q). "
-            f"Deficit market pressure supports estimated procurement price ₹{round(raw_estimated - official_msp, 2):,.2f} "
-            f"above the official MSP baseline of ₹{official_msp:,.2f}/Q."
-        )
-    elif surplus_deficit > 2000:
-        # Robust surplus: market price anchors firmly to official MSP
-        surplus_factor = min(0.025, (surplus_deficit / supply) * 0.05)
-        raw_estimated = official_msp * (1.0 + surplus_factor)
-        supply_status = "SURPLUS"
-        rationale_text = (
-            f"State supply ({supply:,.0f} Q) is in comfortable surplus over demand ({demand:,.0f} Q). "
-            f"Per BharatAgri surplus rules, procurement price anchors closely to the official MSP baseline (₹{official_msp:,.2f}/Q) "
-            f"with secure storage buffer ({avail_storage:,.0f} Q available)."
-        )
-    else:
-        # Balanced market condition
-        raw_estimated = official_msp * 1.015
-        supply_status = "BALANCED"
-        rationale_text = (
-            f"Balanced market equilibrium between supply and procurement targets in {resolved_state}. "
-            f"Estimated price reflects steady government procurement benchmark with nominal handling premium."
-        )
+    tot_storage_st = float(db.query(func.coalesce(func.sum(ProcurementCentre.total_storage_capacity_quintals), 15000)).filter(
+        ProcurementCentre.state.ilike(f"%{resolved_state}%")
+    ).scalar() or 15000.0)
+    s_avail_ratio = min(0.95, max(0.05, avail_storage / max(tot_storage_st, 1.0)))
 
-    # 5. Enforce Non-Negotiable Surplus Lower Bound:
-    # estimated_price = max(official_msp, raw_estimated)
-    final_estimated_price = round(max(official_msp, raw_estimated), 2)
-    total_val = round(final_estimated_price * float(qty), 2)
+    # Fetch crop season
+    crop_meta = db.query(CropMetadata).filter(CropMetadata.crop_name.ilike(f"%{crop_name}%")).first()
+    crop_season = crop_meta.season if crop_meta else ("Rabi" if crop_name in ["Wheat", "Gram (Chana)", "Mustard"] else "Kharif")
 
-    # Formatted explanation (Prompt 2 - Section 17)
-    structured_explanation = (
-        f"Why this estimate?\n"
-        f"Demand: {demand_level}\n"
-        f"Expected Supply: {supply_level}\n"
-        f"Inventory: {inventory_level}\n"
-        f"Storage Availability: {storage_avail_level}\n"
-        f"Historical Procurement: {hist_proc_level}\n\n"
-        f"{rationale_text}"
+    price_res = price_engine.estimate_price(
+        crop=crop_name,
+        official_msp=official_msp,
+        quantity_quintals=qty,
+        hist_proc_price=h_price,
+        hist_proc_qty=h_qty,
+        current_demand=demand,
+        current_supply=supply,
+        state=resolved_state,
+        district=req.district or "North Goa",
+        season=crop_season,
+        storage_avail_ratio=s_avail_ratio,
+        trend_factor=0.015
     )
 
-    # Confidence: Prompt 2 Section 16 requirement ("If confidence cannot be reliably calculated: confidence unavailable. Never invent confidence.")
-    confidence_value = None
-    confidence_display = "confidence unavailable"
+    final_estimated_price = price_res["final_estimated_price"]
+    ai_estimated_price = price_res["ai_estimated_procurement_price"]
+    total_val = price_res["estimated_total_value"]
+    structured_explanation = price_res["explanation"]
 
     # 6. Audit Logging & Persistence
     try:
@@ -373,7 +356,7 @@ def calculate_price_estimate(
             official_msp_per_quintal=official_msp,
             estimated_price_per_quintal=final_estimated_price,
             estimated_total_value=total_val,
-            supply_status=supply_status,
+            supply_status=sentiment,
             confidence=None,
             explanation=structured_explanation
         )
@@ -385,13 +368,112 @@ def calculate_price_estimate(
     return {
         "crop": crop_name,
         "state": resolved_state,
+        "season": crop_season,
+        "quantity_quintals": qty,
+        # Distinct naming per prompt specification
         "official_msp": official_msp,
-        "estimated_price": final_estimated_price,
+        "official_msp_label": "Official MSP (Statutory Floor)",
+        "ai_estimated_procurement_price": ai_estimated_price,
+        "ai_estimated_procurement_price_label": "AI Estimated Procurement Price",
+        "final_estimated_price": final_estimated_price,
+        "estimated_price": final_estimated_price, # Backwards compatibility
         "estimated_total_value": total_val,
-        "supply_status": supply_status,
-        "confidence": confidence_value,
-        "confidence_display": confidence_display,
+        "supply_status": sentiment,
+        "model_used": price_res["model_used"],
+        "is_msp_floor_applied": price_res["is_msp_floor_applied"],
+        "rule_enforced": "FINAL ESTIMATED PRICE = MAX(AI ESTIMATE, OFFICIAL MSP)",
         "explanation": structured_explanation,
-        "factors": factors_dict,
-        "advisory_notice": "BharatAgri estimated price is advisory and does not guarantee final payment. Final payment is based on certified actual weighed quantity."
+        "factors": price_res["factors"],
+        "confidence": None,
+        "confidence_display": "confidence unavailable",
+        "advisory_disclaimer": "BharatAgri estimated price is advisory based on real supply-demand data. Final disbursement is based on certified actual weighed quantity at the centre."
     }
+
+@router.get("/crops/metadata")
+@router.get("/price/crops/metadata")
+def get_crop_metadata_list(
+    is_perishable: Optional[bool] = Query(None),
+    season: Optional[str] = Query(None),
+    db: Session = Depends(get_db)
+):
+    """
+    Returns seasonal and perishable crop metadata:
+    season, perishability, shelf-life, urgency, storage requirements, demand patterns.
+    """
+    from backend.app.models.crop import CropMetadata
+    query = db.query(CropMetadata)
+    if is_perishable is not None:
+        query = query.filter(CropMetadata.is_perishable == is_perishable)
+    if season and season.strip():
+        query = query.filter(CropMetadata.season.ilike(f"%{season.strip()}%"))
+    
+    crops = query.order_by(CropMetadata.is_perishable.desc(), CropMetadata.crop_name.asc()).all()
+    results = []
+    for c in crops:
+        results.append({
+            "id": c.id,
+            "crop_name": c.crop_name,
+            "category": c.category,
+            "season": c.season,
+            "is_perishable": bool(c.is_perishable),
+            "shelf_life_days": c.shelf_life_days,
+            "urgency_level": c.urgency_level,
+            "perishability": "HIGH" if float(c.perishability_score) >= 0.7 else "MEDIUM" if float(c.perishability_score) >= 0.4 else "LOW",
+            "perishability_score": float(c.perishability_score),
+            "storage_requirements": c.storage_requirements,
+            "demand_patterns": c.demand_patterns
+        })
+    return {
+        "success": True,
+        "count": len(results),
+        "data": results,
+        "crops": results
+    }
+
+class TransportPriorityRequest(BaseModel):
+    crop: str
+    quantity_quintals: float
+    origin_centre_id: str
+    destination_centre_id: Optional[str] = None
+
+@router.post("/logistics/transport-priority")
+@router.post("/price/transport-priority")
+def get_transport_priority(
+    req: TransportPriorityRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Calculates transport priority using:
+    demand + perishability + expected quantity + storage availability + destination demand + congestion.
+    High-demand/perishable crops receive higher transport priority when operationally justified.
+    """
+    from ml.inference.transport_priority import calculate_transport_priority
+    c_orig = resolve_centre(req.origin_centre_id, db)
+    if not c_orig:
+        raise HTTPException(status_code=404, detail="Origin centre not found.")
+    
+    c_dest = resolve_centre(req.destination_centre_id, db) if req.destination_centre_id else None
+
+    priority_result = calculate_transport_priority(
+        crop=req.crop,
+        quantity_quintals=req.quantity_quintals,
+        origin_centre=c_orig,
+        destination_centre=c_dest,
+        db=db
+    )
+    return {
+        "success": True,
+        "origin_centre": {
+            "centre_id": c_orig.centre_id,
+            "centre_name": c_orig.centre_name,
+            "district": c_orig.district,
+            "state": c_orig.state
+        },
+        "destination_centre": {
+            "centre_id": c_dest.centre_id,
+            "centre_name": c_dest.centre_name,
+            "state": c_dest.state
+        } if c_dest else None,
+        "priority_data": priority_result
+    }
+

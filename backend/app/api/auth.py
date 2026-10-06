@@ -1,16 +1,21 @@
 import logging
+import random
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from sqlalchemy import func, or_
 from backend.app.core.database import get_db
 from backend.app.core.security import verify_password, get_password_hash, create_access_token
 from backend.app.core.deps import get_current_user
-from backend.app.schemas.auth import LoginRequest, LoginResponse, FarmerRegisterRequest, CentreRegisterRequest, UserResponse
+from backend.app.schemas.auth import (
+    LoginRequest, LoginResponse, FarmerRegisterRequest, CentreRegisterRequest,
+    AgentRegisterRequest, GovernmentRegisterRequest, UserResponse
+)
 from backend.app.models.user import User
 from backend.app.models.farmer import Farmer, FarmerCrop
 from backend.app.models.agent import Agent
 from backend.app.models.centre import ProcurementCentre
 from backend.app.models.audit import AuditLog
+
 
 logger = logging.getLogger("bharatagri.auth")
 
@@ -200,9 +205,17 @@ def register_farmer(req: FarmerRegisterRequest, db: Session = Depends(get_db)):
     db.add(audit)
     db.commit()
 
+    token_data = {"sub": new_user.user_id, "role": "farmer", "id": new_user.id, "farmer_code": new_farmer.farmer_code}
+    access_token = create_access_token(data=token_data)
+
     return {
+        "success": True,
         "message": "Farmer registered successfully",
+        "access_token": access_token,
+        "token": access_token,
+        "token_type": "bearer",
         "user": {
+            "id": new_user.id,
             "name": new_user.name,
             "mobile": new_user.mobile,
             "village": new_farmer.village,
@@ -214,6 +227,7 @@ def register_farmer(req: FarmerRegisterRequest, db: Session = Depends(get_db)):
     }
 
 @router.post("/centres/register", status_code=status.HTTP_201_CREATED)
+@router.post("/auth/centres/register", status_code=status.HTTP_201_CREATED)
 def register_centre(req: CentreRegisterRequest, db: Session = Depends(get_db)):
     clean_id = req.centre_id.strip()
     existing = db.query(User).filter(func.lower(User.user_id) == func.lower(clean_id)).first()
@@ -263,11 +277,20 @@ def register_centre(req: CentreRegisterRequest, db: Session = Depends(get_db)):
     db.add(audit)
     db.commit()
 
+    token_data = {"sub": new_user.user_id, "role": "centre", "id": new_user.id, "centre_id": clean_id}
+    access_token = create_access_token(data=token_data)
+
     return {
+        "success": True,
         "message": "Procurement Centre registered successfully",
+        "access_token": access_token,
+        "token": access_token,
+        "token_type": "bearer",
         "user": {
+            "id": new_user.id,
             "name": new_centre.centre_name,
             "user_id": new_centre.centre_id,
+            "centre_id": new_centre.centre_id,
             "location": new_centre.location,
             "contact_number": new_centre.contact_number,
             "operating_days": new_centre.operating_days,
@@ -277,6 +300,149 @@ def register_centre(req: CentreRegisterRequest, db: Session = Depends(get_db)):
             "role": "centre"
         }
     }
+
+@router.post("/agents/register", status_code=status.HTTP_201_CREATED)
+@router.post("/auth/agents/register", status_code=status.HTTP_201_CREATED)
+def register_agent(req: AgentRegisterRequest, db: Session = Depends(get_db)):
+    clean_uid = (req.user_id or req.agent_code or "").strip()
+    if not clean_uid:
+        clean_uid = f"AGT-CSC-{random.randint(1000, 9999)}"
+
+    existing = db.query(User).filter(func.lower(User.user_id) == func.lower(clean_uid)).first()
+    if existing:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Agent ID '{clean_uid}' already exists. Please choose a different identifier."
+        )
+
+    pw_hash = get_password_hash(req.password)
+
+    new_user = User(
+        user_id=clean_uid,
+        name=req.name.strip(),
+        mobile=req.mobile.strip(),
+        email=req.email.strip() if req.email else None,
+        password_hash=pw_hash,
+        role="agent",
+        preferred_language=req.preferred_language or "English",
+        status="ACTIVE"
+    )
+    db.add(new_user)
+    db.flush()
+
+    agent_code = (req.agent_code or f"AGT-2026-{new_user.id:04d}").strip()
+    new_agent = Agent(
+        agent_code=agent_code,
+        user_id=clean_uid,
+        agency_type=req.agency_type or "CSC",
+        organization_name=req.organization_name.strip(),
+        name=req.name.strip(),
+        mobile=req.mobile.strip(),
+        email=req.email.strip() if req.email else None,
+        state=req.state.strip() if req.state else "Goa",
+        district=req.district.strip() if req.district else "North Goa",
+        taluka=req.taluka.strip() if req.taluka else "Bicholim",
+        status="ACTIVE"
+    )
+    db.add(new_agent)
+
+    audit = AuditLog(
+        user_id=clean_uid,
+        action="AGENT_REGISTERED",
+        entity="AGENT",
+        entity_id=agent_code,
+        new_value=f"Agency: {req.organization_name}, Name: {req.name}"
+    )
+    db.add(audit)
+    db.commit()
+
+    token_data = {"sub": new_user.user_id, "role": "agent", "id": new_user.id, "agent_code": agent_code}
+    access_token = create_access_token(data=token_data)
+
+    return {
+        "success": True,
+        "message": "CSC / Village Agent registered successfully",
+        "access_token": access_token,
+        "token": access_token,
+        "token_type": "bearer",
+        "user": {
+            "id": new_user.id,
+            "name": new_user.name,
+            "user_id": new_user.user_id,
+            "agent_code": new_agent.agent_code,
+            "organization_name": new_agent.organization_name,
+            "agency_type": new_agent.agency_type,
+            "mobile": new_user.mobile,
+            "state": new_agent.state,
+            "district": new_agent.district,
+            "role": "agent"
+        }
+    }
+
+@router.post("/government/register", status_code=status.HTTP_201_CREATED)
+@router.post("/auth/government/register", status_code=status.HTTP_201_CREATED)
+def register_government(req: GovernmentRegisterRequest, db: Session = Depends(get_db)):
+    clean_uid = (req.user_id or req.official_email or req.email or "").strip()
+    if not clean_uid:
+        clean_uid = f"GOV-OFFICER-{random.randint(100, 999)}"
+
+    existing = db.query(User).filter(func.lower(User.user_id) == func.lower(clean_uid)).first()
+    if existing:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Government Officer ID '{clean_uid}' already exists."
+        )
+
+    pw_hash = get_password_hash(req.password)
+    contact_email = req.official_email.strip() if req.official_email else (req.email.strip() if req.email else None)
+
+    new_user = User(
+        user_id=clean_uid,
+        name=req.name.strip(),
+        mobile=req.mobile.strip(),
+        email=contact_email,
+        password_hash=pw_hash,
+        role="government",
+        centre_id=None,
+        preferred_language=req.preferred_language or "English",
+        status="ACTIVE"
+    )
+    db.add(new_user)
+    db.flush()
+
+    audit = AuditLog(
+        user_id=clean_uid,
+        action="GOVERNMENT_ADMIN_REGISTERED",
+        entity="GOVERNMENT",
+        entity_id=clean_uid,
+        new_value=f"Designation: {req.designation}, Dept: {req.department}, State: {req.state}"
+    )
+    db.add(audit)
+    db.commit()
+
+    token_data = {"sub": new_user.user_id, "role": "government", "id": new_user.id}
+    access_token = create_access_token(data=token_data)
+
+    return {
+        "success": True,
+        "message": "Authorized Government / Admin account registered successfully",
+        "access_token": access_token,
+        "token": access_token,
+        "token_type": "bearer",
+        "user": {
+            "id": new_user.id,
+            "name": new_user.name,
+            "user_id": new_user.user_id,
+            "email": new_user.email,
+            "mobile": new_user.mobile,
+            "role": "government",
+            "department": req.department,
+            "designation": req.designation,
+            "state": req.state,
+            "status": "ACTIVE"
+        }
+    }
+
 
 @router.get("/auth/me")
 def get_me(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):

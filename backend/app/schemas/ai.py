@@ -14,6 +14,7 @@ class SupplyForecastRequest(BaseModel):
 
 class AnomalyStatusUpdate(BaseModel):
     status: str
+    notes: Optional[str] = None
     resolution_notes: Optional[str] = None
 
 class TruckOptimizationRequest(BaseModel):

@@ -4,13 +4,17 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, cast, String
 
 
+from datetime import date, datetime, timedelta
 from backend.app.core.database import get_db
 from backend.app.core.deps import get_current_user_optional
 from backend.app.models.farmer import Farmer, FarmerCrop
 from backend.app.models.booking import Booking
-from backend.app.models.procurement import StorageLot, Payment
+from backend.app.models.procurement import StorageLot, Payment, ProcurementRecord
+from backend.app.models.centre import Slot, ProcurementCentre
+from backend.app.models.crop import CropMetadata
 from backend.app.models.audit import AuditLog
 from backend.app.schemas.farmer import FarmerUpdate, FarmerResponse, CropCreate, CropUpdate
+from ml.inference.price_engine import estimate_procurement_price
 
 router = APIRouter(prefix="/farmers", tags=["Farmers"])
 
@@ -403,3 +407,275 @@ def get_farmer_summary(id_or_uid: str, db: Session = Depends(get_db)):
             "transaction_ref": latest_payment.transaction_ref
         } if latest_payment else None
     }
+
+
+@router.get("/{id_or_uid}/market-intelligence")
+def get_farmer_market_intelligence(
+    id_or_uid: str,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user_optional)
+):
+    """
+    Farmer Market Intelligence & Insights:
+    - State-level commodity demand patterns & trends
+    - Supply shortage analysis & projected surplus/deficit
+    - Price opportunities (strictly using XGBoost model with MAX(AI, MSP))
+    - Specific comparative insights for the farmer's registered crops
+    - Strictly non-guarantee advisory language
+    """
+    farmer = get_authenticated_target_farmer(id_or_uid, db, current_user)
+    farmer_state = farmer.state or "Punjab"
+    farmer_district = farmer.district or ""
+
+    all_crop_meta = db.query(CropMetadata).all()
+    crop_meta_map = {c.crop_name.lower(): c for c in all_crop_meta}
+
+    # Demand: high demand crops in the state
+    high_demand_crops = []
+    supply_shortages = []
+    price_opportunities = []
+
+    for cm in all_crop_meta:
+        # Estimate procurement price
+        price_res = estimate_procurement_price(
+            crop=cm.crop_name,
+            state=farmer_state,
+            district=farmer_district,
+            season=cm.season,
+            quantity=100.0
+        )
+        est_price = price_res["final_estimated_price"]
+        msp = price_res["official_msp"]
+        diff_pct = round(((est_price - msp) / max(msp, 1.0)) * 100, 1)
+
+        # Calculate state booked vs procured
+        booked_qty = float(db.query(func.coalesce(func.sum(Booking.quantity), 0)).join(
+            ProcurementCentre, Booking.centre_id == ProcurementCentre.centre_id
+        ).filter(
+            ProcurementCentre.state.ilike(f"%{farmer_state}%"),
+            Booking.crop == cm.crop_name,
+            Booking.status.in_(["BOOKED", "CONFIRMED", "CHECKED_IN"])
+        ).scalar() or 0.0)
+
+        # Baseline expected demand per crop (e.g. 50,000 Qtl)
+        baseline_demand = 40000.0 if cm.demand_level in ["HIGH", "VERY_HIGH"] else 20000.0
+        surplus_deficit = round(booked_qty - baseline_demand, 1)
+        status = "DEFICIT" if surplus_deficit < 0 else "SURPLUS"
+
+        crop_info = {
+            "crop_name": cm.crop_name,
+            "category": cm.crop_category,
+            "season": cm.season,
+            "demand_level": cm.demand_level,
+            "demand_trend": "RISING" if cm.demand_level in ["HIGH", "VERY_HIGH"] else "STEADY",
+            "official_msp": msp,
+            "ai_estimated_procurement_price": est_price,
+            "price_premium_pct": diff_pct,
+            "state": farmer_state
+        }
+
+        if cm.demand_level in ["HIGH", "VERY_HIGH"]:
+            high_demand_crops.append(crop_info)
+
+        if status == "DEFICIT":
+            supply_shortages.append({
+                "crop_name": cm.crop_name,
+                "projected_state_demand_quintals": baseline_demand,
+                "current_procurement_pipeline_quintals": booked_qty,
+                "projected_deficit_quintals": abs(surplus_deficit),
+                "severity": "HIGH" if abs(surplus_deficit) > 25000 else "MODERATE",
+                "reason": f"Active procurement pipeline meets only {round((booked_qty/max(baseline_demand,1.0))*100, 1)}% of projected state reserve target."
+            })
+
+        if diff_pct >= 0:
+            price_opportunities.append({
+                "crop_name": cm.crop_name,
+                "official_msp": msp,
+                "ai_estimated_procurement_price": est_price,
+                "premium_above_msp": round(est_price - msp, 2),
+                "season": cm.season,
+                "rationale": f"Strong procurement intake and low regional buffer storage support favorable price fundamentals.",
+                "advisory_note": "Current data indicates relatively stronger estimated demand/price conditions for this crop.",
+                "note": "Current data indicates relatively stronger estimated demand/price conditions for this crop."
+            })
+
+
+    # Farmer specific crop insights
+    farmer_crop_insights = []
+    total_estimated_holding_value = 0.0
+
+    for fc in farmer.crops:
+        cm = crop_meta_map.get(fc.crop_name.lower())
+        qty = float(fc.estimated_quantity_quintals or 0.0)
+
+        price_res = estimate_procurement_price(
+            crop=fc.crop_name,
+            state=farmer_state,
+            district=farmer_district,
+            season=fc.season or (cm.season if cm else "Kharif"),
+            quantity=qty
+        )
+        est_price = price_res["final_estimated_price"]
+        msp = price_res["official_msp"]
+        crop_val = round(est_price * qty, 2)
+        total_estimated_holding_value += crop_val
+
+        crop_name_lower = fc.crop_name.lower()
+        is_perish = bool(cm.is_perishable) if cm else ("sugarcane" in crop_name_lower or "tomato" in crop_name_lower or "onion" in crop_name_lower or "potato" in crop_name_lower)
+        if "sugarcane" in crop_name_lower:
+            shelf_life_str = "2-3 Days"
+            shelf_days = 3
+            perish_level = "CRITICAL"
+        elif "tomato" in crop_name_lower:
+            shelf_life_str = "3-5 Days"
+            shelf_days = 5
+            perish_level = "HIGH"
+        elif "onion" in crop_name_lower:
+            shelf_life_str = "30-45 Days"
+            shelf_days = 45
+            perish_level = "MEDIUM"
+        elif "potato" in crop_name_lower:
+            shelf_life_str = "60-90 Days"
+            shelf_days = 90
+            perish_level = "MEDIUM"
+        elif cm and cm.is_perishable:
+            shelf_life_str = f"{cm.shelf_life_days} days"
+            shelf_days = cm.shelf_life_days
+            perish_level = cm.urgency_level
+        else:
+            shelf_life_str = "Not applicable"
+            shelf_days = None
+            perish_level = "LOW"
+
+        farmer_crop_insights.append({
+            "crop_name": fc.crop_name,
+            "registered_quantity_quintals": qty,
+            "season": fc.season or (cm.season if cm else "Current"),
+            "official_msp_rate": msp,
+            "ai_estimated_procurement_price": est_price,
+            "estimated_total_value": crop_val,
+            "demand_level": cm.demand_level if cm else "NORMAL",
+            "demand_trend": "RISING" if (cm and cm.demand_level in ["HIGH", "VERY_HIGH"]) else "STABLE",
+            "is_perishable": is_perish,
+            "perishability": perish_level,
+            "shelf_life": shelf_life_str,
+            "approx_shelf_life_days": shelf_days,
+            "market_condition_summary": "Current data indicates relatively stronger estimated demand/price conditions for this crop." if est_price > msp else "Trading strictly in line with government Minimum Support Price (MSP) benchmarks."
+        })
+
+    return {
+        "success": True,
+        "farmer_id": farmer.farmer_code or farmer.user_id,
+        "state": farmer_state,
+        "district": farmer_district,
+        "disclaimer": "All price indications represent AI estimates grounded in historical trends, supply-demand balances, and official MSP minimum floors. No future income or price guarantees are implied.",
+        "high_demand_crops": high_demand_crops[:6],
+        "supply_shortages": supply_shortages[:5],
+        "price_opportunities": price_opportunities[:5],
+        "my_crops_intelligence": farmer_crop_insights,
+        "total_estimated_portfolio_value": total_estimated_holding_value
+    }
+
+
+@router.get("/{id_or_uid}/daily-intelligence")
+def get_farmer_daily_intelligence(
+    id_or_uid: str,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user_optional)
+):
+    """
+    Automated Farmer Daily Intelligence Summary:
+    - Active appointment workflow status
+    - Relevant crop demand alerts
+    - State shortage alerts
+    - Real-time price intelligence for registered crops
+    - Critical payment / booking notifications
+    """
+    farmer = get_authenticated_target_farmer(id_or_uid, db, current_user)
+    today = date.today()
+
+    # Find next active booking
+    active_b = db.query(Booking).filter(
+        Booking.farmer_id == farmer.user_id,
+        Booking.status.notin_(["PAID", "CANCELLED", "REJECTED", "EXPIRED"])
+    ).order_by(Booking.id.desc()).first()
+
+    booking_summary = None
+    if active_b:
+        slot = db.query(Slot).filter(Slot.id == active_b.slot_id).first()
+        centre = db.query(ProcurementCentre).filter(ProcurementCentre.centre_id == active_b.centre_id).first()
+        booking_summary = {
+            "appointment_id": active_b.appointment_id,
+            "crop": active_b.crop,
+            "quantity_quintals": float(active_b.quantity),
+            "centre_name": centre.centre_name if centre else active_b.centre_id,
+            "slot_date": str(slot.date) if slot else None,
+            "time_slot": f"{slot.start_time} - {slot.end_time}" if slot else "",
+            "status": active_b.status,
+            "qr_token": active_b.qr_token
+        }
+
+    # Latest payment
+    latest_pay = db.query(Payment).filter(
+        Payment.farmer_id == farmer.user_id
+    ).order_by(Payment.id.desc()).first()
+
+    payment_notification = None
+    if latest_pay:
+        payment_notification = {
+            "payment_id": latest_pay.payment_id,
+            "amount_inr": float(latest_pay.amount_paid or latest_pay.payment_amount or 0.0),
+            "status": latest_pay.status,
+            "date": str(latest_pay.payment_date) if latest_pay.payment_date else None,
+            "transaction_reference": latest_pay.transaction_reference or latest_pay.payment_reference
+        }
+
+    # Crop demand alerts for farmer's specific crops
+    crop_names = [c.crop_name for c in farmer.crops]
+    state_shortages = []
+    price_alerts = []
+
+    for c_name in crop_names:
+        cm = db.query(CropMetadata).filter(CropMetadata.crop_name.ilike(c_name)).first()
+        if cm and cm.demand_level in ["HIGH", "VERY_HIGH"]:
+            state_shortages.append({
+                "crop": c_name,
+                "message": f"High government demand in {farmer.state or 'State'} for {c_name}. Optimal booking window is active.",
+                "season": cm.season
+            })
+
+        # Price alert
+        p_res = estimate_procurement_price(
+            crop=c_name,
+            state=farmer.state or "Punjab",
+            district=farmer.district or "",
+            season=cm.season if cm else "Kharif",
+            quantity=100.0
+        )
+        if p_res["final_estimated_price"] > p_res["official_msp"]:
+            price_alerts.append({
+                "crop": c_name,
+                "official_msp": p_res["official_msp"],
+                "ai_estimated_price": p_res["final_estimated_price"],
+                "advisory": f"Current data indicates relatively stronger estimated demand/price conditions for this crop (+₹{p_res['final_estimated_price'] - p_res['official_msp']:.2f} above MSP)."
+            })
+
+    return {
+        "success": True,
+        "date": today.strftime("%Y-%m-%d"),
+        "farmer_name": farmer.name,
+        "farmer_code": farmer.farmer_code or farmer.user_id,
+        "active_appointment": booking_summary,
+        "payment_notification": payment_notification,
+        "crop_demand_alerts": state_shortages,
+        "price_intelligence_alerts": price_alerts,
+        "daily_intelligence": {
+            "farmer_name": farmer.name,
+            "active_appointment": booking_summary,
+            "payment_notification": payment_notification,
+            "crop_demand_alerts_count": len(state_shortages),
+            "price_intelligence_alerts_count": len(price_alerts)
+        }
+    }
+
+

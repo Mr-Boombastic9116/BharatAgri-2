@@ -12,6 +12,7 @@ from backend.app.models.centre import Slot, DailyCapacity, NonOperationalDate, P
 from backend.app.models.farmer import Farmer
 from backend.app.models.user import User
 from backend.app.models.audit import AuditLog
+from backend.app.models.procurement import CollectionRecord, QualityCheck, Weighment, ProcurementRecord, StorageLot, Payment
 from backend.app.schemas.booking import BookingCreate, StatusUpdateRequest
 
 router = APIRouter(prefix="/bookings", tags=["Bookings"])
@@ -413,3 +414,174 @@ def update_booking_status(booking_id: str, req: StatusUpdateRequest, db: Session
         "appointment_id": b.appointment_id,
         "status": new_st
     }
+
+
+@router.get("/{booking_id}/workflow-status")
+def get_booking_workflow_status(booking_id: str, db: Session = Depends(get_db)):
+    """
+    Live 8-Step Procurement Lifecycle Workflow Tracker:
+    BOOKED -> CHECKED IN -> ARRIVED -> QUALITY CHECK -> WEIGHING -> STORAGE -> PAYMENT INITIATED -> PAID
+    Includes current active process name, completed steps, pending steps,
+    actual quantity received, quality/moisture metrics, payment status, and timestamps.
+    """
+    b = db.query(Booking).filter(
+        (Booking.appointment_id == booking_id) | (cast(Booking.id, String) == booking_id)
+    ).first()
+
+    if not b:
+        raise HTTPException(status_code=404, detail="Appointment not found.")
+
+    slot = db.query(Slot).filter(Slot.id == b.slot_id).first()
+    centre = db.query(ProcurementCentre).filter(ProcurementCentre.centre_id == b.centre_id).first()
+
+    # Query related records
+    collection = db.query(CollectionRecord).filter(CollectionRecord.booking_id == b.id).first()
+    quality = None
+    weighment = None
+    if collection:
+        quality = db.query(QualityCheck).filter(QualityCheck.collection_id == collection.collection_id).first()
+        weighment = db.query(Weighment).filter(Weighment.collection_id == collection.collection_id).first()
+
+    procurement = db.query(ProcurementRecord).filter(ProcurementRecord.booking_id == b.id).first()
+    storage = None
+    payment = None
+    if procurement:
+        storage = db.query(StorageLot).filter(StorageLot.procurement_id == procurement.procurement_id).first()
+        payment = db.query(Payment).filter(Payment.procurement_id == procurement.procurement_id).first()
+
+    b_status = (b.status or "BOOKED").upper()
+
+    # Determine step completion statuses
+    step1_done = True
+    step1_time = b.created_at.strftime("%Y-%m-%d %H:%M") if b.created_at else None
+
+    step2_done = bool(b.verified_at) or b_status in [
+        "CHECKED_IN", "VERIFIED", "ARRIVED", "RECEIVED", "COLLECTED", "QUALITY_CHECKED", "WEIGHED", "PROCURED", "STORED", "PAYMENT_INITIATED", "PAID"
+    ]
+    step2_time = b.verified_at.strftime("%Y-%m-%d %H:%M") if b.verified_at else None
+
+    step3_done = collection is not None or b_status in [
+        "ARRIVED", "RECEIVED", "COLLECTED", "QUALITY_CHECKED", "WEIGHED", "PROCURED", "STORED", "PAYMENT_INITIATED", "PAID"
+    ]
+    step3_time = collection.created_at.strftime("%Y-%m-%d %H:%M") if (collection and collection.created_at) else None
+
+    step4_done = (quality is not None and quality.passed) or b_status in [
+        "QUALITY_CHECKED", "WEIGHED", "PROCURED", "STORED", "PAYMENT_INITIATED", "PAID"
+    ]
+    step4_time = quality.checked_at.strftime("%Y-%m-%d %H:%M") if (quality and quality.checked_at) else None
+
+    step5_done = weighment is not None or b_status in [
+        "WEIGHED", "PROCURED", "STORED", "PAYMENT_INITIATED", "PAID"
+    ]
+    step5_time = weighment.weighed_at.strftime("%Y-%m-%d %H:%M") if (weighment and weighment.weighed_at) else None
+
+    step6_done = storage is not None or b_status in [
+        "STORED", "PAYMENT_INITIATED", "PAID"
+    ]
+    step6_time = storage.created_at.strftime("%Y-%m-%d %H:%M") if (storage and storage.created_at) else None
+
+    step7_done = (payment is not None and payment.status in ["INITIATED", "PROCESSING", "PAID"]) or b_status in [
+        "PAYMENT_INITIATED", "PAID"
+    ]
+    step7_time = payment.created_at.strftime("%Y-%m-%d %H:%M") if (payment and payment.created_at) else None
+
+    step8_done = (payment is not None and payment.status == "PAID") or b_status == "PAID"
+    step8_time = payment.payment_date.strftime("%Y-%m-%d %H:%M") if (payment and payment.payment_date) else None
+
+    steps = [
+        {"step_number": 1, "step_id": "BOOKED", "name": "BOOKED", "step_name": "Booked", "completed": step1_done, "timestamp": step1_time, "description": f"Appointment booked for {b.crop} ({float(b.quantity)} Qtl)"},
+        {"step_number": 2, "step_id": "CHECKED_IN", "name": "CHECKED IN", "step_name": "Checked In", "completed": step2_done, "timestamp": step2_time, "description": "Gate entry verified via QR Code"},
+        {"step_number": 3, "step_id": "ARRIVED", "name": "ARRIVED", "step_name": "Arrived", "completed": step3_done, "timestamp": step3_time, "description": "Vehicle docked at intake queue"},
+        {"step_number": 4, "step_id": "QUALITY_CHECK", "name": "QUALITY CHECK", "step_name": "Quality Check", "completed": step4_done, "timestamp": step4_time, "description": "Moisture, cleanliness and foreign matter assessed"},
+        {"step_number": 5, "step_id": "WEIGHING", "name": "WEIGHING", "step_name": "Weighing", "completed": step5_done, "timestamp": step5_time, "description": "Gross & tare weight verified at certified weighbridge"},
+        {"step_number": 6, "step_id": "STORAGE", "name": "STORAGE", "step_name": "Storage", "completed": step6_done, "timestamp": step6_time, "description": "Bags stacked and tagged in buffer warehouse"},
+        {"step_number": 7, "step_id": "PAYMENT_INITIATED", "name": "PAYMENT INITIATED", "step_name": "Payment Initiated", "completed": step7_done, "timestamp": step7_time, "description": "DBT payment voucher generated & submitted to PFMS"},
+        {"step_number": 8, "step_id": "PAID", "name": "PAID", "step_name": "Paid", "completed": step8_done, "timestamp": step8_time, "description": "Direct bank transfer credited to registered account"}
+    ]
+
+    completed_steps = [s for s in steps if s["completed"]]
+    pending_steps = [s for s in steps if not s["completed"]]
+
+    # Current process name
+    if step8_done:
+        current_process_name = "Procurement Complete & Paid"
+    elif step7_done:
+        current_process_name = "Bank Disbursement in Progress"
+    elif step6_done:
+        current_process_name = "Payment Order Generation"
+    elif step5_done:
+        current_process_name = "Warehouse Stacking & Storage Allocation"
+    elif step4_done:
+        current_process_name = "Gross & Tare Weighbridge Measurement"
+    elif step3_done:
+        current_process_name = "Quality & Moisture Grading"
+    elif step2_done:
+        current_process_name = "Vehicle Docking & Intake Queue"
+    elif step1_done:
+        current_process_name = "Awaiting Gate Arrival & Check-In"
+    else:
+        current_process_name = "Scheduled"
+
+    # Actual quantity received
+    actual_quantity = None
+    if weighment and weighment.net_weight_quintals:
+        actual_quantity = float(weighment.net_weight_quintals)
+    elif procurement and procurement.procured_quantity_quintals:
+        actual_quantity = float(procurement.procured_quantity_quintals)
+    elif collection and collection.collected_quantity:
+        actual_quantity = float(collection.collected_quantity)
+
+    # Quality details
+    quality_result = None
+    if quality:
+        quality_result = {
+            "check_id": quality.check_id,
+            "quality_grade": quality.quality_grade,
+            "moisture_content_pct": float(quality.moisture_content_pct),
+            "foreign_matter_pct": float(quality.foreign_matter_pct),
+            "broken_grains_pct": float(quality.broken_grains_pct),
+            "passed": quality.passed,
+            "inspector_name": quality.inspector_name,
+            "checked_at": quality.checked_at.strftime("%Y-%m-%d %H:%M") if quality.checked_at else None
+        }
+
+    # Payment details
+    payment_info = None
+    if payment:
+        payment_info = {
+            "payment_id": payment.payment_id,
+            "status": payment.status,
+            "amount_inr": float(payment.amount_paid or payment.payment_amount or 0.0),
+            "reference_number": payment.transaction_reference or payment.payment_reference,
+            "bank_account_last4": getattr(payment, "account_number", "")[-4:] if getattr(payment, "account_number", None) else "XXXX",
+            "payment_date": payment.payment_date.strftime("%Y-%m-%d") if payment.payment_date else None
+        }
+
+
+    relevant_timestamp = step8_time or step7_time or step6_time or step5_time or step4_time or step3_time or step2_time or step1_time
+
+    return {
+        "success": True,
+        "booking_id": b.id,
+        "appointment_id": b.appointment_id,
+        "crop": b.crop,
+        "booked_quantity": float(b.quantity),
+        "centre_name": centre.centre_name if centre else b.centre_id,
+        "centre_location": centre.location if centre else "",
+        "slot_date": str(slot.date) if slot else None,
+        "time_slot": f"{slot.start_time} - {slot.end_time}" if slot else "",
+        "current_status": b_status,
+        "active_process": current_process_name,
+        "current_process_name": current_process_name,
+        "completed_count": len(completed_steps),
+        "total_steps": 8,
+        "progress_percentage": round((len(completed_steps) / 8.0) * 100, 1),
+        "steps": steps,
+        "completed_steps": [s["step_name"] for s in completed_steps],
+        "pending_steps": [s["step_name"] for s in pending_steps],
+        "actual_quantity_received": actual_quantity,
+        "quality_result": quality_result,
+        "payment_status": payment_info,
+        "relevant_timestamp": relevant_timestamp
+    }
+

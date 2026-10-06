@@ -497,8 +497,16 @@ def generate_route_predictions(
         load_ratio = float(t_bookings) / max(float(c.max_daily_capacity_quintals or 800.0), 1.0)
         congestion = "CRITICAL" if (load_ratio >= 0.9 or ratio >= 0.85) else "HIGH" if (load_ratio >= 0.75 or ratio >= 0.7) else "MEDIUM" if ratio >= 0.35 else "LOW"
 
-        if usage >= 800.0 or ratio >= 0.20 or sentiment == "SURPLUS" or congestion in ["HIGH", "CRITICAL"]:
-            surplus_qty = max(200.0, usage - (0.18 * cap)) if ratio >= 0.25 else min(usage * 0.35, 600.0)
+        # Quantified trigger: Allocate additional trucks only when a real, quantified need exists:
+        # 1. Capacity bottleneck: ratio >= 0.80 (storage > 80% full)
+        # 2. Daily congestion: CRITICAL or HIGH daily booking queue
+        # 3. Perishable crop urgency: Sugarcane, Tomato, Onion requiring timely evacuation
+        # 4. Regional buffer surplus state with active surplus balance
+        is_perish = primary_crop.lower() in ["sugarcane", "tomato", "onion", "potato"]
+        has_quantified_need = (ratio >= 0.80) or (congestion in ["CRITICAL", "HIGH"]) or is_perish or (sentiment == "SURPLUS" and ratio >= 0.65)
+
+        if has_quantified_need and usage >= 400.0:
+            surplus_qty = max(200.0, usage - (0.50 * cap)) if ratio >= 0.80 else min(usage * 0.30, 800.0)
             surplus_sources.append({
                 "centre_id": c.centre_id,
                 "centre_name": c.centre_name,
@@ -591,12 +599,18 @@ def generate_route_predictions(
 
     db.commit()
 
+    msg = (
+        f"Generated {len(created_routes)} intelligent route suggestions for Government review via {opt_result.get('engine')}."
+        if created_routes
+        else "No additional allocation required: All centres have sufficient storage headroom (>20% available capacity) and no critical yard congestion or unmet perishable transport demands detected."
+    )
     return {
         "success": True,
         "engine": opt_result.get("engine", "Optimization Engine (Google OR-Tools)"),
         "solver_status": opt_result.get("solver_status", "OPTIMAL"),
         "is_optimal": opt_result.get("is_optimal", True),
-        "message": f"Generated {len(created_routes)} intelligent route suggestions for Government review via {opt_result.get('engine')}.",
+        "message": msg,
+        "recommendation": "No additional allocation required" if not created_routes else f"{len(created_routes)} route(s) recommended",
         "routes_created": created_routes
     }
 

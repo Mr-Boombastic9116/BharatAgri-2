@@ -1,10 +1,10 @@
 {
   "model_name": "XGBoost Supply Forecaster",
   "model_type": "REGRESSION",
-  "mae": 0.5316,
-  "rmse": 1.1483,
-  "r2_score": 0.9975,
-  "dataset_info": "Synthetic demonstration dataset (Seed 42)",
+  "mae": 2.3019,
+  "rmse": 2.9482,
+  "r2_score": 0.9824,
+  "dataset_info": "Chronological split (Months 1-9 Train, Months 10-12 Test)",
   "feature_cols": [
     "centre_id",
     "state",
@@ -19,5 +19,27 @@
     "historic_arrival_qty",
     "trucks_demand",
     "bardan_bags_consumed"
-  ]
+  ],
+  "baselines": {
+    "historical_mean": {
+      "mae": 19.1918,
+      "rmse": 22.4375,
+      "r2_score": -0.0172
+    },
+    "seasonal_crop_average": {
+      "mae": 19.2021,
+      "rmse": 22.4214,
+      "r2_score": -0.0158
+    },
+    "linear_ridge": {
+      "mae": 3.0741,
+      "rmse": 3.8214,
+      "r2_score": 0.9705
+    },
+    "xgboost": {
+      "mae": 2.3019,
+      "rmse": 2.9482,
+      "r2_score": 0.9824
+    }
+  }
 }

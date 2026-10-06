@@ -1,9 +1,23 @@
 import pymysql
+import os
+from dotenv import load_dotenv
 
-conn = pymysql.connect(host='localhost', user='root', password='', port=3306, db='bharatagri_iteration2')
-cur = conn.cursor(pymysql.cursors.DictCursor)
-cur.execute("SELECT id, appointment_id, booking_id, farmer_id, centre_id, crop, quantity, status, qr_token FROM bookings WHERE status IN ('CONFIRMED', 'BOOKED', 'PENDING') LIMIT 10")
-rows = cur.fetchall()
-print(f"Found {len(rows)} matching bookings:")
-for r in rows:
-    print(r)
+load_dotenv()
+
+host = os.getenv("DB_HOST", "localhost")
+user = os.getenv("DB_USER", "root")
+password = os.getenv("DB_PASSWORD", "")
+db_name = os.getenv("DB_NAME", "bharatagri_iteration2")
+port = int(os.getenv("DB_PORT", 3306))
+
+try:
+    conn = pymysql.connect(host=host, user=user, password=password, database=db_name, port=port)
+    cursor = conn.cursor()
+    cursor.execute("SHOW TABLES")
+    tables = cursor.fetchall()
+    print("Connected successfully. Tables count:", len(tables))
+    for t in tables[:15]:
+        print(" -", t[0])
+    conn.close()
+except Exception as e:
+    print("Database error:", e)

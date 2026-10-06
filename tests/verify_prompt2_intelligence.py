@@ -294,6 +294,7 @@ def run_tests():
         # Mutate expected demand substantially (simulate extreme surge)
         rec.expected_demand_quintals = Decimal(str(initial_demand * 2.0))
         rec.surplus_deficit_quintals = Decimal(str(float(rec.expected_supply_quintals) - (initial_demand * 2.0)))
+        db.commit()
         # Recompute price deterministically
         price_res = client.post("/api/price/estimate", json={"crop": "Maize", "state": "Goa", "quantity_quintals": 100})
         assert price_res.status_code == 200

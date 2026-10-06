@@ -53,3 +53,32 @@ class CentreRegisterRequest(BaseModel):
     opening_time: Optional[str] = "09:00 AM"
     closing_time: Optional[str] = "05:00 PM"
     supported_crops: Optional[str] = "Paddy,Wheat,Maize,Cotton"
+
+class AgentRegisterRequest(BaseModel):
+    name: str
+    agent_code: Optional[str] = None
+    user_id: Optional[str] = None
+    organization_name: str = "Panchayat CSC Facilitation Centre"
+    agency_type: Optional[str] = "CSC"
+    mobile: str
+    email: Optional[str] = None
+    password: str
+    state: Optional[str] = "Goa"
+    district: Optional[str] = "North Goa"
+    taluka: Optional[str] = "Bicholim"
+    preferred_language: Optional[str] = "English"
+
+class GovernmentRegisterRequest(BaseModel):
+    name: str
+    user_id: Optional[str] = None
+    email: Optional[str] = None
+    official_email: Optional[str] = None
+    mobile: Optional[str] = "9876543210"
+    password: str
+    employee_id: Optional[str] = None
+    designation: Optional[str] = "District Procurement Officer"
+    department: Optional[str] = "Department of Food & Public Distribution"
+    state: Optional[str] = "Goa"
+    district: Optional[str] = "North Goa"
+    preferred_language: Optional[str] = "English"
+

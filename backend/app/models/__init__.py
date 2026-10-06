@@ -12,3 +12,7 @@ from backend.app.models.inventory import Inventory, InventoryTransaction, Bardan
 from backend.app.models.complaint import Complaint, ComplaintMessage, ComplaintStatusHistory
 from backend.app.models.ai import SupplyForecast, CentreCongestion, AnomalyRecord, AIModelMetric
 from backend.app.models.audit import AuditLog
+from backend.app.models.price import MspPrice, StateCropSupplyDemand, PriceEstimate
+from backend.app.models.crop import CropMetadata
+from backend.app.models.alert import Alert
+

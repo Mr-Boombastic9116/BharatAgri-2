@@ -583,9 +583,18 @@ export async function getGeographyProcurement(state) {
   return data.data || [];
 }
 
-export async function getForecastVsActual(state) {
-  const params = state && state !== 'Nationwide' ? `?state=${encodeURIComponent(state)}` : '';
-  const res = await fetch(`${API_BASE}/government/analytics/forecast-vs-actual${params}`, {
+export async function getForecastVsActual(paramsOrState) {
+  let query = '';
+  if (typeof paramsOrState === 'string') {
+    query = paramsOrState && paramsOrState !== 'Nationwide' ? `?state=${encodeURIComponent(paramsOrState)}` : '';
+  } else if (paramsOrState && typeof paramsOrState === 'object') {
+    const q = new URLSearchParams();
+    if (paramsOrState.state && paramsOrState.state !== 'Nationwide') q.append('state', paramsOrState.state);
+    if (paramsOrState.crop && paramsOrState.crop !== 'ALL') q.append('crop', paramsOrState.crop);
+    if (paramsOrState.district && paramsOrState.district !== 'ALL') q.append('district', paramsOrState.district);
+    query = q.toString() ? `?${q.toString()}` : '';
+  }
+  const res = await fetch(`${API_BASE}/government/analytics/forecast-vs-actual${query}`, {
     headers: getAuthHeaders()
   });
   const data = await res.json();
@@ -927,3 +936,193 @@ export async function updateFarmerProfile(farmerId, payload) {
   if (!res.ok) throw new Error(data.error?.message || data.detail || 'Failed to update profile');
   return data.farmer || data;
 }
+
+// ----------------------------------------------------
+// AGENT & GOVERNMENT REGISTRATION
+// ----------------------------------------------------
+export async function registerAgent(payload) {
+  const res = await fetch(`${API_BASE}/agents/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    const msg = data.error?.message || data.detail?.message || data.detail || data.error || 'Agent registration failed';
+    throw new Error(msg);
+  }
+  return data;
+}
+
+export async function registerGovernment(payload) {
+  const res = await fetch(`${API_BASE}/government/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    const msg = data.error?.message || data.detail?.message || data.detail || data.error || 'Government registration failed';
+    throw new Error(msg);
+  }
+  return data;
+}
+
+// ----------------------------------------------------
+// AI PRICE ESTIMATION & PERISHABLE CROPS
+// ----------------------------------------------------
+export async function getCropMetadata(params = {}) {
+  const query = new URLSearchParams(params).toString();
+  const url = query ? `${API_BASE}/crops/metadata?${query}` : `${API_BASE}/crops/metadata`;
+  const res = await fetch(url, { headers: getAuthHeaders() });
+  const data = await res.json();
+  if (!res.ok) throw new Error('Failed to fetch crop metadata');
+  return data.data || [];
+}
+
+export async function estimatePrice(payload) {
+  const res = await fetch(`${API_BASE}/price/estimate`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify(payload)
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.detail?.message || data.detail || 'Failed to estimate price');
+  return data;
+}
+
+export async function getTransportPriority(payload) {
+  const res = await fetch(`${API_BASE}/logistics/transport-priority`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify(payload)
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.detail?.message || data.detail || 'Failed to calculate transport priority');
+  return data;
+}
+
+// ----------------------------------------------------
+// CENTRE INTELLIGENCE, REDIRECTION & ALERTS
+// ----------------------------------------------------
+export async function getCentreRedirectionOptions(centreId, crop = '', quantity = 0) {
+  let url = `${API_BASE}/centres/${encodeURIComponent(centreId)}/redirection-options`;
+  const params = new URLSearchParams();
+  if (crop) params.append('crop', crop);
+  if (quantity) params.append('quantity', quantity);
+  const qStr = params.toString();
+  if (qStr) url += `?${qStr}`;
+
+  const res = await fetch(url, { headers: getAuthHeaders() });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.detail?.message || data.detail || 'Failed to fetch redirection options');
+  return data;
+}
+
+export async function getCentreAlerts(centreId, severity = '') {
+  let url = `${API_BASE}/centres/${encodeURIComponent(centreId)}/alerts`;
+  if (severity) url += `?severity=${encodeURIComponent(severity)}`;
+  const res = await fetch(url, { headers: getAuthHeaders() });
+  const data = await res.json();
+  if (!res.ok) throw new Error('Failed to fetch centre alerts');
+  return data.data || [];
+}
+
+export async function getCentreInsights(centreId) {
+  const res = await fetch(`${API_BASE}/centres/${encodeURIComponent(centreId)}/insights`, {
+    headers: getAuthHeaders()
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error('Failed to fetch centre insights');
+  return data;
+}
+
+export async function getCentreDailyIntelligence(centreId) {
+  const res = await fetch(`${API_BASE}/centres/${encodeURIComponent(centreId)}/daily-intelligence`, {
+    headers: getAuthHeaders()
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error('Failed to fetch centre daily intelligence');
+  return data;
+}
+
+export async function resolveAlert(alertId, resolutionNotes = '') {
+  const res = await fetch(`${API_BASE}/alerts/${encodeURIComponent(alertId)}/resolve`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ resolution_notes: resolutionNotes })
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.detail?.message || data.detail || 'Failed to resolve alert');
+  return data;
+}
+
+// ----------------------------------------------------
+// GOVERNMENT ALERTS, INSIGHTS & DAILY INTELLIGENCE
+// ----------------------------------------------------
+export async function getGovernmentAlerts(params = {}) {
+  const query = new URLSearchParams(params).toString();
+  const url = query ? `${API_BASE}/government/alerts?${query}` : `${API_BASE}/government/alerts`;
+  const res = await fetch(url, { headers: getAuthHeaders() });
+  const data = await res.json();
+  if (!res.ok) throw new Error('Failed to fetch government alerts');
+  return data.data || [];
+}
+
+export async function getGovernmentInsights(state = '') {
+  let url = `${API_BASE}/government/insights`;
+  if (state && state.toLowerCase() !== 'all') url += `?state=${encodeURIComponent(state)}`;
+  const res = await fetch(url, { headers: getAuthHeaders() });
+  const data = await res.json();
+  if (!res.ok) throw new Error('Failed to fetch government insights');
+  return data;
+}
+
+export async function getGovernmentDailyIntelligence(state = '') {
+  let url = `${API_BASE}/government/daily-intelligence`;
+  if (state && state.toLowerCase() !== 'all') url += `?state=${encodeURIComponent(state)}`;
+  const res = await fetch(url, { headers: getAuthHeaders() });
+  const data = await res.json();
+  if (!res.ok) throw new Error('Failed to fetch government daily intelligence');
+  return data;
+}
+
+export async function getGovernmentPerishablePriority(state = '') {
+  let url = `${API_BASE}/government/perishable-priority`;
+  if (state && state.toLowerCase() !== 'all') url += `?state=${encodeURIComponent(state)}`;
+  const res = await fetch(url, { headers: getAuthHeaders() });
+  const data = await res.json();
+  if (!res.ok) throw new Error('Failed to fetch perishable crop transport priorities');
+  return data.data || [];
+}
+
+// ----------------------------------------------------
+// FARMER WORKFLOW TRACKER & MARKET INTELLIGENCE
+// ----------------------------------------------------
+export async function getBookingWorkflowStatus(bookingId) {
+  const res = await fetch(`${API_BASE}/bookings/${encodeURIComponent(bookingId)}/workflow-status`, {
+    headers: getAuthHeaders()
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error('Failed to fetch booking workflow status');
+  return data;
+}
+
+export async function getFarmerMarketIntelligence(farmerId) {
+  const res = await fetch(`${API_BASE}/farmers/${encodeURIComponent(farmerId)}/market-intelligence`, {
+    headers: getAuthHeaders()
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error('Failed to fetch farmer market intelligence');
+  return data;
+}
+
+export async function getFarmerDailyIntelligence(farmerId) {
+  const res = await fetch(`${API_BASE}/farmers/${encodeURIComponent(farmerId)}/daily-intelligence`, {
+    headers: getAuthHeaders()
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error('Failed to fetch farmer daily intelligence');
+  return data;
+}
+

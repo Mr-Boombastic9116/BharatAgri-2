@@ -71,11 +71,13 @@ class AnomalyDetector:
 
                 return {
                     "is_potential_anomaly": is_anomaly,
-                    "label": "Potential anomaly" if is_anomaly else "Normal Transaction",
+                    "is_anomaly": is_anomaly,
+                    "label": "Potential Anomaly — Requires Review" if is_anomaly else "Normal Transaction",
                     "risk_level": risk,
                     "anomaly_score": round(score, 4),
                     "percentage_discrepancy": pct_diff,
                     "reasons": reason_text,
+                    "reason": reason_text,
                     "status": "OPEN" if is_anomaly else "CLEARED",
                     "requires_human_review": is_anomaly,
                     "disclaimer": "Anomaly detection is an automated alerting mechanism and requires human verification.",
@@ -89,11 +91,13 @@ class AnomalyDetector:
         risk = "HIGH" if pct_diff > 40.0 else ("MEDIUM" if is_anom else "LOW")
         return {
             "is_potential_anomaly": is_anom,
-            "label": "Potential anomaly" if is_anom else "Normal Transaction",
+            "is_anomaly": is_anom,
+            "label": "Potential Anomaly — Requires Review" if is_anom else "Normal Transaction",
             "risk_level": risk,
             "anomaly_score": -0.15 if is_anom else 0.15,
             "percentage_discrepancy": pct_diff,
             "reasons": f"Rule-based threshold triggered: discrepancy {pct_diff}%" if is_anom else "Within standard tolerance.",
+            "reason": f"Rule-based threshold triggered: discrepancy {pct_diff}%" if is_anom else "Within standard tolerance.",
             "status": "OPEN" if is_anom else "CLEARED",
             "requires_human_review": is_anom,
             "disclaimer": "AI model unavailable. Evaluated using rule-based operational heuristic.",

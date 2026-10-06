@@ -71,6 +71,10 @@ class ProcurementRecord(Base):
     warehouse_location = Column(String(150), nullable=True)
     created_at = Column(DateTime, server_default=func.now())
 
+    @property
+    def procurement_date(self):
+        return self.created_at.date() if self.created_at else None
+
     booking = relationship("Booking")
     collection = relationship("CollectionRecord")
     storage_lot = relationship("StorageLot", back_populates="procurement", uselist=False)
@@ -109,6 +113,35 @@ class Payment(Base):
     remarks = Column(String(255), nullable=True)
 
     procurement = relationship("ProcurementRecord", back_populates="payment")
+
+    @property
+    def status(self):
+        return self.payment_status
+
+    @property
+    def amount_paid(self):
+        return float(self.amount) if self.amount else 0.0
+
+    @property
+    def payment_amount(self):
+        return float(self.amount) if self.amount else 0.0
+
+    @property
+    def transaction_reference(self):
+        return self.transaction_ref
+
+    @property
+    def payment_reference(self):
+        return self.transaction_ref
+
+    @property
+    def payment_date(self):
+        return self.paid_at or self.initiated_at
+
+    @property
+    def created_at(self):
+        return self.initiated_at
+
 
 class ProcurementEvidence(Base):
     __tablename__ = "procurement_evidence"
