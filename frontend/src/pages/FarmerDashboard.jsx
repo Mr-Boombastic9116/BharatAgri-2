@@ -1,34 +1,51 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   getFarmerBookings, getFarmerProfile, getTraceabilityLot, createComplaint, getComplaints,
   getFarmerCrops, addFarmerCrop, updateFarmerCrop, deleteFarmerCrop, updateFarmerProfile,
-  getBookingWorkflowStatus, getFarmerMarketIntelligence, getFarmerDailyIntelligence
+  getFarmerOverview, getLiveQueue, trackToken, recommendCentre, getRecommendedSlots,
+  getCropsMaster, getFarmerNotifications, getEstimatedPrice
 } from '../services/api';
 import StatusBadge from '../components/StatusBadge';
 import AppointmentCard from '../components/AppointmentCard';
 import {
-  Calendar, PlusCircle, User, Hash, Clock, QrCode, X, Phone, MapPin,
-  Package, DollarSign, MessageSquare, ShieldCheck, CheckCircle, FileText,
-  Edit, Trash2, Plus, Save, TrendingUp, AlertTriangle, Layers, Activity, ArrowRight, Sparkles
+  Calendar, Ticket, Users, IndianRupee, MapPin, Phone,
+  Sparkles, Bell, HelpCircle, ArrowRight, RefreshCw, CheckCircle2,
+  AlertCircle, Clock, QrCode, X, FileText, ChevronRight, Scale,
+  ShieldCheck, AlertTriangle, TrendingUp, Info, User, ExternalLink,
+  Layers, Compass, Home
 } from 'lucide-react';
 import { formatDateDisplay } from '../utils/dateUtils';
 import { useTranslation } from '../context/LanguageContext';
 
 export default function FarmerDashboard({ user, navigate }) {
   const { t } = useTranslation();
-  const [activeTab, setActiveTab] = useState('overview');
+  const farmerIdentifier = user?.user_id;
+
+  // Primary navigation: 'main' is simple low-literacy dashboard; advanced tabs are secondary
+  const [activeTab, setActiveTab] = useState('main'); // 'main' | 'msp_prices' | 'ai_insights' | 'alerts' | 'centres' | 'crops'
+
+  // Core Data
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [overviewData, setOverviewData] = useState(null);
   const [bookings, setBookings] = useState([]);
   const [farmerProfile, setFarmerProfile] = useState(null);
+  const [cropsMaster, setCropsMaster] = useState([]);
   const [crops, setCrops] = useState([]);
+  const [notifications, setNotifications] = useState([]);
   const [complaints, setComplaints] = useState([]);
-  const [loading, setLoading] = useState(true);
 
-  // QR Pass Modal state
+  // Live Queue & Token Tracking
+  const [liveQueueData, setLiveQueueData] = useState(null);
+  const [selectedCentreId, setSelectedCentreId] = useState('C001');
+  const [queueRefreshing, setQueueRefreshing] = useState(false);
+
+  // Recommendations
+  const [nearbyCentres, setNearbyCentres] = useState([]);
+
+  // Modals for the 6 Main Action Cards
+  const [activeModal, setActiveModal] = useState(null); // 'queue', 'payment', 'centres', 'help'
   const [selectedPassBooking, setSelectedPassBooking] = useState(null);
-
-  // Traceability Modal state
-  const [traceModalLot, setTraceModalLot] = useState(null);
-  const [traceLoading, setTraceLoading] = useState(false);
 
   // Complaint Form
   const [compSubject, setCompSubject] = useState('');
@@ -36,1136 +53,1223 @@ export default function FarmerDashboard({ user, navigate }) {
   const [compDesc, setCompDesc] = useState('');
   const [compMsg, setCompMsg] = useState(null);
 
-  // Profile editing
-  const [editingProfile, setEditingProfile] = useState(false);
-  const [profileForm, setProfileForm] = useState({});
-  const [profileSaving, setProfileSaving] = useState(false);
-  const [profileMsg, setProfileMsg] = useState(null);
+  // Interactive MSP & Estimated Price Calculator State
+  const [calcCrop, setCalcCrop] = useState('Paddy');
+  const [calcQuantity, setCalcQuantity] = useState('42');
+  const [calcPriceInfo, setCalcPriceInfo] = useState(null);
+  const [loadingCalcPrice, setLoadingCalcPrice] = useState(false);
 
-  // Crop CRUD
-  const [showAddCrop, setShowAddCrop] = useState(false);
-  const [cropForm, setCropForm] = useState({ crop_name: '', season: 'Kharif 2026-27', sowing_date: '', expected_harvest_date: '', estimated_quantity_quintals: '' });
-  const [editingCropId, setEditingCropId] = useState(null);
-  const [cropMsg, setCropMsg] = useState(null);
-  const [cropSaving, setCropSaving] = useState(false);
+  // Load Overview Data
+  const loadDashboardData = useCallback(() => {
+    if (!farmerIdentifier) return;
+    setLoading(true);
+    Promise.all([
+      getFarmerOverview(farmerIdentifier).catch(() => null),
+      getFarmerBookings(farmerIdentifier).catch(() => []),
+      getFarmerProfile(farmerIdentifier).catch(() => null),
+      getCropsMaster().catch(() => ({ crops: [] })),
+      getFarmerNotifications(farmerIdentifier).catch(() => []),
+      getComplaints().catch(() => []),
+      getFarmerCrops(farmerIdentifier).catch(() => [])
+    ])
+      .then(([overview, bData, profile, cMasterRes, notifs, comps, fCrops]) => {
+        setOverviewData(overview);
+        setBookings(Array.isArray(bData) ? bData : []);
+        setFarmerProfile(profile);
+        setCropsMaster(cMasterRes?.crops || []);
+        setNotifications(Array.isArray(notifs) ? notifs : []);
+        setComplaints(Array.isArray(comps) ? comps : []);
+        setCrops(fCrops || (profile?.crops || []));
 
-  // Intelligence & Live Workflow Tracker State
-  const [dailyIntel, setDailyIntel] = useState(null);
-  const [marketIntel, setMarketIntel] = useState(null);
-  const [marketIntelLoading, setMarketIntelLoading] = useState(false);
-  const [workflowData, setWorkflowData] = useState(null);
-  const [workflowLoading, setWorkflowLoading] = useState(false);
-  const [selectedWorkflowBooking, setSelectedWorkflowBooking] = useState(null);
+        const activeCentre = overview?.token_tracking?.centre_id || bData?.[0]?.centre_id || 'C001';
+        setSelectedCentreId(activeCentre);
+        fetchLiveQueue(activeCentre);
 
-  const farmerIdentifier = user?.user_id;
-
-  const loadWorkflowStatus = (bId) => {
-    if (!bId) return;
-    setWorkflowLoading(true);
-    getBookingWorkflowStatus(bId)
-      .then(data => setWorkflowData(data))
-      .catch(err => console.error('Error loading workflow status:', err))
-      .finally(() => setWorkflowLoading(false));
-  };
-
-  useEffect(() => {
-    if (user && user.user_id) {
-      Promise.all([
-        getFarmerBookings(user.user_id),
-        getFarmerProfile(user.user_id).catch(() => null),
-        getComplaints().catch(() => []),
-        getFarmerCrops(user.user_id).catch(() => []),
-        getFarmerDailyIntelligence(user.user_id).catch(() => null)
-      ])
-        .then(([bData, pData, cData, cropsData, dailyData]) => {
-          setBookings(bData || []);
-          setFarmerProfile(pData);
-          setComplaints(cData || []);
-          setCrops(cropsData || (pData?.crops || []));
-          setDailyIntel(dailyData);
-
-          // If there is an active booking, load its live 8-step workflow
-          const activeB = (bData || []).find(b => !['CANCELLED', 'REJECTED', 'EXPIRED'].includes(b.status));
-          if (activeB) {
-            setSelectedWorkflowBooking(activeB);
-            loadWorkflowStatus(activeB.appointment_id || activeB.id);
-          }
-
-          if (pData) {
-            setProfileForm({
-              name: pData.name || '',
-              mobile: pData.mobile || '',
-              email: pData.email || '',
-              address: pData.address || '',
-              village: pData.village || '',
-              taluka: pData.taluka || '',
-              district: pData.district || '',
-              state: pData.state || '',
-              land_area_hectares: pData.land_area_hectares || '',
-              bank_name: pData.bank_name || '',
-              bank_account_no: pData.bank_account_no || '',
-              bank_ifsc: pData.bank_ifsc || ''
-            });
-          }
+        // Fetch nearby centres for farmer district
+        recommendCentre({
+          crop: 'Paddy',
+          quantity: 40,
+          farmer_id: farmerIdentifier,
+          district: profile?.district || 'Pune'
         })
-        .catch((err) => console.error('Error loading farmer data:', err))
-        .finally(() => setLoading(false));
-    }
-  }, [user]);
+          .then(res => setNearbyCentres(res.centres || []))
+          .catch(() => {});
+      })
+      .catch(err => console.error('Error loading farmer dashboard:', err))
+      .finally(() => setLoading(false));
+  }, [farmerIdentifier]);
 
   useEffect(() => {
-    if (activeTab === 'intelligence' && user?.user_id && !marketIntel) {
-      setMarketIntelLoading(true);
-      getFarmerMarketIntelligence(user.user_id)
-        .then(data => setMarketIntel(data))
-        .catch(err => console.error('Error fetching market intelligence:', err))
-        .finally(() => setMarketIntelLoading(false));
-    }
-  }, [activeTab, user, marketIntel]);
+    loadDashboardData();
+  }, [loadDashboardData]);
 
-  const handleSaveProfile = async (e) => {
-    e.preventDefault();
-    setProfileSaving(true);
-    setProfileMsg(null);
-    try {
-      const updated = await updateFarmerProfile(farmerIdentifier, profileForm);
-      setFarmerProfile(prev => ({ ...prev, ...updated }));
-      setProfileMsg({ type: 'success', text: 'Profile updated successfully.' });
-      setEditingProfile(false);
-    } catch (err) {
-      setProfileMsg({ type: 'error', text: err.message || 'Profile update failed' });
-    } finally {
-      setProfileSaving(false);
-    }
+  // Fetch Live Queue
+  const fetchLiveQueue = (centreId) => {
+    setQueueRefreshing(true);
+    getLiveQueue(centreId)
+      .then(data => setLiveQueueData(data?.data || data))
+      .catch(err => console.error('Error fetching live queue:', err))
+      .finally(() => setQueueRefreshing(false));
   };
 
-  const handleAddCrop = async (e) => {
-    e.preventDefault();
-    setCropSaving(true);
-    setCropMsg(null);
-    try {
-      const payload = {
-        ...cropForm,
-        estimated_quantity_quintals: parseFloat(cropForm.estimated_quantity_quintals),
-        sowing_date: cropForm.sowing_date || null,
-        expected_harvest_date: cropForm.expected_harvest_date || null
-      };
-      if (editingCropId) {
-        const updated = await updateFarmerCrop(farmerIdentifier, editingCropId, payload);
-        setCrops(prev => prev.map(c => c.id === editingCropId ? updated : c));
-        setCropMsg({ type: 'success', text: `Crop '${updated.crop_name}' updated.` });
-        setEditingCropId(null);
-      } else {
-        const newCrop = await addFarmerCrop(farmerIdentifier, payload);
-        setCrops(prev => [...prev, newCrop]);
-        setCropMsg({ type: 'success', text: `Crop '${newCrop.crop_name}' added.` });
-      }
-      setShowAddCrop(false);
-      setCropForm({ crop_name: '', season: 'Kharif 2026-27', sowing_date: '', expected_harvest_date: '', estimated_quantity_quintals: '' });
-    } catch (err) {
-      setCropMsg({ type: 'error', text: err.message || 'Failed to save crop' });
-    } finally {
-      setCropSaving(false);
+  // Fetch MSP price estimate for calculator
+  useEffect(() => {
+    if (calcCrop) {
+      setLoadingCalcPrice(true);
+      const qVal = parseFloat(calcQuantity) > 0 ? parseFloat(calcQuantity) : 42;
+      getEstimatedPrice({
+        crop: calcCrop,
+        quantity: qVal,
+        centre_id: selectedCentreId
+      })
+        .then(data => setCalcPriceInfo(data))
+        .catch(() => setCalcPriceInfo(null))
+        .finally(() => setLoadingCalcPrice(false));
     }
-  };
-
-  const handleDeleteCrop = async (cropId, cropName) => {
-    if (!window.confirm(`Remove crop '${cropName}' from your profile?`)) return;
-    try {
-      await deleteFarmerCrop(farmerIdentifier, cropId);
-      setCrops(prev => prev.filter(c => c.id !== cropId));
-      setCropMsg({ type: 'success', text: `Crop '${cropName}' removed.` });
-    } catch (err) {
-      setCropMsg({ type: 'error', text: err.message });
-    }
-  };
-
-  const handleEditCrop = (crop) => {
-    setEditingCropId(crop.id);
-    setCropForm({
-      crop_name: crop.crop_name,
-      season: crop.season || 'Kharif 2026-27',
-      sowing_date: crop.sowing_date ? crop.sowing_date.split('T')[0] : '',
-      expected_harvest_date: crop.expected_harvest_date ? crop.expected_harvest_date.split('T')[0] : '',
-      estimated_quantity_quintals: crop.estimated_quantity_quintals || ''
-    });
-    setShowAddCrop(true);
-  };
-
-  const handleViewTraceability = async (bookingIdOrLot) => {
-    try {
-      setTraceLoading(true);
-      const data = await getTraceabilityLot(bookingIdOrLot);
-      setTraceModalLot(data);
-    } catch (err) {
-      alert('Traceability lot details: ' + (err.message || 'Not yet generated'));
-    } finally {
-      setTraceLoading(false);
-    }
-  };
+  }, [calcCrop, calcQuantity, selectedCentreId]);
 
   const handleFileComplaint = async (e) => {
     e.preventDefault();
     setCompMsg(null);
     try {
       await createComplaint({
-        centre_id: farmerProfile?.preferred_centre || 'CENTRE-GOA-01',
+        centre_id: selectedCentreId,
         category: compCategory,
         priority: 'MEDIUM',
         subject: compSubject,
         description: compDesc
       });
-      setCompMsg({ type: 'success', text: 'Complaint submitted successfully! Control room alerted.' });
+      setCompMsg({ type: 'success', text: 'Sahayata grievance submitted. A mandi officer will follow up.' });
       setCompSubject('');
       setCompDesc('');
       const updated = await getComplaints();
       setComplaints(updated || []);
     } catch (err) {
-      setCompMsg({ type: 'error', text: err.message || 'Failed to submit complaint' });
+      setCompMsg({ type: 'error', text: err.message || 'Submission failed' });
     }
   };
 
-  const upcomingBooking = bookings.find(
-    (b) => b.status === 'CONFIRMED' || b.status === 'BOOKED' || b.status === 'ARRIVED' || b.status === 'Confirmed'
-  );
+  // Resolve Active Booking
+  const activeBooking = bookings.find(b => !['COMPLETED', 'CANCELLED', 'REJECTED', 'EXPIRED'].includes(b.status)) || bookings[0] || null;
+  const tokenData = overviewData?.token_tracking;
+  const paymentSummary = overviewData?.payment_summary;
+
+  // Active Token & Queue Numbers
+  const userToken = tokenData?.token_number || activeBooking?.token || activeBooking?.token_number || (activeBooking ? `A${(activeBooking.id || 184) % 900 + 100}` : null);
+  const farmersAhead = tokenData?.farmers_ahead ?? activeBooking?.farmers_ahead ?? liveQueueData?.waiting_count ?? 0;
+  const waitMin = Math.round(tokenData?.estimated_waiting_time_minutes ?? activeBooking?.estimated_wait_min ?? liveQueueData?.estimated_wait_min ?? 15);
+  const currentServingToken = liveQueueData?.currently_serving_token ?? (userToken ? `A${Math.max(1, (parseInt(String(userToken).replace(/\D/g, '')) || 184) - farmersAhead)}` : 'A177');
+  const centreStatus = liveQueueData?.status_label || liveQueueData?.centre_status || 'Centre operating normally';
+  const comeNowActive = tokenData?.come_now_alert || (userToken && farmersAhead <= 5 && activeBooking?.status !== 'COMPLETED');
+
+  // Selected crop for display
+  const primaryCrop = activeBooking?.crop || (crops[0]?.crop_name) || 'Paddy';
 
   return (
-    <div className="farmer-dashboard" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-      {/* Header bar */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', borderBottom: '1px solid var(--border)', paddingBottom: '1rem' }}>
-        <div>
-          <h1 style={{ fontSize: '1.75rem', color: 'var(--secondary)' }}>
-            Welcome, {user.name}
-          </h1>
-          <p style={{ fontSize: '0.9rem', color: 'var(--muted)' }}>
-            Kisan Portal • Direct MSP Procurement & DBT Settlement Tracker
-          </p>
+    <div style={{ maxWidth: '960px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '1.5rem', paddingBottom: '3rem' }}>
+
+      {/* TOP HEADER: Simple & Clean (Rural Friendly) */}
+      <div style={{
+        backgroundColor: 'var(--surface)',
+        borderRadius: '12px',
+        padding: '1.25rem 1.75rem',
+        border: '1px solid var(--border)',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        flexWrap: 'wrap',
+        gap: '1rem',
+        boxShadow: '0 1px 4px rgba(0,0,0,0.04)'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          <div style={{
+            width: '52px',
+            height: '52px',
+            borderRadius: '50%',
+            backgroundColor: 'rgba(27, 77, 62, 0.1)',
+            color: 'var(--primary)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}>
+            <User size={28} />
+          </div>
+          <div>
+            <h1 style={{ fontSize: '1.5rem', fontWeight: 800, margin: 0, color: 'var(--secondary)' }}>
+              Namaste, {user?.name || farmerProfile?.name || 'Kisan Bhai'}
+            </h1>
+            <p style={{ margin: '2px 0 0 0', fontSize: '0.85rem', color: 'var(--muted)' }}>
+              {farmerProfile?.village ? `${farmerProfile.village}, ` : ''}{farmerProfile?.district || 'Agricultural Zone'} • Farmer ID: {farmerProfile?.farmer_code || user?.user_id}
+            </p>
+          </div>
         </div>
-        <button
-          className="btn btn-primary"
-          onClick={() => navigate('book-slot')}
-          style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.6rem 1.25rem' }}
-        >
-          <PlusCircle size={18} /> {t('book_slot')}
-        </button>
-      </div>
 
-      {/* Tabs */}
-      <div style={{ display: 'flex', gap: '0.5rem', overflowX: 'auto', borderBottom: '1px solid var(--border)', paddingBottom: '0.25rem' }}>
-        {[
-          { id: 'overview', label: 'Dashboard & Appointments', icon: Calendar },
-          { id: 'intelligence', label: 'Market Intelligence & Insights', icon: TrendingUp },
-          { id: 'profile', label: 'Profile & My Crops', icon: User },
-          { id: 'procurement', label: 'Procurement & Lots', icon: Package },
-          { id: 'payments', label: 'DBT Payments', icon: DollarSign },
-          { id: 'complaints', label: 'Grievance / Help', icon: MessageSquare }
-        ].map((tab) => {
-          const Icon = tab.icon;
-          const isActive = activeTab === tab.id;
-          return (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              style={{
-                display: 'flex', alignItems: 'center', gap: '0.5rem',
-                padding: '0.6rem 1rem', border: 'none',
-                borderBottom: isActive ? '3px solid var(--primary)' : '3px solid transparent',
-                backgroundColor: 'transparent',
-                color: isActive ? 'var(--primary)' : 'var(--muted)',
-                fontWeight: isActive ? 700 : 500,
-                fontSize: '0.9rem', cursor: 'pointer', whiteSpace: 'nowrap'
-              }}
-            >
-              <Icon size={16} />
-              {tab.label}
-            </button>
-          );
-        })}
-      </div>
-
-      {/* TAB 1: OVERVIEW & BOOKINGS */}
-      {activeTab === 'overview' && (
-        <>
-          {/* DAILY INTELLIGENCE BANNER */}
-          {dailyIntel && (
-            <div style={{
-              background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, rgba(59, 130, 246, 0.08) 100%)',
-              border: '1px solid rgba(16, 185, 129, 0.3)',
-              borderRadius: 'var(--radius-md)',
-              padding: '1.25rem',
+        {/* TOP TAB SWITCHER: Main (Simple) vs Advanced Features */}
+        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+          <button
+            onClick={() => setActiveTab('main')}
+            style={{
+              padding: '0.55rem 1.1rem',
+              borderRadius: '20px',
+              border: activeTab === 'main' ? '2px solid var(--primary)' : '1px solid #cbd5e1',
+              backgroundColor: activeTab === 'main' ? 'var(--primary)' : '#ffffff',
+              color: activeTab === 'main' ? '#ffffff' : 'var(--secondary)',
+              fontWeight: 800,
+              fontSize: '0.9rem',
+              cursor: 'pointer',
               display: 'flex',
-              flexDirection: 'column',
-              gap: '0.85rem'
+              alignItems: 'center',
+              gap: '6px'
+            }}
+          >
+            <Home size={16} /> Home
+          </button>
+
+          <button
+            onClick={() => setActiveTab('msp_prices')}
+            style={{
+              padding: '0.55rem 1.1rem',
+              borderRadius: '20px',
+              border: activeTab === 'msp_prices' ? '2px solid var(--primary)' : '1px solid #cbd5e1',
+              backgroundColor: activeTab === 'msp_prices' ? 'var(--primary)' : '#ffffff',
+              color: activeTab === 'msp_prices' ? '#ffffff' : 'var(--secondary)',
+              fontWeight: 700,
+              fontSize: '0.85rem',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px'
+            }}
+          >
+            <IndianRupee size={16} /> MSP & Estimated Price
+          </button>
+
+          <button
+            onClick={() => setActiveTab('ai_insights')}
+            style={{
+              padding: '0.55rem 1.1rem',
+              borderRadius: '20px',
+              border: activeTab === 'ai_insights' ? '2px solid var(--primary)' : '1px solid #cbd5e1',
+              backgroundColor: activeTab === 'ai_insights' ? 'var(--primary)' : '#ffffff',
+              color: activeTab === 'ai_insights' ? '#ffffff' : 'var(--secondary)',
+              fontWeight: 700,
+              fontSize: '0.85rem',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px'
+            }}
+          >
+            <Sparkles size={16} /> AI Insights
+          </button>
+
+          <button
+            onClick={() => setActiveTab('alerts')}
+            style={{
+              padding: '0.55rem 1.1rem',
+              borderRadius: '20px',
+              border: activeTab === 'alerts' ? '2px solid var(--primary)' : '1px solid #cbd5e1',
+              backgroundColor: activeTab === 'alerts' ? 'var(--primary)' : '#ffffff',
+              color: activeTab === 'alerts' ? '#ffffff' : 'var(--secondary)',
+              fontWeight: 700,
+              fontSize: '0.85rem',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px'
+            }}
+          >
+            <Bell size={16} /> Alerts ({notifications.length})
+          </button>
+
+          <button
+            onClick={() => setActiveTab('centres')}
+            style={{
+              padding: '0.55rem 1.1rem',
+              borderRadius: '20px',
+              border: activeTab === 'centres' ? '2px solid var(--primary)' : '1px solid #cbd5e1',
+              backgroundColor: activeTab === 'centres' ? 'var(--primary)' : '#ffffff',
+              color: activeTab === 'centres' ? '#ffffff' : 'var(--secondary)',
+              fontWeight: 700,
+              fontSize: '0.85rem',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px'
+            }}
+          >
+            <Compass size={16} /> Centre Intelligence
+          </button>
+        </div>
+      </div>
+
+      {/* ============================================================== */}
+      {/* TAB 1: MAIN SIMPLE FARMER DASHBOARD (PRIMARY HIERARCHY) */}
+      {/* ============================================================== */}
+      {activeTab === 'main' && (
+        <>
+          {/* URGENT "COME NOW" ADVISORY BANNER (Requirement 9) */}
+          {comeNowActive && (
+            <div style={{
+              backgroundColor: 'var(--danger-bg)',
+              border: '2px solid var(--danger)',
+              borderRadius: '12px',
+              padding: '1.25rem 1.5rem',
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: '1rem',
+              boxShadow: '0 4px 12px rgba(239, 68, 68, 0.12)'
             }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-                  <Sparkles size={20} color="var(--primary)" />
-                  <span style={{ fontWeight: 800, fontSize: '0.95rem', color: 'var(--secondary)' }}>
-                    Kisan Daily Intelligence Summary • {dailyIntel.date}
-                  </span>
-                </div>
-                <span style={{ fontSize: '0.75rem', fontWeight: 700, padding: '0.2rem 0.6rem', borderRadius: '12px', backgroundColor: 'var(--primary-light)', color: 'var(--primary)' }}>
-                  State: {farmerProfile?.state || 'Goa'}
-                </span>
+              <div style={{
+                backgroundColor: 'var(--danger)',
+                color: '#ffffff',
+                padding: '0.5rem',
+                borderRadius: '50%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0
+              }}>
+                <Bell size={24} />
               </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '0.75rem', fontSize: '0.85rem' }}>
-                {dailyIntel.active_appointment ? (
-                  <div style={{ backgroundColor: 'var(--bg-card)', padding: '0.75rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
-                    <span style={{ color: 'var(--muted)', display: 'block', fontSize: '0.75rem', fontWeight: 600 }}>APPOINTMENT STATUS</span>
-                    <strong style={{ color: 'var(--primary)' }}>{dailyIntel.active_appointment.crop} ({dailyIntel.active_appointment.quantity_quintals} Q)</strong>
-                    <div style={{ fontSize: '0.8rem', color: 'var(--secondary)', marginTop: '0.2rem' }}>
-                      Status: <span style={{ fontWeight: 700 }}>{dailyIntel.active_appointment.status}</span> • Slot: {dailyIntel.active_appointment.slot_date}
-                    </div>
-                  </div>
-                ) : (
-                  <div style={{ backgroundColor: 'var(--bg-card)', padding: '0.75rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
-                    <span style={{ color: 'var(--muted)', display: 'block', fontSize: '0.75rem', fontWeight: 600 }}>APPOINTMENT STATUS</span>
-                    <span style={{ color: 'var(--muted)' }}>No active booking. Slots available at nearby centres.</span>
-                  </div>
-                )}
-
-                {dailyIntel.crop_demand_alerts?.length > 0 && (
-                  <div style={{ backgroundColor: 'var(--bg-card)', padding: '0.75rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
-                    <span style={{ color: 'var(--muted)', display: 'block', fontSize: '0.75rem', fontWeight: 600 }}>DEMAND OPPORTUNITY</span>
-                    <strong style={{ color: 'var(--secondary)' }}>{dailyIntel.crop_demand_alerts[0].crop}</strong>
-                    <div style={{ fontSize: '0.8rem', color: 'var(--muted)', marginTop: '0.2rem' }}>
-                      {dailyIntel.crop_demand_alerts[0].message}
-                    </div>
-                  </div>
-                )}
-
-                {dailyIntel.price_intelligence_alerts?.length > 0 && (
-                  <div style={{ backgroundColor: 'var(--bg-card)', padding: '0.75rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
-                    <span style={{ color: 'var(--muted)', display: 'block', fontSize: '0.75rem', fontWeight: 600 }}>PRICE INTELLIGENCE ADVISORY</span>
-                    <strong style={{ color: 'var(--success)' }}>
-                      {dailyIntel.price_intelligence_alerts[0].crop} • AI Est: ₹{dailyIntel.price_intelligence_alerts[0].ai_estimated_price}/Q
-                    </strong>
-                    <div style={{ fontSize: '0.8rem', color: 'var(--muted)', marginTop: '0.2rem' }}>
-                      {dailyIntel.price_intelligence_alerts[0].advisory}
-                    </div>
-                  </div>
-                )}
+              <div style={{ flex: 1 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                  <span style={{
+                    backgroundColor: '#dc2626',
+                    color: '#ffffff',
+                    padding: '2px 8px',
+                    borderRadius: '4px',
+                    fontSize: '0.75rem',
+                    fontWeight: 800,
+                    textTransform: 'uppercase'
+                  }}>
+                    Priority Notice
+                  </span>
+                  <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, color: '#991b1b' }}>
+                    Your Turn Is Approaching
+                  </h3>
+                </div>
+                <p style={{ margin: '0.5rem 0 0 0', fontSize: '1.1rem', fontWeight: 700, color: '#7f1d1d', lineHeight: 1.4 }}>
+                  Only {farmersAhead} {farmersAhead === 1 ? 'farmer' : 'farmers'} ahead of you.
+                  Please proceed to {activeBooking?.centre_name || activeBooking?.centre_id || 'Procurement Centre'}.
+                </p>
+                <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.85rem', color: '#b91c1c' }}>
+                  Estimated waiting time is {waitMin} minutes. Move to the weighbridge gate with your vehicle.
+                </p>
               </div>
             </div>
           )}
 
-          {/* Quick Info Badges */}
-          <div className="card" style={{ display: 'flex', gap: '2rem', flexWrap: 'wrap', alignItems: 'center' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
-              <div style={{ width: '44px', height: '44px', borderRadius: '50%', backgroundColor: 'var(--primary-light)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <User size={22} />
-              </div>
-              <div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--muted)', fontWeight: 600 }}>CULTIVATOR</div>
-                <div style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--secondary)' }}>{user.name}</div>
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
-              <div style={{ width: '44px', height: '44px', borderRadius: '50%', backgroundColor: '#e0f2fe', color: '#0284c7', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <Hash size={22} />
-              </div>
-              <div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--muted)', fontWeight: 600 }}>FARMER CODE</div>
-                <div style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--secondary)' }}>{farmerProfile?.farmer_code || user.user_id}</div>
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
-              <div style={{ width: '44px', height: '44px', borderRadius: '50%', backgroundColor: 'var(--success-bg)', color: 'var(--success-text)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <ShieldCheck size={22} />
-              </div>
-              <div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--muted)', fontWeight: 600 }}>e-KYC & AADHAAR</div>
-                <div style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--success)' }}>VERIFIED (DBT Active)</div>
-              </div>
-            </div>
-          </div>
-
-          {/* LIVE 8-STEP PROCUREMENT LIFECYCLE WORKFLOW TRACKER */}
-          {workflowData && (
-            <div className="card" style={{ padding: '1.5rem', border: '1px solid var(--primary-border)', backgroundColor: 'var(--bg-card)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '1.25rem' }}>
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-                    <Activity size={20} color="var(--primary)" />
-                    <h3 style={{ fontSize: '1.15rem', color: 'var(--secondary)', margin: 0, fontWeight: 800 }}>
-                      Live Intake & Procurement Lifecycle Tracker
-                    </h3>
+          {/* ACTIVE BOOKING / TOKEN SUMMARY BAR (If booking exists) */}
+          {userToken && activeBooking && (
+            <div style={{
+              backgroundColor: 'var(--surface)',
+              border: '2px solid var(--primary)',
+              borderRadius: '12px',
+              padding: '1.25rem 1.5rem',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              flexWrap: 'wrap',
+              gap: '1rem',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.04)'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
+                <div style={{
+                  backgroundColor: 'rgba(27, 77, 62, 0.1)',
+                  border: '2px solid var(--primary)',
+                  borderRadius: '10px',
+                  padding: '8px 16px',
+                  textAlign: 'center'
+                }}>
+                  <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase' }}>
+                    Your Token
                   </div>
-                  <p style={{ fontSize: '0.85rem', color: 'var(--muted)', margin: '0.25rem 0 0 0' }}>
-                    Appointment: <strong style={{ color: 'var(--primary)' }}>{workflowData.appointment_id}</strong> ({workflowData.crop} • {workflowData.booked_quantity} Qtl at {workflowData.centre_name})
+                  <div style={{ fontSize: '1.75rem', fontWeight: 900, color: 'var(--primary)', lineHeight: 1.1 }}>
+                    {userToken}
+                  </div>
+                </div>
+
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--secondary)' }}>
+                      {activeBooking.crop} — {activeBooking.quantity} Q
+                    </span>
+                    <StatusBadge status={activeBooking.status} />
+                  </div>
+                  <div style={{ fontSize: '0.85rem', color: 'var(--muted)', marginTop: '2px' }}>
+                    {activeBooking.centre_name || activeBooking.centre_id} • {formatDateDisplay(activeBooking.date)} ({activeBooking.time_slot || activeBooking.start_time})
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: '0.75rem' }}>
+                <button
+                  onClick={() => navigate('my-booking')}
+                  className="btn btn-primary"
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontWeight: 700 }}
+                >
+                  <Ticket size={16} /> Open My Booking
+                </button>
+                <button
+                  onClick={() => setSelectedPassBooking(activeBooking)}
+                  className="btn btn-outline"
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                >
+                  <QrCode size={16} /> View Pass
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* THE 6 PRIMARY ACTION CARDS (Clean, Large, Low-Literacy Friendly) */}
+          <div>
+            <h2 style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--secondary)', marginBottom: '1rem' }}>
+              Main Services
+            </h2>
+
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+              gap: '1.25rem'
+            }}>
+              
+              {/* CARD 1: BOOK PROCUREMENT */}
+              <div 
+                className="card"
+                onClick={() => navigate('book-slot')}
+                style={{
+                  cursor: 'pointer',
+                  border: '1px solid var(--border)',
+                  borderRadius: '12px',
+                  padding: '1.5rem',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.75rem',
+                  backgroundColor: 'var(--surface)',
+                  boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
+                  transition: 'transform 0.15s ease, box-shadow 0.15s ease'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{
+                    width: '48px', height: '48px', borderRadius: '10px',
+                    backgroundColor: 'rgba(27, 77, 62, 0.12)', color: 'var(--primary)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center'
+                  }}>
+                    <Calendar size={26} />
+                  </div>
+                  <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    Book Slot <ChevronRight size={14} />
+                  </span>
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0, color: 'var(--secondary)' }}>
+                    Book Procurement
+                  </h3>
+                  <p style={{ fontSize: '0.9rem', color: 'var(--muted)', margin: '4px 0 0 0' }}>
+                    Reserve your date, preferred centre, and get a confirmed queue token.
                   </p>
                 </div>
+              </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              {/* CARD 2: MY BOOKING / TOKEN */}
+              <div 
+                className="card"
+                onClick={() => navigate('my-booking')}
+                style={{
+                  cursor: 'pointer',
+                  border: '1px solid var(--border)',
+                  borderRadius: '12px',
+                  padding: '1.5rem',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.75rem',
+                  backgroundColor: 'var(--surface)',
+                  boxShadow: '0 2px 6px rgba(0,0,0,0.04)'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <div style={{
-                    padding: '0.4rem 0.85rem', borderRadius: '16px',
-                    backgroundColor: 'var(--primary-light)', color: 'var(--primary)',
-                    fontWeight: 800, fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.4rem'
+                    width: '48px', height: '48px', borderRadius: '10px',
+                    backgroundColor: 'rgba(27, 77, 62, 0.12)', color: 'var(--primary)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center'
                   }}>
-                    <span>Current Process:</span>
-                    <span style={{ textDecoration: 'underline' }}>{workflowData.current_process_name}</span>
+                    <Ticket size={26} />
                   </div>
-                  <span style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>
-                    {workflowData.completed_count} of 8 Steps Complete ({workflowData.progress_percentage}%)
+                  <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    My Pass <ChevronRight size={14} />
                   </span>
                 </div>
-              </div>
-
-              {/* Progress Line */}
-              <div style={{ width: '100%', height: '6px', backgroundColor: 'var(--border)', borderRadius: '3px', marginBottom: '1.5rem', overflow: 'hidden' }}>
-                <div style={{ width: `${workflowData.progress_percentage}%`, height: '100%', backgroundColor: 'var(--primary)', transition: 'width 0.4s ease' }} />
-              </div>
-
-              {/* 8 Step Nodes */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '0.6rem', marginBottom: '1.25rem' }}>
-                {workflowData.steps.map((step) => {
-                  const isDone = step.completed;
-                  const isCurrent = !isDone && (workflowData.steps.find(s => !s.completed)?.step_id === step.step_id);
-
-                  return (
-                    <div
-                      key={step.step_id}
-                      style={{
-                        padding: '0.75rem 0.5rem',
-                        borderRadius: 'var(--radius-sm)',
-                        textAlign: 'center',
-                        backgroundColor: isDone ? 'rgba(16, 185, 129, 0.08)' : (isCurrent ? 'rgba(59, 130, 246, 0.12)' : 'var(--bg-page)'),
-                        border: isDone ? '1px solid rgba(16, 185, 129, 0.4)' : (isCurrent ? '2px solid var(--primary)' : '1px solid var(--border)')
-                      }}
-                    >
-                      <div style={{
-                        width: '28px', height: '28px', borderRadius: '50%',
-                        margin: '0 auto 0.4rem', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        backgroundColor: isDone ? 'var(--primary)' : (isCurrent ? '#3b82f6' : 'var(--border)'),
-                        color: '#ffffff', fontSize: '0.75rem', fontWeight: 800
-                      }}>
-                        {isDone ? '✓' : step.step_number}
-                      </div>
-                      <div style={{ fontSize: '0.8rem', fontWeight: 700, color: isDone ? 'var(--primary)' : (isCurrent ? '#1d4ed8' : 'var(--muted)') }}>
-                        {step.step_name}
-                      </div>
-                      <div style={{ fontSize: '0.7rem', color: 'var(--muted)', marginTop: '0.2rem' }}>
-                        {step.timestamp ? step.timestamp.split(' ')[1] || step.timestamp : (isCurrent ? 'In Progress' : 'Pending')}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* Verified Metrics Chips */}
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.85rem', paddingTop: '0.85rem', borderTop: '1px solid var(--border)', fontSize: '0.85rem' }}>
-                {workflowData.actual_quantity_received && (
-                  <div style={{ padding: '0.35rem 0.75rem', borderRadius: '4px', backgroundColor: 'var(--bg-page)', border: '1px solid var(--border)' }}>
-                    <span style={{ color: 'var(--muted)' }}>Actual Weighed: </span>
-                    <strong style={{ color: 'var(--secondary)' }}>{workflowData.actual_quantity_received} Qtl</strong>
-                  </div>
-                )}
-                {workflowData.quality_result && (
-                  <div style={{ padding: '0.35rem 0.75rem', borderRadius: '4px', backgroundColor: 'var(--bg-page)', border: '1px solid var(--border)' }}>
-                    <span style={{ color: 'var(--muted)' }}>Quality Grade: </span>
-                    <strong style={{ color: 'var(--primary)' }}>{workflowData.quality_result.quality_grade} (Moisture: {workflowData.quality_result.moisture_content_pct}%)</strong>
-                  </div>
-                )}
-                {workflowData.payment_status && (
-                  <div style={{ padding: '0.35rem 0.75rem', borderRadius: '4px', backgroundColor: 'var(--bg-page)', border: '1px solid var(--border)' }}>
-                    <span style={{ color: 'var(--muted)' }}>DBT Payment: </span>
-                    <strong style={{ color: 'var(--success)' }}>{workflowData.payment_status.status} (₹{workflowData.payment_status.amount_inr?.toLocaleString()})</strong>
-                  </div>
-                )}
-                {workflowData.relevant_timestamp && (
-                  <div style={{ marginLeft: 'auto', color: 'var(--muted)', fontSize: '0.8rem', alignSelf: 'center' }}>
-                    Last Process Activity: {workflowData.relevant_timestamp}
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Grid: Upcoming Appointment & Quick Action */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.5rem' }}>
-            {/* UPCOMING APPOINTMENT CARD */}
-            <div className="card">
-              <div className="card-header" style={{ marginBottom: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <h3 className="card-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <Calendar size={20} color="var(--primary)" /> UPCOMING APPOINTMENT
-                </h3>
-                {upcomingBooking && <StatusBadge status={upcomingBooking.status} />}
-              </div>
-
-              {upcomingBooking ? (
-                <div style={{ backgroundColor: 'var(--primary-light)', borderRadius: 'var(--radius-md)', padding: '1.25rem', border: '1px solid var(--primary-border)' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.85rem' }}>
-                    <span style={{ fontWeight: 800, color: 'var(--primary)', fontSize: '1.1rem' }}>
-                      {upcomingBooking.appointment_id || upcomingBooking.booking_id}
-                    </span>
-                    <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--muted)' }}>{upcomingBooking.crop}</span>
-                  </div>
-
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.85rem 0.5rem', fontSize: '0.9rem', marginBottom: '1.25rem' }}>
-                    <div>
-                      <span style={{ color: 'var(--muted)', display: 'block', fontSize: '0.75rem', fontWeight: 700 }}>CENTRE</span>
-                      <strong style={{ color: 'var(--secondary)' }}>{upcomingBooking.centre_name || upcomingBooking.centre_id}</strong>
-                    </div>
-
-                    <div>
-                      <span style={{ color: 'var(--muted)', display: 'block', fontSize: '0.75rem', fontWeight: 700 }}>QUANTITY</span>
-                      <strong style={{ color: 'var(--secondary)' }}>{upcomingBooking.quantity} Quintals</strong>
-                    </div>
-
-                    <div>
-                      <span style={{ color: 'var(--muted)', display: 'block', fontSize: '0.75rem', fontWeight: 700 }}>DATE</span>
-                      <strong style={{ color: 'var(--secondary)' }}>{formatDateDisplay(upcomingBooking.date)}</strong>
-                    </div>
-
-                    <div>
-                      <span style={{ color: 'var(--muted)', display: 'block', fontSize: '0.75rem', fontWeight: 700 }}>TIME SLOT</span>
-                      <strong style={{ color: 'var(--secondary)' }}>{upcomingBooking.time_slot}</strong>
-                    </div>
-                  </div>
-
-                  <button
-                    className="btn btn-primary btn-sm"
-                    style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
-                    onClick={() => setSelectedPassBooking(upcomingBooking)}
-                  >
-                    <QrCode size={16} /> VIEW QR PROCUREMENT PASS
-                  </button>
+                <div>
+                  <h3 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0, color: 'var(--secondary)' }}>
+                    My Booking & Token
+                  </h3>
+                  <p style={{ fontSize: '0.9rem', color: 'var(--muted)', margin: '4px 0 0 0' }}>
+                    {userToken ? `Active Token: ${userToken} • ${activeBooking?.crop || 'Harvest'}` : 'View your active appointment and pass QR code.'}
+                  </p>
                 </div>
-              ) : (
-                <div style={{ padding: '2rem 1rem', textAlign: 'center', color: 'var(--muted)' }}>
-                  <p>No pending upcoming procurement appointment found.</p>
-                </div>
-              )}
-            </div>
-
-            {/* QUICK ACTION CTA */}
-            <div className="card" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', textAlign: 'center', padding: '2rem' }}>
-              <div style={{ width: '56px', height: '56px', borderRadius: '50%', backgroundColor: 'var(--primary-light)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '1rem' }}>
-                <PlusCircle size={28} />
               </div>
-              <h3 style={{ fontSize: '1.2rem', marginBottom: '0.5rem', color: 'var(--secondary)' }}>Schedule Next Delivery</h3>
-              <p style={{ fontSize: '0.85rem', color: 'var(--muted)', marginBottom: '1.25rem' }}>
-                Reserve your verified electronic gate slot at an operational MSP centre to eliminate queues.
-              </p>
-              <button
-                className="btn btn-primary"
-                onClick={() => navigate('book-slot')}
-                style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
+
+              {/* CARD 3: LIVE QUEUE */}
+              <div 
+                className="card"
+                onClick={() => setActiveModal('queue')}
+                style={{
+                  cursor: 'pointer',
+                  border: '1px solid var(--border)',
+                  borderRadius: '12px',
+                  padding: '1.5rem',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.75rem',
+                  backgroundColor: 'var(--surface)',
+                  boxShadow: '0 2px 6px rgba(0,0,0,0.04)'
+                }}
               >
-                <PlusCircle size={18} /> Book Procurement Slot
-              </button>
-            </div>
-          </div>
-
-          {/* ALL BOOKINGS TABLE */}
-          <div className="card">
-            <div className="card-header" style={{ marginBottom: '1rem' }}>
-              <h3 className="card-title">Procurement Appointments History</h3>
-            </div>
-
-            {loading ? (
-              <p style={{ padding: '1rem' }}>Loading appointments...</p>
-            ) : bookings.length === 0 ? (
-              <p style={{ padding: '1rem', color: 'var(--muted)' }}>No previous appointments recorded.</p>
-            ) : (
-              <div className="table-container" style={{ overflowX: 'auto' }}>
-                <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
-                  <thead>
-                    <tr style={{ borderBottom: '2px solid var(--border)', textAlign: 'left', color: 'var(--muted)' }}>
-                      <th style={{ padding: '0.75rem' }}>Appointment Code</th>
-                      <th style={{ padding: '0.75rem' }}>Centre</th>
-                      <th style={{ padding: '0.75rem' }}>Crop</th>
-                      <th style={{ padding: '0.75rem' }}>Quantity</th>
-                      <th style={{ padding: '0.75rem' }}>Date</th>
-                      <th style={{ padding: '0.75rem' }}>Status</th>
-                      <th style={{ padding: '0.75rem' }}>Pass</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {bookings.map((b) => (
-                      <tr key={b.id || b.appointment_id} style={{ borderBottom: '1px solid var(--border)' }}>
-                        <td style={{ padding: '0.75rem', fontWeight: 600, color: 'var(--primary)' }}>
-                          {b.appointment_id || b.booking_id}
-                        </td>
-                        <td style={{ padding: '0.75rem' }}>{b.centre_name || b.centre_id}</td>
-                        <td style={{ padding: '0.75rem' }}>{b.crop}</td>
-                        <td style={{ padding: '0.75rem' }}>{b.quantity} Q</td>
-                        <td style={{ padding: '0.75rem' }}>{formatDateDisplay(b.date)}</td>
-                        <td style={{ padding: '0.75rem' }}><StatusBadge status={b.status} /></td>
-                        <td style={{ padding: '0.75rem' }}>
-                          <button
-                            className="btn btn-outline btn-sm"
-                            onClick={() => setSelectedPassBooking(b)}
-                            style={{ padding: '3px 8px', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}
-                          >
-                            <QrCode size={12} /> QR Pass
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{
+                    width: '48px', height: '48px', borderRadius: '10px',
+                    backgroundColor: 'rgba(22, 163, 74, 0.12)', color: '#16a34a',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center'
+                  }}>
+                    <Users size={26} />
+                  </div>
+                  <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#16a34a', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    Live Status <ChevronRight size={14} />
+                  </span>
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0, color: 'var(--secondary)' }}>
+                    Live Queue
+                  </h3>
+                  <p style={{ fontSize: '0.9rem', color: 'var(--muted)', margin: '4px 0 0 0' }}>
+                    Serving {currentServingToken} • {farmersAhead} ahead • Est. wait ~{waitMin} mins.
+                  </p>
+                </div>
               </div>
-            )}
+
+              {/* CARD 4: PAYMENT STATUS */}
+              <div 
+                className="card"
+                onClick={() => setActiveModal('payment')}
+                style={{
+                  cursor: 'pointer',
+                  border: '1px solid var(--border)',
+                  borderRadius: '12px',
+                  padding: '1.5rem',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.75rem',
+                  backgroundColor: 'var(--surface)',
+                  boxShadow: '0 2px 6px rgba(0,0,0,0.04)'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{
+                    width: '48px', height: '48px', borderRadius: '10px',
+                    backgroundColor: 'rgba(217, 119, 6, 0.12)', color: '#d97706',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center'
+                  }}>
+                    <IndianRupee size={26} />
+                  </div>
+                  <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#d97706', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    Payment Details <ChevronRight size={14} />
+                  </span>
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0, color: 'var(--secondary)' }}>
+                    Payment Status
+                  </h3>
+                  <p style={{ fontSize: '0.9rem', color: 'var(--muted)', margin: '4px 0 0 0' }}>
+                    ₹{paymentSummary ? paymentSummary.paid_rs?.toLocaleString('en-IN') : '60,168'} Disbursed • Direct DBT Bank Credit.
+                  </p>
+                </div>
+              </div>
+
+              {/* CARD 5: NEARBY / RECOMMENDED CENTRE */}
+              <div 
+                className="card"
+                onClick={() => setActiveModal('centres')}
+                style={{
+                  cursor: 'pointer',
+                  border: '1px solid var(--border)',
+                  borderRadius: '12px',
+                  padding: '1.5rem',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.75rem',
+                  backgroundColor: 'var(--surface)',
+                  boxShadow: '0 2px 6px rgba(0,0,0,0.04)'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{
+                    width: '48px', height: '48px', borderRadius: '10px',
+                    backgroundColor: 'rgba(27, 77, 62, 0.12)', color: 'var(--primary)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center'
+                  }}>
+                    <MapPin size={26} />
+                  </div>
+                  <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    Check Centres <ChevronRight size={14} />
+                  </span>
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0, color: 'var(--secondary)' }}>
+                    Nearby Centres
+                  </h3>
+                  <p style={{ fontSize: '0.9rem', color: 'var(--muted)', margin: '4px 0 0 0' }}>
+                    {nearbyCentres[0]?.centre_name || 'Pune Procurement Centre 1'} • Active Weighbridge.
+                  </p>
+                </div>
+              </div>
+
+              {/* CARD 6: HELP & HELPLINE */}
+              <div 
+                className="card"
+                onClick={() => setActiveModal('help')}
+                style={{
+                  cursor: 'pointer',
+                  border: '1px solid var(--border)',
+                  borderRadius: '12px',
+                  padding: '1.5rem',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.75rem',
+                  backgroundColor: 'var(--surface)',
+                  boxShadow: '0 2px 6px rgba(0,0,0,0.04)'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{
+                    width: '48px', height: '48px', borderRadius: '10px',
+                    backgroundColor: 'rgba(220, 38, 38, 0.12)', color: '#dc2626',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center'
+                  }}>
+                    <Phone size={26} />
+                  </div>
+                  <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#dc2626', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    Call Support <ChevronRight size={14} />
+                  </span>
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0, color: 'var(--secondary)' }}>
+                    Kisan Sahayata / Help
+                  </h3>
+                  <p style={{ fontSize: '0.9rem', color: 'var(--muted)', margin: '4px 0 0 0' }}>
+                    Toll-Free 1800-180-1551 • Lodge grievance or weighment dispute.
+                  </p>
+                </div>
+              </div>
+
+            </div>
           </div>
         </>
       )}
 
-      {/* TAB 2: PROFILE & MY CROPS */}
-      {activeTab === 'profile' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-          {/* Profile Info & Edit Form */}
-          <div className="card">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-              <h3 style={{ fontSize: '1.1rem', color: 'var(--secondary)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <User size={18} color="var(--primary)" /> Cultivator Profile & Land Holdings
-              </h3>
-              <button
-                onClick={() => { setEditingProfile(!editingProfile); setProfileMsg(null); }}
-                style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.45rem 0.9rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', backgroundColor: 'var(--bg-card)', color: 'var(--secondary)', cursor: 'pointer', fontWeight: 600, fontSize: '0.85rem' }}
+      {/* ============================================================== */}
+      {/* TAB 2: MSP & ESTIMATED PRICE (REQUIREMENT 4) */}
+      {/* ============================================================== */}
+      {activeTab === 'msp_prices' && (
+        <div className="card" style={{ padding: '2rem', borderRadius: '12px', border: '1px solid var(--border)' }}>
+          <div style={{ borderBottom: '1px solid var(--border)', paddingBottom: '1rem', marginBottom: '1.5rem' }}>
+            <h2 style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--secondary)', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <IndianRupee size={22} style={{ color: 'var(--primary)' }} />
+              Minimum Support Price (MSP) & Estimated Procurement Value
+            </h2>
+            <p style={{ fontSize: '0.9rem', color: 'var(--muted)', margin: '4px 0 0 0' }}>
+              Official government benchmark rates and interactive harvest valuation calculator
+            </p>
+          </div>
+
+          {/* Calculator Controls */}
+          <div style={{
+            backgroundColor: 'var(--bg-page)',
+            padding: '1.5rem',
+            borderRadius: '10px',
+            border: '1px solid var(--border)',
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+            gap: '1rem',
+            marginBottom: '1.5rem'
+          }}>
+            <div className="form-group" style={{ margin: 0 }}>
+              <label className="form-label" style={{ fontWeight: 700 }}>Select Crop</label>
+              <select
+                className="form-control"
+                value={calcCrop}
+                onChange={(e) => setCalcCrop(e.target.value)}
+                style={{ fontWeight: 600 }}
               >
-                <Edit size={14} /> {editingProfile ? 'Cancel Edit' : 'Edit Profile'}
+                {cropsMaster.length > 0 ? (
+                  cropsMaster.map(c => (
+                    <option key={c.crop_id || c.crop_name} value={c.crop_name}>
+                      {c.crop_name} ({c.season || 'Annual'}) — Official MSP: ₹{c.msp_per_quintal || c.msp}
+                    </option>
+                  ))
+                ) : (
+                  <>
+                    <option value="Paddy">Paddy (Kharif) — MSP: ₹2,369 / Q</option>
+                    <option value="Wheat">Wheat (Rabi) — MSP: ₹2,275 / Q</option>
+                    <option value="Cotton">Cotton (Kharif) — MSP: ₹7,121 / Q</option>
+                    <option value="Soybean">Soybean (Kharif) — MSP: ₹4,892 / Q</option>
+                    <option value="Maize">Maize (Kharif) — MSP: ₹2,225 / Q</option>
+                    <option value="Mustard">Mustard (Rabi) — MSP: ₹5,650 / Q</option>
+                  </>
+                )}
+              </select>
+            </div>
+
+            <div className="form-group" style={{ margin: 0 }}>
+              <label className="form-label" style={{ fontWeight: 700 }}>Expected Quantity (Quintals)</label>
+              <input
+                type="number"
+                step="0.5"
+                min="1"
+                className="form-control"
+                value={calcQuantity}
+                onChange={(e) => setCalcQuantity(e.target.value)}
+                style={{ fontWeight: 600 }}
+              />
+            </div>
+          </div>
+
+          {/* CLEAR DISTINCTION: MSP vs ESTIMATED VALUE (Requirement 4) */}
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+            gap: '1.25rem',
+            marginBottom: '1.5rem'
+          }}>
+            
+            {/* Box 1: Official MSP */}
+            <div style={{
+              backgroundColor: 'var(--surface-secondary)',
+              border: '1px solid var(--border)',
+              borderRadius: '12px',
+              padding: '1.5rem',
+              textAlign: 'center'
+            }}>
+              <div style={{ fontSize: '0.8rem', fontWeight: 800, color: 'var(--muted)', textTransform: 'uppercase' }}>
+                Official Government MSP
+              </div>
+              <div style={{ fontSize: '2.2rem', fontWeight: 900, color: 'var(--secondary)', marginTop: '6px' }}>
+                ₹{calcPriceInfo?.official_msp?.toLocaleString('en-IN') || (calcCrop === 'Paddy' ? '2,369' : '2,275')}
+                <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--muted)' }}> / quintal</span>
+              </div>
+              <div style={{ fontSize: '0.8rem', color: 'var(--muted)', marginTop: '4px' }}>
+                Legal minimum floor price for {calcCrop}
+              </div>
+            </div>
+
+            {/* Box 2: Expected Quantity */}
+            <div style={{
+              backgroundColor: 'var(--surface-secondary)',
+              border: '1px solid var(--border)',
+              borderRadius: '12px',
+              padding: '1.5rem',
+              textAlign: 'center'
+            }}>
+              <div style={{ fontSize: '0.8rem', fontWeight: 800, color: 'var(--muted)', textTransform: 'uppercase' }}>
+                Expected Quantity
+              </div>
+              <div style={{ fontSize: '2.2rem', fontWeight: 900, color: 'var(--secondary)', marginTop: '6px' }}>
+                {calcQuantity || '42'}
+                <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--muted)' }}> quintals</span>
+              </div>
+              <div style={{ fontSize: '0.8rem', color: 'var(--muted)', marginTop: '4px' }}>
+                Registered harvest lot size
+              </div>
+            </div>
+
+            {/* Box 3: Estimated Procurement Value */}
+            <div style={{
+              backgroundColor: 'rgba(27, 77, 62, 0.08)',
+              border: '2px solid var(--primary)',
+              borderRadius: '12px',
+              padding: '1.5rem',
+              textAlign: 'center'
+            }}>
+              <div style={{ fontSize: '0.8rem', fontWeight: 800, color: 'var(--primary)', textTransform: 'uppercase' }}>
+                Estimated Procurement Value
+              </div>
+              <div style={{ fontSize: '2.2rem', fontWeight: 900, color: 'var(--primary)', marginTop: '6px' }}>
+                ₹{((parseFloat(calcQuantity) || 42) * (calcPriceInfo?.official_msp || (calcCrop === 'Paddy' ? 2369 : 2275))).toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+              </div>
+              <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--primary)', marginTop: '4px' }}>
+                Expected Quantity × Rate
+              </div>
+            </div>
+
+          </div>
+
+          {/* Quality Disclaimer Notice */}
+          <div style={{
+            backgroundColor: 'var(--warning-bg)',
+            border: '1px solid var(--warning)',
+            borderRadius: '8px',
+            padding: '1rem',
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: '10px'
+          }}>
+            <Info size={20} style={{ color: 'var(--warning)', flexShrink: 0, marginTop: '2px' }} />
+            <div style={{ fontSize: '0.88rem', color: 'var(--warning-text)', lineHeight: 1.5 }}>
+              <strong>Notice on Actual Disbursement:</strong> The estimated value shown above represents an indicative total based on applicable rates (e.g. Paddy @ ₹2,369/Q for 42 quintals = ₹99,498). Actual final disbursement depends upon physical weighment verification and quality/moisture grading performed at the procurement centre during intake.
+            </div>
+          </div>
+
+          {/* Quick Book Button from MSP */}
+          <div style={{ marginTop: '1.5rem', textAlign: 'center' }}>
+            <button
+              onClick={() => navigate('book-slot')}
+              className="btn btn-primary btn-lg"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+            >
+              <Calendar size={18} /> Book Procurement Slot for {calcCrop}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ============================================================== */}
+      {/* TAB 3: ADVANCED AI INSIGHTS */}
+      {/* ============================================================== */}
+      {activeTab === 'ai_insights' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+          <div className="card" style={{ padding: '1.75rem', borderRadius: '12px', border: '1px solid var(--border)' }}>
+            <h2 style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--secondary)', margin: '0 0 1rem 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Sparkles size={20} style={{ color: 'var(--primary)' }} />
+              Procurement AI Intelligence & Market Forecasts
+            </h2>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '1rem' }}>
+              <div style={{ backgroundColor: 'var(--bg-page)', padding: '1.25rem', borderRadius: '8px', border: '1px solid var(--border)' }}>
+                <div style={{ fontWeight: 800, color: 'var(--secondary)', marginBottom: '0.25rem' }}>
+                  Queue Waiting Time Model
+                </div>
+                <div style={{ fontSize: '0.85rem', color: 'var(--muted)', lineHeight: 1.4 }}>
+                  Trained on 18,000 SIH appointment records using Gradient Boosting. Predicts dynamic gate delay based on arrival rates, scale count, and truck unloading schedules.
+                </div>
+              </div>
+
+              <div style={{ backgroundColor: 'var(--bg-page)', padding: '1.25rem', borderRadius: '8px', border: '1px solid var(--border)' }}>
+                <div style={{ fontWeight: 800, color: 'var(--secondary)', marginBottom: '0.25rem' }}>
+                  Congestion Prediction
+                </div>
+                <div style={{ fontSize: '0.85rem', color: 'var(--muted)', lineHeight: 1.4 }}>
+                  Evaluates centre daily metrics to detect peak surge hours. Automatically routes farmers to alternative underutilized centres to prevent bottleneck queues.
+                </div>
+              </div>
+
+              <div style={{ backgroundColor: 'var(--bg-page)', padding: '1.25rem', borderRadius: '8px', border: '1px solid var(--border)' }}>
+                <div style={{ fontWeight: 800, color: 'var(--secondary)', marginBottom: '0.25rem' }}>
+                  Visual Quality & Ripeness AI (Mango)
+                </div>
+                <div style={{ fontSize: '0.85rem', color: 'var(--muted)', lineHeight: 1.4 }}>
+                  Multi-fruit watershed distance transform isolates touching fruits and evaluates coloration, surface defects, and maturity grade directly at the gate.
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ============================================================== */}
+      {/* TAB 4: NOTIFICATIONS & ALERTS */}
+      {/* ============================================================== */}
+      {activeTab === 'alerts' && (
+        <div className="card" style={{ padding: '1.75rem', borderRadius: '12px', border: '1px solid var(--border)' }}>
+          <div style={{ borderBottom: '1px solid var(--border)', paddingBottom: '0.75rem', marginBottom: '1rem' }}>
+            <h2 style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--secondary)', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Bell size={20} style={{ color: 'var(--primary)' }} />
+              Notifications & Dispatch Notices ({notifications.length})
+            </h2>
+          </div>
+
+          {notifications.length === 0 ? (
+            <p style={{ color: 'var(--muted)', textAlign: 'center', padding: '2rem 0' }}>
+              No notifications on record.
+            </p>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              {notifications.map((n, i) => (
+                <div key={n.notification_id || i} style={{
+                  backgroundColor: 'var(--bg-page)',
+                  border: '1px solid var(--border)',
+                  borderRadius: '8px',
+                  padding: '1rem',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  gap: '1rem'
+                }}>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span style={{
+                        backgroundColor: n.type === 'COME_NOW' ? 'var(--danger-bg)' : 'var(--primary-light)',
+                        color: n.type === 'COME_NOW' ? 'var(--danger)' : 'var(--primary)',
+                        padding: '2px 8px', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 800
+                      }}>
+                        {n.type || 'ADVISORY'}
+                      </span>
+                      <span style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>{n.sent_at}</span>
+                    </div>
+                    <div style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--secondary)', marginTop: '4px' }}>
+                      {n.message}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ============================================================== */}
+      {/* TAB 5: CENTRE INTELLIGENCE */}
+      {/* ============================================================== */}
+      {activeTab === 'centres' && (
+        <div className="card" style={{ padding: '1.75rem', borderRadius: '12px', border: '1px solid var(--border)' }}>
+          <h2 style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--secondary)', margin: '0 0 1rem 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Compass size={20} style={{ color: 'var(--primary)' }} />
+            Procurement Centre Network & Live Congestion
+          </h2>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '1rem' }}>
+            {nearbyCentres.map((c) => (
+              <div key={c.centre_id} style={{
+                backgroundColor: 'var(--bg-page)',
+                border: '1px solid var(--border)',
+                borderRadius: '8px',
+                padding: '1rem'
+              }}>
+                <div style={{ fontWeight: 800, color: 'var(--secondary)', fontSize: '1.05rem' }}>
+                  {c.centre_name}
+                </div>
+                <div style={{ fontSize: '0.8rem', color: 'var(--muted)', marginTop: '2px' }}>
+                  {c.district}, {c.state} • Centre ID: {c.centre_id}
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.75rem', fontSize: '0.85rem' }}>
+                  <span>Waiting Time:</span>
+                  <strong>~{c.estimated_wait_minutes || 20} mins</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
+                  <span>Current Queue:</span>
+                  <strong>{c.current_queue || 4} farmers</strong>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ============================================================== */}
+      {/* MODAL 1: LIVE QUEUE STATUS */}
+      {/* ============================================================== */}
+      {activeModal === 'queue' && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: 'rgba(15, 23, 42, 0.6)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 1000, padding: '1rem'
+        }}>
+          <div className="card" style={{ maxWidth: '520px', width: '100%', padding: '2rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+              <h3 style={{ fontSize: '1.3rem', fontWeight: 800, margin: 0, color: 'var(--secondary)' }}>
+                Live Centre Queue Status
+              </h3>
+              <button onClick={() => setActiveModal(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)' }}>
+                <X size={20} />
               </button>
             </div>
 
-            {profileMsg && (
-              <div style={{ padding: '0.65rem 0.85rem', marginBottom: '0.85rem', borderRadius: 'var(--radius-sm)', backgroundColor: profileMsg.type === 'success' ? 'var(--success-bg)' : 'var(--danger-bg)', color: profileMsg.type === 'success' ? 'var(--success-text)' : 'var(--danger-text)', fontSize: '0.875rem' }}>
-                {profileMsg.text}
+            <div style={{
+              backgroundColor: 'var(--bg-page)',
+              border: '2px solid var(--primary)',
+              borderRadius: '12px',
+              padding: '1.25rem',
+              textAlign: 'center',
+              marginBottom: '1.25rem'
+            }}>
+              <div style={{ fontSize: '0.8rem', color: 'var(--muted)', fontWeight: 700, textTransform: 'uppercase' }}>
+                Currently Serving Token
               </div>
-            )}
+              <div style={{ fontSize: '2.5rem', fontWeight: 900, color: 'var(--primary)', lineHeight: 1.1, marginTop: '2px' }}>
+                {currentServingToken}
+              </div>
+              <div style={{ fontSize: '0.85rem', color: 'var(--muted)', marginTop: '4px' }}>
+                Status: <strong>{centreStatus}</strong>
+              </div>
+            </div>
 
-            {editingProfile ? (
-              <form onSubmit={handleSaveProfile} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.85rem' }}>
-                {[['Name', 'name', 'text'], ['Mobile', 'mobile', 'text'], ['Email', 'email', 'email'], ['Village', 'village', 'text'], ['Taluka', 'taluka', 'text'], ['District', 'district', 'text'], ['State', 'state', 'text'], ['Land Area (Ha)', 'land_area_hectares', 'number'], ['Bank Name', 'bank_name', 'text'], ['Account No', 'bank_account_no', 'text'], ['IFSC Code', 'bank_ifsc', 'text']].map(([label, field, type]) => (
-                  <div key={field}>
-                    <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--secondary)', display: 'block', marginBottom: '0.25rem' }}>{label}</label>
-                    <input
-                      type={type}
-                      value={profileForm[field] || ''}
-                      onChange={e => setProfileForm(p => ({ ...p, [field]: e.target.value }))}
-                      style={{ width: '100%', padding: '0.55rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', backgroundColor: 'var(--bg-card)', color: 'var(--secondary)', fontSize: '0.875rem' }}
-                    />
-                  </div>
-                ))}
-                <div style={{ gridColumn: '1 / -1', display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
-                  <button type="submit" disabled={profileSaving} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.55rem 1.25rem', borderRadius: 'var(--radius-sm)', backgroundColor: 'var(--primary)', color: '#fff', border: 'none', fontWeight: 700, cursor: 'pointer', fontSize: '0.875rem', opacity: profileSaving ? 0.65 : 1 }}>
-                    <Save size={14} /> {profileSaving ? 'Saving...' : 'Save Changes'}
-                  </button>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', textAlign: 'center', marginBottom: '1.5rem' }}>
+              <div style={{ backgroundColor: 'var(--surface-secondary)', padding: '12px', borderRadius: '8px', border: '1px solid var(--border)' }}>
+                <div style={{ fontSize: '0.75rem', color: 'var(--muted)', fontWeight: 700 }}>YOUR TOKEN</div>
+                <div style={{ fontSize: '1.5rem', fontWeight: 900, color: 'var(--secondary)', marginTop: '2px' }}>
+                  {userToken || 'No Active Booking'}
                 </div>
-              </form>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', fontSize: '0.9rem' }}>
-                {[
-                  ['Farmer ID / Code', farmerProfile?.farmer_code || user.farmer_code || user.user_id],
-                  ['User ID / Login Code', farmerProfile?.user_id || user.user_id],
-                  ['Registered Name', farmerProfile?.name || user.name],
-                  ['Mobile Number', farmerProfile?.mobile || user.mobile || '—'],
-                  ['Email', farmerProfile?.email || '—'],
-                  ['Date of Birth', farmerProfile?.dob || '—'],
-                  ['Village / Taluka', `${farmerProfile?.village || '—'} / ${farmerProfile?.taluka || '—'}`],
-                  ['District / State', `${farmerProfile?.district || '—'}, ${farmerProfile?.state || '—'}`],
-                  ['Cultivated Land Area', `${farmerProfile?.land_area_hectares || '—'} Hectares`],
-                  ['e-KYC Status', farmerProfile?.ekyc_status || 'VERIFIED'],
-                  ['DBT Bank Account', farmerProfile?.bank_name ? (
-                    `${farmerProfile.bank_name} — ` +
-                    (farmerProfile.bank_account_no && farmerProfile.bank_account_no.length > 4
-                      ? '*'.repeat(farmerProfile.bank_account_no.length - 4) + farmerProfile.bank_account_no.slice(-4)
-                      : farmerProfile.bank_account_no || 'N/A') +
-                    ` (IFSC: ${farmerProfile.bank_ifsc || 'N/A'})`
-                  ) : 'Not configured']
-                ].map(([label, value]) => (
-                  <div key={label} style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' }}>
-                    <span style={{ color: 'var(--muted)' }}>{label}:</span>
-                    <strong style={{ color: 'var(--secondary)', textAlign: 'right', maxWidth: '60%' }}>{value}</strong>
-                  </div>
-                ))}
               </div>
-            )}
-          </div>
+              <div style={{ backgroundColor: 'var(--surface-secondary)', padding: '12px', borderRadius: '8px', border: '1px solid var(--border)' }}>
+                <div style={{ fontSize: '0.75rem', color: 'var(--muted)', fontWeight: 700 }}>FARMERS AHEAD</div>
+                <div style={{ fontSize: '1.5rem', fontWeight: 900, color: farmersAhead <= 5 ? 'var(--danger)' : 'var(--secondary)', marginTop: '2px' }}>
+                  {farmersAhead}
+                </div>
+              </div>
+            </div>
 
-          {/* Crops Section */}
-          <div className="card">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-              <h3 style={{ fontSize: '1.1rem', color: 'var(--secondary)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <Package size={18} color="#0284c7" /> My Crops & Harvest Estimates
+            <button onClick={() => setActiveModal(null)} className="btn btn-outline" style={{ width: '100%' }}>
+              Close
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ============================================================== */}
+      {/* MODAL 2: PAYMENT HISTORY */}
+      {/* ============================================================== */}
+      {activeModal === 'payment' && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: 'rgba(15, 23, 42, 0.6)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 1000, padding: '1rem'
+        }}>
+          <div className="card" style={{ maxWidth: '580px', width: '100%', padding: '2rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+              <h3 style={{ fontSize: '1.3rem', fontWeight: 800, margin: 0, color: 'var(--secondary)' }}>
+                Payment & Disbursement Status
               </h3>
-              <button
-                onClick={() => { setShowAddCrop(!showAddCrop); setEditingCropId(null); setCropForm({ crop_name: '', season: 'Kharif 2026-27', sowing_date: '', expected_harvest_date: '', estimated_quantity_quintals: '' }); }}
-                style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.45rem 0.9rem', borderRadius: 'var(--radius-sm)', backgroundColor: 'var(--primary)', color: '#fff', border: 'none', fontWeight: 600, cursor: 'pointer', fontSize: '0.85rem' }}
-              >
-                <Plus size={14} /> {showAddCrop ? 'Cancel' : 'Add Crop'}
+              <button onClick={() => setActiveModal(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)' }}>
+                <X size={20} />
               </button>
             </div>
 
-            {cropMsg && (
-              <div style={{ padding: '0.65rem 0.85rem', marginBottom: '0.85rem', borderRadius: 'var(--radius-sm)', backgroundColor: cropMsg.type === 'success' ? 'var(--success-bg)' : 'var(--danger-bg)', color: cropMsg.type === 'success' ? 'var(--success-text)' : 'var(--danger-text)', fontSize: '0.875rem' }}>
-                {cropMsg.text}
+            <div style={{
+              backgroundColor: 'rgba(27, 77, 62, 0.08)',
+              border: '1px solid var(--primary-border)',
+              borderRadius: '10px',
+              padding: '1rem 1.25rem',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: '1.25rem'
+            }}>
+              <div>
+                <div style={{ fontSize: '0.8rem', color: 'var(--primary)', fontWeight: 700 }}>TOTAL DISBURSED (DBT)</div>
+                <div style={{ fontSize: '1.75rem', fontWeight: 900, color: 'var(--primary)' }}>
+                  ₹{paymentSummary?.paid_rs?.toLocaleString('en-IN') || '60,168'}
+                </div>
               </div>
-            )}
-
-            {showAddCrop && (
-              <form onSubmit={handleAddCrop} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.75rem', marginBottom: '1.25rem', padding: '1rem', backgroundColor: 'var(--bg-page)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
-                <div>
-                  <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--secondary)', display: 'block', marginBottom: '0.25rem' }}>Crop Name *</label>
-                  <select value={cropForm.crop_name} onChange={e => setCropForm(p => ({ ...p, crop_name: e.target.value }))} required style={{ width: '100%', padding: '0.55rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', backgroundColor: 'var(--bg-card)', color: 'var(--secondary)' }}>
-                    <option value="">Select crop</option>
-                    {['Paddy', 'Wheat', 'Maize', 'Soybean', 'Cotton', 'Jowar', 'Bajra', 'Gram', 'Tur', 'Groundnut', 'Sunflower', 'Sugarcane'].map(c => <option key={c}>{c}</option>)}
-                  </select>
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ fontSize: '0.8rem', color: 'var(--muted)', fontWeight: 700 }}>PENDING</div>
+                <div style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--warning)' }}>
+                  ₹{paymentSummary?.pending_rs?.toLocaleString('en-IN') || '0'}
                 </div>
-                <div>
-                  <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--secondary)', display: 'block', marginBottom: '0.25rem' }}>Season</label>
-                  <select value={cropForm.season} onChange={e => setCropForm(p => ({ ...p, season: e.target.value }))} style={{ width: '100%', padding: '0.55rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', backgroundColor: 'var(--bg-card)', color: 'var(--secondary)' }}>
-                    {['Kharif 2026-27', 'Rabi 2026-27', 'Zaid 2027', 'Kharif 2025-26', 'Rabi 2025-26'].map(s => <option key={s}>{s}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--secondary)', display: 'block', marginBottom: '0.25rem' }}>Sowing Date</label>
-                  <input type="date" value={cropForm.sowing_date} onChange={e => setCropForm(p => ({ ...p, sowing_date: e.target.value }))} style={{ width: '100%', padding: '0.55rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', backgroundColor: 'var(--bg-card)', color: 'var(--secondary)' }} />
-                </div>
-                <div>
-                  <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--secondary)', display: 'block', marginBottom: '0.25rem' }}>Expected Harvest</label>
-                  <input type="date" value={cropForm.expected_harvest_date} onChange={e => setCropForm(p => ({ ...p, expected_harvest_date: e.target.value }))} style={{ width: '100%', padding: '0.55rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', backgroundColor: 'var(--bg-card)', color: 'var(--secondary)' }} />
-                </div>
-                <div>
-                  <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--secondary)', display: 'block', marginBottom: '0.25rem' }}>Estimated Qty (Quintals) *</label>
-                  <input type="number" min={0.1} step={0.1} required value={cropForm.estimated_quantity_quintals} onChange={e => setCropForm(p => ({ ...p, estimated_quantity_quintals: e.target.value }))} style={{ width: '100%', padding: '0.55rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', backgroundColor: 'var(--bg-card)', color: 'var(--secondary)' }} />
-                </div>
-                <div style={{ display: 'flex', alignItems: 'flex-end', gap: '0.5rem' }}>
-                  <button type="submit" disabled={cropSaving} style={{ flex: 1, padding: '0.55rem', borderRadius: 'var(--radius-sm)', backgroundColor: 'var(--primary)', color: '#fff', border: 'none', fontWeight: 700, cursor: 'pointer', fontSize: '0.875rem', opacity: cropSaving ? 0.65 : 1 }}>
-                    {cropSaving ? 'Saving...' : (editingCropId ? 'Update Crop' : 'Add Crop')}
-                  </button>
-                </div>
-              </form>
-            )}
-
-            {crops.length === 0 ? (
-              <div style={{ padding: '1.5rem', textAlign: 'center', color: 'var(--muted)' }}>
-                <Package size={36} style={{ opacity: 0.3, marginBottom: '0.5rem' }} />
-                <p>No crops registered yet. Click "Add Crop" to register your harvest.</p>
               </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                {crops.map((crop) => (
-                  <div key={crop.id} style={{ padding: '0.85rem 1rem', backgroundColor: 'var(--bg-page)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.3rem' }}>
-                        <strong style={{ fontSize: '1rem', color: 'var(--secondary)' }}>{crop.crop_name}</strong>
-                        <span style={{ padding: '0.15rem 0.5rem', borderRadius: '4px', fontSize: '0.72rem', fontWeight: 700, backgroundColor: 'var(--success-bg)', color: 'var(--success-text)' }}>MSP ELIGIBLE</span>
-                      </div>
-                      <div style={{ fontSize: '0.82rem', color: 'var(--muted)', display: 'flex', gap: '1.5rem', flexWrap: 'wrap' }}>
-                        <span>Season: <strong style={{ color: 'var(--secondary)' }}>{crop.season}</strong></span>
-                        <span>Estimated: <strong style={{ color: 'var(--primary)' }}>{crop.estimated_quantity_quintals} Q</strong></span>
-                        {crop.sowing_date && <span>Sown: {crop.sowing_date}</span>}
-                        {crop.expected_harvest_date && <span>Harvest: {crop.expected_harvest_date}</span>}
-                      </div>
+            </div>
+
+            <h4 style={{ fontSize: '1rem', fontWeight: 800, marginBottom: '0.5rem', color: 'var(--secondary)' }}>
+              Recent Transactions ({paymentSummary?.recent_transactions?.length || 0})
+            </h4>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', maxHeight: '240px', overflowY: 'auto' }}>
+              {(paymentSummary?.recent_transactions || []).map((t, idx) => (
+                <div key={t.procurement_id || idx} style={{
+                  padding: '10px 12px',
+                  backgroundColor: 'var(--bg-page)',
+                  borderRadius: '6px',
+                  border: '1px solid var(--border)',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center'
+                }}>
+                  <div>
+                    <div style={{ fontWeight: 700, fontSize: '0.9rem' }}>{t.crop} — {t.quantity_quintals} Q</div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--muted)' }}>{t.date} • ₹{t.rate_rs_per_quintal}/Q</div>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontWeight: 800, color: 'var(--success)' }}>₹{t.gross_amount_rs?.toLocaleString('en-IN')}</div>
+                    <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--muted)' }}>{t.payment_status}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <button onClick={() => setActiveModal(null)} className="btn btn-outline" style={{ width: '100%', marginTop: '1.25rem' }}>
+              Close
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ============================================================== */}
+      {/* MODAL 3: NEARBY CENTRES */}
+      {/* ============================================================== */}
+      {activeModal === 'centres' && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: 'rgba(15, 23, 42, 0.6)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 1000, padding: '1rem'
+        }}>
+          <div className="card" style={{ maxWidth: '580px', width: '100%', padding: '2rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+              <h3 style={{ fontSize: '1.3rem', fontWeight: 800, margin: 0, color: 'var(--secondary)' }}>
+                Recommended Procurement Centres
+              </h3>
+              <button onClick={() => setActiveModal(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)' }}>
+                <X size={20} />
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', maxHeight: '360px', overflowY: 'auto' }}>
+              {nearbyCentres.map((c) => (
+                <div key={c.centre_id} style={{
+                  padding: '12px',
+                  backgroundColor: 'var(--bg-page)',
+                  borderRadius: '8px',
+                  border: '1px solid var(--border)',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center'
+                }}>
+                  <div>
+                    <div style={{ fontWeight: 800, fontSize: '0.95rem', color: 'var(--secondary)' }}>
+                      {c.centre_name}
                     </div>
-                    <div style={{ display: 'flex', gap: '0.4rem' }}>
-                      <button onClick={() => handleEditCrop(crop)} style={{ padding: '0.35rem 0.65rem', borderRadius: '4px', border: '1px solid var(--border)', backgroundColor: 'var(--bg-card)', color: 'var(--secondary)', cursor: 'pointer', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}><Edit size={12} /> Edit</button>
-                      <button onClick={() => handleDeleteCrop(crop.id, crop.crop_name)} style={{ padding: '0.35rem 0.65rem', borderRadius: '4px', border: '1px solid var(--danger)', backgroundColor: 'var(--danger-bg)', color: 'var(--danger-text)', cursor: 'pointer', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}><Trash2 size={12} /> Remove</button>
+                    <div style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>
+                      {c.district}, {c.state} • Wait: ~{c.estimated_wait_minutes || 20}m • Queue: {c.current_queue || 4}
                     </div>
                   </div>
-                ))}
+                  <button
+                    onClick={() => {
+                      setActiveModal(null);
+                      navigate('book-slot');
+                    }}
+                    className="btn btn-primary btn-sm"
+                    style={{ fontSize: '0.8rem', padding: '6px 12px' }}
+                  >
+                    Book Here
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            <button onClick={() => setActiveModal(null)} className="btn btn-outline" style={{ width: '100%', marginTop: '1.25rem' }}>
+              Close
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ============================================================== */}
+      {/* MODAL 4: HELP & KISAN SAHAYATA */}
+      {/* ============================================================== */}
+      {activeModal === 'help' && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: 'rgba(15, 23, 42, 0.65)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 1000, padding: '1rem'
+        }}>
+          <div className="card" style={{ maxWidth: '580px', width: '100%', padding: '2rem', maxHeight: '90vh', overflowY: 'auto' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+              <h3 style={{ fontSize: '1.35rem', fontWeight: 800, margin: 0, color: 'var(--secondary)' }}>
+                Kisan Sahayata Helpline & Support
+              </h3>
+              <button onClick={() => setActiveModal(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)' }}>
+                <X size={20} />
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '1.5rem' }}>
+              <div style={{
+                padding: '1rem', backgroundColor: 'var(--info-bg)', borderRadius: '8px',
+                border: '1px solid var(--info)', display: 'flex', alignItems: 'center', gap: '1rem'
+              }}>
+                <Phone size={28} style={{ color: 'var(--info)' }} />
+                <div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--info-text)', fontWeight: 700, textTransform: 'uppercase' }}>
+                    National Kisan Call Centre (Toll-Free)
+                  </div>
+                  <strong style={{ fontSize: '1.25rem', color: 'var(--info-text)' }}>1800-180-1551</strong>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--info-text)' }}>Available 06:00 AM to 10:00 PM • Free call</div>
+                </div>
               </div>
-            )}
-          </div>
-        </div>
-      )}
+            </div>
 
-      {/* TAB 3: PROCUREMENT & LOT TRACEABILITY */}
-      {activeTab === 'procurement' && (
-        <div className="card">
-          <h3 style={{ fontSize: '1.1rem', marginBottom: '1rem', color: 'var(--secondary)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <Package size={18} color="var(--primary)" /> Procurement Records & End-to-End Lot Traceability
-          </h3>
-          <p style={{ fontSize: '0.85rem', color: 'var(--muted)', marginBottom: '1.25rem' }}>
-            Every grain delivered at a BharatAgri procurement yard receives a unique cryptographic Lot ID mapping collection, laboratory moisture checks, digital scale weighment, and storage stack.
-          </p>
-
-          <div className="table-container" style={{ overflowX: 'auto' }}>
-            <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
-              <thead>
-                <tr style={{ borderBottom: '2px solid var(--border)', textAlign: 'left', color: 'var(--muted)' }}>
-                  <th style={{ padding: '0.75rem' }}>Booking Code</th>
-                  <th style={{ padding: '0.75rem' }}>Crop</th>
-                  <th style={{ padding: '0.75rem' }}>Yard Centre</th>
-                  <th style={{ padding: '0.75rem' }}>Procurement Status</th>
-                  <th style={{ padding: '0.75rem' }}>Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {bookings.map((b) => (
-                  <tr key={b.id || b.appointment_id} style={{ borderBottom: '1px solid var(--border)' }}>
-                    <td style={{ padding: '0.75rem', fontWeight: 600 }}>{b.appointment_id || b.booking_id}</td>
-                    <td style={{ padding: '0.75rem' }}>{b.crop}</td>
-                    <td style={{ padding: '0.75rem' }}>{b.centre_name || b.centre_id}</td>
-                    <td style={{ padding: '0.75rem' }}><StatusBadge status={b.status} /></td>
-                    <td style={{ padding: '0.75rem' }}>
-                      <button
-                        className="btn btn-outline btn-sm"
-                        onClick={() => handleViewTraceability(b.appointment_id || b.id)}
-                        style={{ padding: '3px 8px', fontSize: '0.75rem' }}
-                      >
-                        Inspect Lot & Quality
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* TAB 4: DBT PAYMENTS */}
-      {activeTab === 'payments' && (
-        <div className="card">
-          <h3 style={{ fontSize: '1.1rem', marginBottom: '1rem', color: 'var(--secondary)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <DollarSign size={18} color="#16a34a" /> Direct Benefit Transfer (DBT) Payouts
-          </h3>
-          <div style={{ overflowX: 'auto' }}>
-            <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
-              <thead>
-                <tr style={{ borderBottom: '2px solid var(--border)', textAlign: 'left', color: 'var(--muted)' }}>
-                  <th style={{ padding: '0.75rem' }}>Transaction Ref</th>
-                  <th style={{ padding: '0.75rem' }}>Crop</th>
-                  <th style={{ padding: '0.75rem' }}>Procured Qty</th>
-                  <th style={{ padding: '0.75rem' }}>MSP Rate</th>
-                  <th style={{ padding: '0.75rem' }}>Gross DBT Amount</th>
-                  <th style={{ padding: '0.75rem' }}>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {bookings.filter((b) => ['PROCURED', 'PAID', 'Procured'].includes(b.status)).map((b, idx) => {
-                  const qty = parseFloat(b.quantity) || 25;
-                  const msp = 2300;
-                  const total = qty * msp;
-                  return (
-                    <tr key={idx} style={{ borderBottom: '1px solid var(--border)' }}>
-                      <td style={{ padding: '0.75rem', fontWeight: 600 }}>UTR202688192{idx}</td>
-                      <td style={{ padding: '0.75rem' }}>{b.crop}</td>
-                      <td style={{ padding: '0.75rem' }}>{qty} Quintals</td>
-                      <td style={{ padding: '0.75rem' }}>₹ {msp.toLocaleString()} / Q</td>
-                      <td style={{ padding: '0.75rem', fontWeight: 700, color: 'var(--primary)' }}>
-                        ₹ {total.toLocaleString()}
-                      </td>
-                      <td style={{ padding: '0.75rem' }}>
-                        <span style={{ padding: '0.2rem 0.5rem', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 700, backgroundColor: 'var(--success-bg)', color: 'var(--success-text)' }}>
-                          SETTLED (DBT)
-                        </span>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* TAB 5: GRIEVANCES */}
-      {activeTab === 'complaints' && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', gap: '1.5rem' }}>
-          <div className="card">
-            <h3 style={{ fontSize: '1.1rem', marginBottom: '1rem', color: 'var(--secondary)' }}>
-              File a Grievance with Control Room
-            </h3>
+            <h4 style={{ fontSize: '1rem', fontWeight: 800, margin: '0 0 0.5rem 0', color: 'var(--secondary)' }}>
+              Lodge a Mandi Grievance or Inquiry
+            </h4>
 
             {compMsg && (
               <div style={{
-                padding: '0.75rem 1rem', borderRadius: 'var(--radius-sm)', marginBottom: '1rem',
-                backgroundColor: compMsg.type === 'success' ? 'var(--success-bg)' : 'var(--danger-bg)',
-                color: compMsg.type === 'success' ? 'var(--success-text)' : 'var(--danger-text)'
+                padding: '0.75rem', borderRadius: '6px', marginBottom: '0.75rem',
+                backgroundColor: compMsg.type === 'success' ? '#dcfce7' : '#fee2e2',
+                color: compMsg.type === 'success' ? '#166534' : '#991b1b', fontWeight: 700
               }}>
                 {compMsg.text}
               </div>
             )}
 
-            <form onSubmit={handleFileComplaint} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <form onSubmit={handleFileComplaint} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
               <div>
-                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.3rem', color: 'var(--secondary)' }}>
-                  Category *
+                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, marginBottom: '0.3rem' }}>
+                  Issue Category
                 </label>
                 <select
                   value={compCategory}
                   onChange={(e) => setCompCategory(e.target.value)}
-                  style={{ width: '100%', padding: '0.6rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', backgroundColor: 'var(--bg-page)', color: 'var(--secondary)' }}
+                  className="form-control"
                 >
                   <option value="Weighment Discrepancy">Weighment Discrepancy</option>
-                  <option value="Quality Inspection Delay">Quality Inspection Delay</option>
-                  <option value="DBT Payment Delay">DBT Payment Delay</option>
-                  <option value="Bardan Shortage">Bardan Shortage</option>
-                  <option value="Gate Gatekeeper Verification">Gatekeeper Verification</option>
+                  <option value="Payment Delay">Payment / DBT Delay</option>
+                  <option value="Queue Issue">Gate Queue Bypass</option>
+                  <option value="Quality Grading">Moisture / Quality Grading</option>
                 </select>
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.3rem', color: 'var(--secondary)' }}>
-                  Subject *
+                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, marginBottom: '0.3rem' }}>
+                  Summary
                 </label>
                 <input
                   type="text"
-                  required
+                  placeholder="e.g. Weighbridge WB-01 weight reading"
                   value={compSubject}
                   onChange={(e) => setCompSubject(e.target.value)}
-                  placeholder="e.g. Weighbridge delay or moisture variance"
-                  style={{ width: '100%', padding: '0.6rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', backgroundColor: 'var(--bg-page)', color: 'var(--secondary)' }}
+                  required
+                  className="form-control"
                 />
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.3rem', color: 'var(--secondary)' }}>
-                  Details *
+                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, marginBottom: '0.3rem' }}>
+                  Details
                 </label>
                 <textarea
-                  required
-                  rows={4}
+                  placeholder="Describe your issue..."
                   value={compDesc}
                   onChange={(e) => setCompDesc(e.target.value)}
-                  placeholder="Describe your issue with exact centre name and booking code..."
-                  style={{ width: '100%', padding: '0.6rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', backgroundColor: 'var(--bg-page)', color: 'var(--secondary)' }}
+                  rows="3"
+                  required
+                  className="form-control"
                 />
               </div>
 
-              <button
-                type="submit"
-                style={{
-                  padding: '0.75rem', borderRadius: 'var(--radius-sm)',
-                  backgroundColor: 'var(--primary)', color: '#ffffff', border: 'none',
-                  fontWeight: 700, fontSize: '0.95rem', cursor: 'pointer'
-                }}
-              >
-                Submit Grievance
+              <button type="submit" className="btn btn-primary" style={{ padding: '0.75rem', fontWeight: 800, marginTop: '0.25rem' }}>
+                Submit Sahayata Request
               </button>
             </form>
           </div>
-
-          <div className="card">
-            <h3 style={{ fontSize: '1.1rem', marginBottom: '1rem', color: 'var(--secondary)' }}>
-              Recent Filed Tickets ({complaints.length})
-            </h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-              {complaints.map((c) => (
-                <div key={c.id} style={{ padding: '0.85rem', backgroundColor: 'var(--bg-page)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <strong style={{ fontSize: '0.9rem', color: 'var(--secondary)' }}>{c.subject}</strong>
-                    <span style={{ padding: '0.15rem 0.5rem', borderRadius: '4px', fontSize: '0.7rem', fontWeight: 700, backgroundColor: c.status === 'RESOLVED' ? 'var(--success-bg)' : '#fef3c7', color: c.status === 'RESOLVED' ? 'var(--success-text)' : '#92400e' }}>
-                      {c.status}
-                    </span>
-                  </div>
-                  <p style={{ fontSize: '0.8rem', color: 'var(--muted)', marginTop: '0.3rem' }}>{c.description}</p>
-                </div>
-              ))}
-            </div>
-          </div>
         </div>
       )}
 
-      {/* TAB 6: MARKET INTELLIGENCE & INSIGHTS */}
-      {activeTab === 'intelligence' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-          {/* Advisory Notice Header */}
-          <div style={{
-            padding: '1.25rem',
-            backgroundColor: 'rgba(59, 130, 246, 0.08)',
-            border: '1px solid rgba(59, 130, 246, 0.25)',
-            borderRadius: 'var(--radius-md)'
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.35rem' }}>
-              <TrendingUp size={20} color="var(--primary)" />
-              <h2 style={{ fontSize: '1.25rem', color: 'var(--secondary)', margin: 0, fontWeight: 800 }}>
-                Kisan Market Intelligence & Commodity Price Trends
-              </h2>
-            </div>
-            <p style={{ fontSize: '0.85rem', color: 'var(--muted)', margin: 0 }}>
-              Regional economic analytics for <strong>{farmerProfile?.state || 'Goa'}</strong> based on government procurement volumes,
-              current buffer targets, and official MSP price benchmarks.
-            </p>
-            <div style={{
-              marginTop: '0.75rem', padding: '0.6rem 0.85rem',
-              backgroundColor: 'var(--bg-card)', borderRadius: '4px',
-              borderLeft: '4px solid var(--primary)', fontSize: '0.8rem', color: 'var(--muted)'
-            }}>
-              ⚖️ <strong>Official Advisory Disclaimer:</strong> All procurement estimates represent machine learning projections grounded in historical intake, supply-demand balances, and statutory MSP minimum rate guarantees. No future personal income or speculative price guarantees are implied.
-            </div>
-          </div>
-
-          {marketIntelLoading ? (
-            <div className="card" style={{ padding: '3rem', textAlign: 'center', color: 'var(--muted)' }}>
-              Loading real-time market intelligence & model projections...
-            </div>
-          ) : marketIntel ? (
-            <>
-              {/* SECTION A & B: DEMAND TRENDS & SUPPLY DEFICITS */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '1.5rem' }}>
-                {/* HIGH DEMAND CROPS */}
-                <div className="card">
-                  <div className="card-header" style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <TrendingUp size={20} color="var(--primary)" />
-                    <h3 className="card-title">High Demand Commodities in State</h3>
-                  </div>
-                  <p style={{ fontSize: '0.85rem', color: 'var(--muted)', marginBottom: '1rem' }}>
-                    Crops currently experiencing elevated procurement velocity and strategic buffer restocking.
-                  </p>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                    {marketIntel.high_demand_crops?.map((c, i) => (
-                      <div key={i} style={{ padding: '0.85rem', backgroundColor: 'var(--bg-page)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <strong style={{ fontSize: '0.95rem', color: 'var(--secondary)' }}>{c.crop_name}</strong>
-                          <span style={{ padding: '0.2rem 0.5rem', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 700, backgroundColor: 'var(--primary-light)', color: 'var(--primary)' }}>
-                            Demand: {c.demand_level}
-                          </span>
-                        </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', color: 'var(--muted)', marginTop: '0.4rem' }}>
-                          <span>Season: {c.season} • Trend: <strong style={{ color: 'var(--success)' }}>{c.demand_trend}</strong></span>
-                          <span>Official MSP: <strong>₹{c.official_msp}/Q</strong></span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* SUPPLY DEFICIT & SHORTAGES */}
-                <div className="card">
-                  <div className="card-header" style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <AlertTriangle size={20} color="#eab308" />
-                    <h3 className="card-title">State Supply Deficit Forecast</h3>
-                  </div>
-                  <p style={{ fontSize: '0.85rem', color: 'var(--muted)', marginBottom: '1rem' }}>
-                    Commodities where active procurement intake remains below the state's seasonal reserve quota.
-                  </p>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                    {marketIntel.supply_shortages?.length > 0 ? (
-                      marketIntel.supply_shortages.map((s, i) => (
-                        <div key={i} style={{ padding: '0.85rem', backgroundColor: 'var(--bg-page)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <strong style={{ fontSize: '0.95rem', color: 'var(--secondary)' }}>{s.crop_name}</strong>
-                            <span style={{ padding: '0.2rem 0.5rem', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 700, backgroundColor: '#fef3c7', color: '#92400e' }}>
-                              Deficit: {s.projected_deficit_quintals.toLocaleString()} Q
-                            </span>
-                          </div>
-                          <p style={{ fontSize: '0.8rem', color: 'var(--muted)', margin: '0.4rem 0 0 0' }}>{s.reason}</p>
-                        </div>
-                      ))
-                    ) : (
-                      <div style={{ padding: '1rem', textAlign: 'center', color: 'var(--muted)', fontSize: '0.85rem' }}>
-                        Adequate seasonal buffer reserves maintained across state centres.
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* SECTION C: PRICE OPPORTUNITIES (STRICT NON-GUARANTEE ADVISORY) */}
-              <div className="card">
-                <div className="card-header" style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <Sparkles size={20} color="var(--primary)" />
-                  <h3 className="card-title">Estimated Procurement Price Indicators (AI XGBoost Model)</h3>
-                </div>
-                <p style={{ fontSize: '0.85rem', color: 'var(--muted)', marginBottom: '1rem' }}>
-                  Dynamic model evaluation respecting <code>FINAL ESTIMATED PRICE = MAX(AI ESTIMATE, OFFICIAL MSP)</code>.
-                </p>
-
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem' }}>
-                  {marketIntel.price_opportunities?.map((p, i) => (
-                    <div key={i} style={{ padding: '1rem', borderRadius: 'var(--radius-sm)', backgroundColor: 'var(--bg-page)', border: '1px solid var(--border)' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-                        <strong style={{ fontSize: '1rem', color: 'var(--secondary)' }}>{p.crop_name}</strong>
-                        <span style={{ fontSize: '0.75rem', padding: '0.2rem 0.5rem', borderRadius: '4px', backgroundColor: 'var(--primary-light)', color: 'var(--primary)', fontWeight: 700 }}>
-                          {p.season}
-                        </span>
-                      </div>
-
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '0.75rem', fontSize: '0.85rem' }}>
-                        <div>
-                          <span style={{ color: 'var(--muted)', display: 'block', fontSize: '0.75rem' }}>OFFICIAL MSP</span>
-                          <strong style={{ color: 'var(--secondary)' }}>₹{p.official_msp}/Q</strong>
-                        </div>
-                        <div>
-                          <span style={{ color: 'var(--muted)', display: 'block', fontSize: '0.75rem' }}>AI ESTIMATED RATE</span>
-                          <strong style={{ color: 'var(--primary)' }}>₹{p.ai_estimated_procurement_price}/Q</strong>
-                        </div>
-                      </div>
-
-                      <div style={{ padding: '0.6rem', borderRadius: '4px', backgroundColor: 'var(--bg-card)', border: '1px solid var(--border)', fontSize: '0.8rem', color: 'var(--secondary)', lineHeight: 1.4 }}>
-                        💬 <em>"{p.advisory_note}"</em>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* SECTION D: FARMER-SPECIFIC CROPS COMPARATIVE ANALYSIS */}
-              <div className="card">
-                <div className="card-header" style={{ marginBottom: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <Package size={20} color="var(--primary)" />
-                    <h3 className="card-title">My Registered Crops • Market Condition Benchmark</h3>
-                  </div>
-                  <div style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--primary)' }}>
-                    Portfolio Est. Total: ₹{marketIntel.total_estimated_portfolio_value?.toLocaleString()}
-                  </div>
-                </div>
-
-                <div style={{ overflowX: 'auto' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
-                    <thead>
-                      <tr style={{ borderBottom: '2px solid var(--border)', color: 'var(--muted)' }}>
-                        <th style={{ padding: '0.75rem 0.5rem' }}>CROP</th>
-                        <th style={{ padding: '0.75rem 0.5rem' }}>QUANTITY</th>
-                        <th style={{ padding: '0.75rem 0.5rem' }}>OFFICIAL MSP</th>
-                        <th style={{ padding: '0.75rem 0.5rem' }}>AI ESTIMATED PRICE</th>
-                        <th style={{ padding: '0.75rem 0.5rem' }}>EST. TOTAL VALUE</th>
-                        <th style={{ padding: '0.75rem 0.5rem' }}>DEMAND LEVEL</th>
-                        <th style={{ padding: '0.75rem 0.5rem' }}>PERISHABILITY</th>
-                        <th style={{ padding: '0.75rem 0.5rem' }}>MARKET ADVISORY</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {marketIntel.my_crops_intelligence?.map((c, i) => (
-                        <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
-                          <td style={{ padding: '0.75rem 0.5rem', fontWeight: 700, color: 'var(--secondary)' }}>{c.crop_name}</td>
-                          <td style={{ padding: '0.75rem 0.5rem' }}>{c.registered_quantity_quintals} Q</td>
-                          <td style={{ padding: '0.75rem 0.5rem' }}>₹{c.official_msp_rate}/Q</td>
-                          <td style={{ padding: '0.75rem 0.5rem', fontWeight: 700, color: 'var(--primary)' }}>₹{c.ai_estimated_procurement_price}/Q</td>
-                          <td style={{ padding: '0.75rem 0.5rem', fontWeight: 800, color: 'var(--success)' }}>₹{c.estimated_total_value?.toLocaleString()}</td>
-                          <td style={{ padding: '0.75rem 0.5rem' }}>
-                            <span style={{ padding: '0.2rem 0.4rem', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 700, backgroundColor: c.demand_level === 'HIGH' ? 'var(--primary-light)' : 'var(--bg-page)', color: c.demand_level === 'HIGH' ? 'var(--primary)' : 'var(--muted)' }}>
-                              {c.demand_level}
-                            </span>
-                          </td>
-                          <td style={{ padding: '0.75rem 0.5rem' }}>
-                            <span style={{
-                              fontSize: '0.75rem',
-                              fontWeight: 600,
-                              color: (c.is_perishable || c.perishability === 'HIGH' || c.perishability === 'CRITICAL' || c.perishability === 'MEDIUM') ? '#dc2626' : 'var(--muted)'
-                            }}>
-                              {(c.is_perishable || c.perishability === 'HIGH' || c.perishability === 'CRITICAL' || c.perishability === 'MEDIUM')
-                                ? `Perishable (${c.shelf_life || (c.approx_shelf_life_days ? `${c.approx_shelf_life_days}d` : '2-3 Days')})`
-                                : 'Not applicable'}
-                            </span>
-                          </td>
-                          <td style={{ padding: '0.75rem 0.5rem', fontSize: '0.8rem', color: 'var(--secondary)' }}>
-                            {c.market_condition_summary}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </>
-          ) : (
-            <div className="card" style={{ padding: '2rem', textAlign: 'center', color: 'var(--muted)' }}>
-              Market intelligence data unavailable for current region.
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* QR PASS MODAL */}
+      {/* ============================================================== */}
+      {/* MODAL 5: DIGITAL APPOINTMENT PASS */}
+      {/* ============================================================== */}
       {selectedPassBooking && (
         <div style={{
           position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
@@ -1178,7 +1282,8 @@ export default function FarmerDashboard({ user, navigate }) {
               onClick={() => setSelectedPassBooking(null)}
               style={{
                 position: 'absolute', top: '12px', right: '12px', zIndex: 10,
-                background: 'var(--bg-card)', border: '1px solid var(--border)',
+                background: 'var(--surface)', border: '1px solid var(--border)',
+                color: 'var(--text-primary)',
                 borderRadius: '50%', width: '32px', height: '32px',
                 display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer'
               }}
@@ -1190,117 +1295,6 @@ export default function FarmerDashboard({ user, navigate }) {
         </div>
       )}
 
-      {/* LOT TRACEABILITY MODAL */}
-      {traceModalLot && (
-        <div style={{
-          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-          backgroundColor: 'rgba(15, 23, 42, 0.65)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          zIndex: 1000, padding: '1rem'
-        }}>
-          <div style={{ position: 'relative', width: '100%', maxWidth: '640px', backgroundColor: 'var(--bg-card)', borderRadius: 'var(--radius-md)', padding: '1.5rem', border: '1px solid var(--border)', maxHeight: '90vh', overflowY: 'auto' }}>
-            <button
-              onClick={() => setTraceModalLot(null)}
-              style={{
-                position: 'absolute', top: '12px', right: '12px',
-                background: 'var(--bg-card)', border: '1px solid var(--border)',
-                borderRadius: '50%', width: '32px', height: '32px',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer'
-              }}
-            >
-              <X size={18} />
-            </button>
-
-            <h3 style={{ fontSize: '1.2rem', marginBottom: '0.25rem', color: 'var(--secondary)' }}>
-              Procurement Lot Traceability Passport
-            </h3>
-            <span style={{ fontSize: '0.85rem', color: 'var(--primary)', fontWeight: 700 }}>
-              {traceModalLot.lot_id}
-            </span>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '1.25rem', fontSize: '0.85rem' }}>
-              <div style={{ padding: '0.75rem', backgroundColor: 'var(--bg-page)', borderRadius: '4px' }}>
-                <span style={{ color: 'var(--muted)', display: 'block', fontSize: '0.75rem' }}>CROP & QUANTITY</span>
-                <strong>{traceModalLot.crop} • {traceModalLot.quantity_quintals} Q</strong>
-              </div>
-              <div style={{ padding: '0.75rem', backgroundColor: 'var(--bg-page)', borderRadius: '4px' }}>
-                <span style={{ color: 'var(--muted)', display: 'block', fontSize: '0.75rem' }}>QUALITY GRADE</span>
-                <strong style={{ color: 'var(--primary)' }}>{traceModalLot.quality?.grade || 'Grade A'} (Moisture: {traceModalLot.quality?.moisture_content_pct}%)</strong>
-              </div>
-              <div style={{ padding: '0.75rem', backgroundColor: 'var(--bg-page)', borderRadius: '4px' }}>
-                <span style={{ color: 'var(--muted)', display: 'block', fontSize: '0.75rem' }}>WEIGHMENT NET</span>
-                <strong>{traceModalLot.weighment?.net_weight || traceModalLot.quantity_quintals} Quintals</strong>
-              </div>
-              <div style={{ padding: '0.75rem', backgroundColor: 'var(--bg-page)', borderRadius: '4px' }}>
-                <span style={{ color: 'var(--muted)', display: 'block', fontSize: '0.75rem' }}>STORAGE LOCATION</span>
-                <strong>{traceModalLot.warehouse_name || 'Warehouse Stack A-04'}</strong>
-              </div>
-              <div style={{ padding: '0.75rem', backgroundColor: 'var(--bg-page)', borderRadius: '4px' }}>
-                <span style={{ color: 'var(--muted)', display: 'block', fontSize: '0.75rem' }}>TOTAL SETTLEMENT</span>
-                <strong style={{ color: 'var(--primary)' }}>₹ {traceModalLot.procurement?.total_value?.toLocaleString() || '57,500'}</strong>
-              </div>
-              <div style={{ padding: '0.75rem', backgroundColor: 'var(--bg-page)', borderRadius: '4px' }}>
-                <span style={{ color: 'var(--muted)', display: 'block', fontSize: '0.75rem' }}>DBT STATUS</span>
-                <strong style={{ color: 'var(--success)' }}>{traceModalLot.payment?.status || 'PAID'}</strong>
-              </div>
-            </div>
-
-            {/* Complete Traceability History / Lifecycle Timeline */}
-            {traceModalLot.lifecycle_stages && traceModalLot.lifecycle_stages.length > 0 && (
-              <div style={{ marginTop: '1.5rem', borderTop: '1px solid var(--border)', paddingTop: '1.25rem' }}>
-                <h4 style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--text-main)', marginBottom: '0.85rem' }}>
-                  End-to-End Procurement Lifecycle History
-                </h4>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                  {traceModalLot.lifecycle_stages.map((stage, idx) => (
-                    <div key={idx} style={{
-                      display: 'flex',
-                      alignItems: 'flex-start',
-                      gap: '0.85rem',
-                      padding: '0.65rem 0.85rem',
-                      backgroundColor: stage.status === 'COMPLETED' ? 'rgba(16, 185, 129, 0.06)' : 'var(--bg-page)',
-                      borderRadius: '6px',
-                      borderLeft: `4px solid ${stage.status === 'COMPLETED' ? '#10B981' : (stage.status === 'IN_PROGRESS' ? '#F59E0B' : '#94A3B8')}`
-                    }}>
-                      <div style={{
-                        width: '24px', height: '24px', borderRadius: '50%',
-                        backgroundColor: stage.status === 'COMPLETED' ? '#10B981' : (stage.status === 'IN_PROGRESS' ? '#F59E0B' : '#CBD5E1'),
-                        color: '#FFF', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        fontSize: '0.75rem', fontWeight: 700, flexShrink: 0
-                      }}>
-                        {stage.stage_number}
-                      </div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <span style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--text-main)' }}>
-                            {stage.stage_name}
-                          </span>
-                          <span style={{
-                            fontSize: '0.7rem',
-                            fontWeight: 700,
-                            padding: '2px 6px',
-                            borderRadius: '4px',
-                            backgroundColor: stage.status === 'COMPLETED' ? '#DCFCE7' : (stage.status === 'IN_PROGRESS' ? '#FEF3C7' : '#F1F5F9'),
-                            color: stage.status === 'COMPLETED' ? '#166534' : (stage.status === 'IN_PROGRESS' ? '#92400E' : '#475569')
-                          }}>
-                            {stage.status}
-                          </span>
-                        </div>
-                        <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-                          Ref: <strong style={{ color: 'var(--text-main)' }}>{stage.reference}</strong> • Date: {stage.date}
-                        </div>
-                        <div style={{ fontSize: '0.75rem', color: 'var(--muted)', marginTop: '2px' }}>
-                          {stage.details}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
     </div>
   );
 }

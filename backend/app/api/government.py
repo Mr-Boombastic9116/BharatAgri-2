@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, case, distinct, extract
 from typing import Optional, List
 from datetime import date, datetime, timedelta
+import math
 
 from backend.app.core.database import get_db
 from backend.app.core.deps import require_role
@@ -134,12 +135,27 @@ def get_government_kpis(
         avg_utilization = 0.0
 
     # 8. Trucks Required vs Available
+    # Operational demand based on today's booked arrival volume (200Q per truck capacity)
+    b_vol_today_q = db.query(func.coalesce(func.sum(Booking.quantity), 0)).join(
+        Slot, Booking.slot_id == Slot.id
+    ).filter(
+        Slot.date == today,
+        Booking.status.in_(["BOOKED", "CONFIRMED", "ARRIVED", "CHECKED_IN"])
+    )
+    if has_state:
+        b_vol_today_q = b_vol_today_q.join(ProcurementCentre, Booking.centre_id == ProcurementCentre.centre_id).filter(
+            ProcurementCentre.state.ilike(f"%{st_val}%")
+        )
+    today_vol_arrivals = float(b_vol_today_q.scalar() or 0.0)
+    dynamic_trucks_needed = math.ceil(today_vol_arrivals / 200.0) if today_vol_arrivals > 0 else 0
+
     tr_req_q = db.query(func.count(TruckRequest.id)).filter(TruckRequest.status == "PENDING")
     if has_state:
         tr_req_q = tr_req_q.join(ProcurementCentre, TruckRequest.centre_id == ProcurementCentre.centre_id).filter(
             ProcurementCentre.state.ilike(f"%{st_val}%")
         )
-    trucks_req = tr_req_q.scalar() or 0
+    explicit_trucks_req = tr_req_q.scalar() or 0
+    trucks_req = max(dynamic_trucks_needed, explicit_trucks_req)
 
     tr_avail_q = db.query(func.count(Truck.id)).filter(Truck.is_available == True)
     if has_state:
@@ -791,40 +807,43 @@ def get_government_alerts(
         Alert.created_at.desc()
     ).limit(100).all()
 
+    alert_list = [
+        {
+            "id": a.id,
+            "alert_code": a.alert_code,
+            "alert_type": a.alert_type or "SYSTEM_ALERT",
+            "title": getattr(a, "title", a.what),
+            "what": a.what,
+            "what_happened": a.what,
+            "where": a.where_location,
+            "where_location": a.where_location,
+            "centre_name": a.where_location,
+            "when": a.when_timestamp.strftime("%Y-%m-%d %H:%M") if a.when_timestamp else (a.created_at.strftime("%Y-%m-%d %H:%M") if a.created_at else None),
+            "when_timestamp": a.when_timestamp.strftime("%Y-%m-%d %H:%M") if a.when_timestamp else (a.created_at.strftime("%Y-%m-%d %H:%M") if a.created_at else None),
+            "why": a.why,
+            "why_reason": getattr(a, "why_reason", a.why),
+            "why_flagged": a.why,
+            "description": getattr(a, "why_reason", a.why),
+            "cause": a.why,
+            "severity": a.severity,
+            "status": "RESOLVED" if a.is_resolved else "ACTIVE",
+            "recommended_action": a.recommended_action,
+            "action": a.recommended_action,
+            "scope": a.scope,
+            "centre_id": a.centre_id,
+            "state": a.state,
+            "district": a.district,
+            "is_resolved": bool(a.is_resolved),
+            "created_at": a.created_at.strftime("%Y-%m-%d %H:%M") if a.created_at else None
+        }
+        for a in alerts
+    ]
+
     return {
         "success": True,
         "count": len(alerts),
-        "data": [
-            {
-                "id": a.id,
-                "alert_code": a.alert_code,
-                "alert_type": a.alert_type or "SYSTEM_ALERT",
-                "title": getattr(a, "title", a.what),
-                "what": a.what,
-                "what_happened": a.what,
-                "where": a.where_location,
-                "where_location": a.where_location,
-                "centre_name": a.where_location,
-                "when": a.when_timestamp.strftime("%Y-%m-%d %H:%M") if a.when_timestamp else (a.created_at.strftime("%Y-%m-%d %H:%M") if a.created_at else None),
-                "when_timestamp": a.when_timestamp.strftime("%Y-%m-%d %H:%M") if a.when_timestamp else (a.created_at.strftime("%Y-%m-%d %H:%M") if a.created_at else None),
-                "why": a.why,
-                "why_reason": getattr(a, "why_reason", a.why),
-                "why_flagged": a.why,
-                "description": getattr(a, "why_reason", a.why),
-                "cause": a.why,
-                "severity": a.severity,
-                "status": "RESOLVED" if a.is_resolved else "ACTIVE",
-                "recommended_action": a.recommended_action,
-                "action": a.recommended_action,
-                "scope": a.scope,
-                "centre_id": a.centre_id,
-                "state": a.state,
-                "district": a.district,
-                "is_resolved": bool(a.is_resolved),
-                "created_at": a.created_at.strftime("%Y-%m-%d %H:%M") if a.created_at else None
-            }
-            for a in alerts
-        ]
+        "data": alert_list,
+        "alerts": alert_list
     }
 
 
@@ -909,8 +928,9 @@ def get_government_daily_intelligence(
         daily_util = round((b_day_f / max(daily_cap, 1.0)) * 100, 1)
 
         # Trucks for centre
+        # Trucks for centre (200Q capacity per heavy carrier unit)
         avail_t = db.query(Truck).filter(Truck.assigned_centre_id == c.centre_id, Truck.is_available == True).count()
-        req_t = max(1, int(b_day_f / 200.0))
+        req_t = math.ceil(b_day_f / 200.0) if b_day_f > 0 else 0
         total_trucks_required += req_t
         total_trucks_available += avail_t
 
@@ -959,16 +979,27 @@ def get_government_daily_intelligence(
 
     high_priority_crop_list = [
         {
+            "crop": cp.crop_name,
             "crop_name": cp.crop_name,
             "category": cp.crop_category,
+            "perishability": "HIGH" if cp.is_perishable else "MEDIUM",
             "perishability_score": float(cp.perishability_score),
             "shelf_life_days": cp.approx_shelf_life_days,
             "is_perishable": cp.is_perishable,
             "demand_level": cp.demand_level,
-            "storage_type": cp.storage_type
+            "storage_type": cp.storage_type,
+            "priority_score": int(float(cp.perishability_score) * 10) if cp.perishability_score else 75,
+            "action": "Immediate green-channel transport priority" if cp.is_perishable else "Standard scheduled dispatch"
         }
         for cp in priority_crops
     ]
+
+    fleet_summary = {
+        "total_required": total_trucks_required,
+        "total_available": total_trucks_available,
+        "shortfall": truck_shortfall,
+        "status": "DEFICIT" if truck_shortfall > 0 else "SUFFICIENT"
+    }
 
     return {
         "success": True,
@@ -976,24 +1007,26 @@ def get_government_daily_intelligence(
         "state_filter": state if has_state else "All States (Nationwide)",
         "summary": {
             "expected_procurement_7d_quintals": expected_procurement_7d,
+            "expected_procurement_today_quintals": today_expected_arrivals,
             "today_expected_arrivals_quintals": today_expected_arrivals,
+            "expected_arrivals_today_quintals": today_expected_arrivals,
             "centres_at_risk_count": len(centres_at_risk),
             "storage_risk_centres_count": len(storage_risks),
-            "fleet": {
-                "total_trucks_required": total_trucks_required,
-                "total_trucks_available": total_trucks_available,
-                "shortfall": truck_shortfall,
-                "status": "DEFICIT" if truck_shortfall > 0 else "SUFFICIENT"
-            }
+            "fleet": fleet_summary
         },
         "daily_intelligence": {
             "expected_procurement_7d_quintals": expected_procurement_7d,
+            "expected_procurement_today_quintals": today_expected_arrivals,
             "today_expected_arrivals_quintals": today_expected_arrivals,
+            "expected_arrivals_today_quintals": today_expected_arrivals,
             "centres_at_risk_count": len(centres_at_risk),
             "storage_risk_centres_count": len(storage_risks),
             "fleet_shortfall": truck_shortfall,
             "anomaly_patterns_count": len(anomaly_patterns),
-            "high_priority_crops_count": len(high_priority_crop_list)
+            "high_priority_crops_count": len(high_priority_crop_list),
+            "truck_fleet": fleet_summary,
+            "high_priority_crops": high_priority_crop_list,
+            "summary": f"Procurement operations active across {len(all_centres)} centres. Today's expected arrival volume is {today_expected_arrivals:,.1f} Q."
         },
         "centres_at_risk": centres_at_risk[:10],
         "storage_risks": storage_risks[:10],
@@ -1119,19 +1152,19 @@ def get_government_insights(
             Booking.status.in_(["BOOKED", "CONFIRMED", "CHECKED_IN"])
         ).scalar() or 0.0)
 
-        daily_rate = b_7d / 7.0 if b_7d > 0 else (daily_cap * 0.4)
-        days_to_full = round(rem_cap / max(daily_rate, 1.0), 1)
-
-        if days_to_full <= 14:
-            congested_centres.append({
-                "centre_id": c.centre_id,
-                "centre_name": c.centre_name,
-                "district": c.district,
-                "state": c.state,
-                "days_until_full": days_to_full,
-                "projected_saturation_date": (today + timedelta(days=int(days_to_full))).strftime("%Y-%m-%d"),
-                "remaining_storage": rem_cap
-            })
+        if b_7d > 0:
+            daily_rate = b_7d / 7.0
+            days_to_full = round(rem_cap / max(daily_rate, 1.0), 1)
+            if days_to_full <= 14:
+                congested_centres.append({
+                    "centre_id": c.centre_id,
+                    "centre_name": c.centre_name,
+                    "district": c.district,
+                    "state": c.state,
+                    "days_until_full": days_to_full,
+                    "projected_saturation_date": (today + timedelta(days=int(days_to_full))).strftime("%Y-%m-%d"),
+                    "remaining_storage": rem_cap
+                })
 
     if congested_centres:
         first_c = congested_centres[0]
@@ -1164,33 +1197,44 @@ def get_government_insights(
         })
 
     # High perishability inflow prediction
-    perish_crop_rows = db.query(CropMetadata.crop_name).filter(CropMetadata.is_perishable == True).all()
-    perish_crop_names = [r[0] for r in perish_crop_rows] if perish_crop_rows else ["Sugarcane", "Tomato", "Potato", "Onion"]
-    perishable_arrivals_q = db.query(
-        func.coalesce(func.sum(Booking.quantity), 0)
-    ).join(Slot, Booking.slot_id == Slot.id).filter(
-        Booking.crop.in_(perish_crop_names),
-        Slot.date >= today,
-        Slot.date <= today + timedelta(days=3),
-        Booking.status.in_(["BOOKED", "CONFIRMED", "CHECKED_IN"])
-    )
-    if has_state:
-        perishable_arrivals_q = perishable_arrivals_q.join(ProcurementCentre, Booking.centre_id == ProcurementCentre.centre_id).filter(
-            ProcurementCentre.state.ilike(f"%{st_val}%")
-        )
-    perishable_inflow = float(perishable_arrivals_q.scalar() or 0.0)
+    state_perish_crops = {
+        "Goa": ["Mango", "Banana", "Tomato"],
+        "Maharashtra": ["Sugarcane"],
+        "Karnataka": []
+    }
+    if has_state and st_val in state_perish_crops:
+        perish_crop_names = state_perish_crops[st_val]
+    else:
+        perish_crop_names = ["Mango", "Banana", "Tomato", "Sugarcane"]
 
+    perishable_inflow = 0.0
+    if perish_crop_names:
+        perishable_arrivals_q = db.query(
+            func.coalesce(func.sum(Booking.quantity), 0)
+        ).join(Slot, Booking.slot_id == Slot.id).filter(
+            Booking.crop.in_(perish_crop_names),
+            Slot.date >= today,
+            Slot.date <= today + timedelta(days=3),
+            Booking.status.in_(["BOOKED", "CONFIRMED", "CHECKED_IN"])
+        )
+        if has_state:
+            perishable_arrivals_q = perishable_arrivals_q.join(ProcurementCentre, Booking.centre_id == ProcurementCentre.centre_id).filter(
+                ProcurementCentre.state.ilike(f"%{st_val}%")
+            )
+        perishable_inflow = float(perishable_arrivals_q.scalar() or 0.0)
+
+    crops_desc = ", ".join(perish_crop_names) if perish_crop_names else "perishable crops"
     predictive.append({
         "category": "Perishable Crop Transit Window",
         "timeframe": "Next 72 Hours",
-        "what": f"Projected inflow of {perishable_inflow:,.1f} Quintals of perishable commodities (Sugarcane, Vegetables) requiring expedited transit within 48-72 hours.",
-        "summary": f"Perishable arrivals: {perishable_inflow:,.1f} Q requiring dispatch within 48-72 hours.",
-        "text": f"Perishable arrivals: {perishable_inflow:,.1f} Q requiring dispatch within 48-72 hours.",
-        "evidence": f"Aggregated from active bookings for perishable crops ({', '.join(perish_crop_names[:3])}) over next 3 operating days.",
-        "why": "Perishable crops like Sugarcane lose sucrose and Vegetables deteriorate rapidly without cold-chain or immediate crushing dispatch.",
-        "action": "Prioritize dedicated transport fleet allocation and pre-book mill processing slots.",
+        "what": f"Projected inflow of {perishable_inflow:,.1f} Quintals of perishable commodities ({crops_desc}) requiring expedited handling within 48-72 hours." if perishable_inflow > 0 else f"No upcoming 72-hour perishable arrivals ({crops_desc}) scheduled in database.",
+        "summary": f"Perishable arrivals: {perishable_inflow:,.1f} Q ({crops_desc})." if perishable_inflow > 0 else f"No perishable arrivals ({crops_desc}) scheduled.",
+        "text": f"Perishable arrivals: {perishable_inflow:,.1f} Q ({crops_desc})." if perishable_inflow > 0 else f"No perishable arrivals ({crops_desc}) scheduled.",
+        "evidence": f"Aggregated from active bookings for {crops_desc} over next 3 operating days." if perishable_inflow > 0 else "Verified against zero perishable booking records in slots table.",
+        "why": "Perishable crops deteriorate rapidly without appropriate storage conditions or immediate dispatch.",
+        "action": "Prioritize dedicated transport fleet allocation and rapid intake bay clearance." if perishable_inflow > 0 else "Maintain standard warehouse monitoring.",
         "benefit": "Prevents post-harvest spoilage and maintains farmer realization.",
-        "severity": "HIGH" if perishable_inflow > 500 else "MEDIUM",
+        "severity": "HIGH" if perishable_inflow > 500 else ("MEDIUM" if perishable_inflow > 0 else "LOW"),
         "expected_volume_quintals": perishable_inflow
     })
 
@@ -1267,132 +1311,168 @@ def get_government_perishable_priority(
     current_user: dict = Depends(require_role("GOVERNMENT"))
 ):
     """
-    Fleet and transport priority ranking for perishable crops across centres:
-    Transport Priority = demand + perishability + expected quantity + storage availability + destination demand + congestion
+    Returns crop perishability and approximate freshness/shelf-life estimates.
+    Strictly aligns with configured prototype state-crop master data:
+    - Goa: Mango, Banana, Tomato
+    - Maharashtra: Sugarcane, Wheat, Cotton
+    - Karnataka: Paddy, Maize, Bajra
+    Excludes irrelevant centre, employee, truck, and booking details.
     """
-    today = date.today()
     has_state = is_valid_state(state)
     st_val = state.strip() if has_state else ""
+    
+    # State-to-crops master mapping
+    STATE_CROPS = {
+        "Goa": ["Mango", "Banana", "Tomato"],
+        "Maharashtra": ["Sugarcane", "Wheat", "Cotton"],
+        "Karnataka": ["Paddy", "Maize", "Bajra"]
+    }
+    
+    # Realistic agricultural freshness and perishability profiles (ICAR/post-harvest standards)
+    PERISHABILITY_PROFILES = {
+        "Mango": {
+            "shelf_life_days": 14,
+            "approx_freshness": "7–14 Days",
+            "ambient_range": "5–8 Days (Ambient 25–30°C)",
+            "cold_range": "14–21 Days (Cool Storage 13°C)",
+            "perishability": "HIGH",
+            "urgency": "Expedited handling required",
+            "storage_guidance": "Well-ventilated crates; maintain above 12°C to prevent chilling injury"
+        },
+        "Banana": {
+            "shelf_life_days": 7,
+            "approx_freshness": "4–7 Days",
+            "ambient_range": "3–5 Days (Ripe Ambient)",
+            "cold_range": "7–14 Days (Controlled Ripening 14–16°C)",
+            "perishability": "HIGH",
+            "urgency": "Fast-moving fruit intake",
+            "storage_guidance": "Ripening chamber with ethylene control; avoid stacking beyond 4 layers"
+        },
+        "Tomato": {
+            "shelf_life_days": 5,
+            "approx_freshness": "4–7 Days",
+            "ambient_range": "3–5 Days (Table Ripe)",
+            "cold_range": "7–10 Days (Ventilated 10–12°C)",
+            "perishability": "CRITICAL",
+            "urgency": "Immediate priority dispatch within 24h",
+            "storage_guidance": "Cold chain or ventilated shade; highly sensitive to heat buildup and compression"
+        },
+        "Sugarcane": {
+            "shelf_life_days": 3,
+            "approx_freshness": "2–3 Days",
+            "ambient_range": "2 Days (Field Harvest)",
+            "cold_range": "3 Days maximum before severe inversion",
+            "perishability": "CRITICAL",
+            "urgency": "Mill intake within 48h to avoid sucrose loss",
+            "storage_guidance": "Direct mill yard delivery; water misting during transit to reduce staling"
+        },
+        "Wheat": {
+            "shelf_life_days": 365,
+            "approx_freshness": "240–365+ Days",
+            "ambient_range": "240–365 Days (Moisture <= 12%)",
+            "cold_range": "Extended multi-year grain reserve",
+            "perishability": "LOW",
+            "urgency": "Standard scheduled warehousing",
+            "storage_guidance": "Covered dry godown; dunnage pallets; fumigation for pest prevention"
+        },
+        "Cotton": {
+            "shelf_life_days": 300,
+            "approx_freshness": "180–300+ Days",
+            "ambient_range": "180–300 Days (Moisture <= 8.5%)",
+            "cold_range": "Seasonal industrial bale stocking",
+            "perishability": "LOW",
+            "urgency": "Scheduled ginning/spinning dispatch",
+            "storage_guidance": "Fire-protected dry shed; elevated wooden battens to avoid ground moisture"
+        },
+        "Paddy": {
+            "shelf_life_days": 365,
+            "approx_freshness": "240–365+ Days",
+            "ambient_range": "240–365 Days (Moisture <= 14%)",
+            "cold_range": "Buffer stock silo aeration",
+            "perishability": "LOW",
+            "urgency": "Bulk buffer stocking",
+            "storage_guidance": "Aerated silo or CAP storage with polyethylene covers; moisture ceiling 14%"
+        },
+        "Maize": {
+            "shelf_life_days": 240,
+            "approx_freshness": "180–240+ Days",
+            "ambient_range": "180–240 Days (Moisture <= 14%)",
+            "cold_range": "Pest-managed ventilated store",
+            "perishability": "LOW",
+            "urgency": "Feed & industrial processing schedule",
+            "storage_guidance": "Moisture-controlled dry depot; routine aeration to prevent aflatoxin development"
+        },
+        "Bajra": {
+            "shelf_life_days": 180,
+            "approx_freshness": "90–180 Days",
+            "ambient_range": "90–120 Days (Moisture <= 12%)",
+            "cold_range": "Low-humidity seed storage",
+            "perishability": "LOW",
+            "urgency": "PDS nutri-cereal distribution",
+            "storage_guidance": "Dry ventilated godown; protect from moisture to avoid fat rancidity"
+        }
+    }
 
-    perishable_crops = db.query(CropMetadata).filter(CropMetadata.is_perishable == True).all()
-    crop_meta_map = {c.crop_name.lower(): c for c in perishable_crops}
-
-    centres_q = db.query(ProcurementCentre).filter(ProcurementCentre.status != "INACTIVE")
+    # Determine which crops to return based on requested state
+    result_crops = []
     if has_state:
-        centres_q = centres_q.filter(ProcurementCentre.state.ilike(f"%{st_val}%"))
-    centres = centres_q.all()
+        # Standardize state name
+        matched_state = "Goa" if "goa" in st_val.lower() else ("Maharashtra" if "maharashtra" in st_val.lower() else ("Karnataka" if "karnatak" in st_val.lower() else None))
+        if matched_state:
+            for c_name in STATE_CROPS[matched_state]:
+                result_crops.append((matched_state, c_name))
+        else:
+            for s_name, c_list in STATE_CROPS.items():
+                for c_name in c_list:
+                    result_crops.append((s_name, c_name))
+    else:
+        for s_name, c_list in STATE_CROPS.items():
+            for c_name in c_list:
+                result_crops.append((s_name, c_name))
 
     priority_rows = []
+    for s_name, c_name in result_crops:
+        cm = db.query(CropMetadata).filter(CropMetadata.crop_name == c_name).first()
+        profile = PERISHABILITY_PROFILES.get(c_name, {
+            "shelf_life_days": cm.shelf_life_days if cm else 30,
+            "approx_freshness": f"{cm.shelf_life_days} Days" if cm else "15–30 Days",
+            "perishability": cm.urgency_level if cm else "MEDIUM",
+            "storage_guidance": cm.storage_requirements if cm else "Standard Storage"
+        })
 
-    for c in centres:
-        daily_cap = float(c.max_daily_capacity_quintals or 800.0)
-        tot_storage = float(c.total_capacity_quintals or 10000.0)
-        stored = float(db.query(func.coalesce(func.sum(ProcurementRecord.procured_quantity_quintals), 0)).filter(
-            ProcurementRecord.centre_id == c.centre_id
-        ).scalar() or 0.0)
-        storage_avail = max(0.0, tot_storage - stored)
+        perish_lvl = profile.get("perishability", cm.urgency_level if cm else "LOW")
+        score = 95.0 if perish_lvl == "CRITICAL" else (85.0 if perish_lvl == "HIGH" else (65.0 if perish_lvl == "MEDIUM" else 45.0))
 
-        # Check bookings of perishable crops at this centre for the next 5 days
-        bookings = db.query(
-            Booking.crop,
-            func.sum(Booking.quantity).label("total_qty")
-        ).join(Slot, Booking.slot_id == Slot.id).filter(
-            Booking.centre_id == c.centre_id,
-            Slot.date >= today,
-            Slot.date <= today + timedelta(days=5),
-            Booking.status.in_(["BOOKED", "CONFIRMED", "CHECKED_IN"])
-        ).group_by(Booking.crop).all()
+        priority_rows.append({
+            "crop": c_name,
+            "crop_name": c_name,
+            "state": s_name,
+            "approx_freshness": profile.get("approx_freshness"),
+            "shelf_life": profile.get("approx_freshness"),
+            "approx_shelf_life_days": profile.get("shelf_life_days"),
+            "shelf_life_days": profile.get("shelf_life_days"),
+            "ambient_range": profile.get("ambient_range"),
+            "cold_range": profile.get("cold_range"),
+            "perishability": perish_lvl,
+            "urgency_level": perish_lvl,
+            "is_perishable": perish_lvl in ["CRITICAL", "HIGH"],
+            "storage": profile.get("storage_guidance"),
+            "storage_requirements": profile.get("storage_guidance"),
+            "score": score,
+            "priority_score": score,
+            "action": profile.get("urgency", "Standard Scheduled Warehousing"),
+            "category": cm.category if cm else ("HORTICULTURE" if c_name in ["Mango", "Banana", "Tomato"] else "GRAIN"),
+            "season": cm.season if cm else "Current Season",
+            "disclaimer": "Approximate freshness estimate affected by ambient temperature, humidity, variety, and storage conditions."
+        })
 
-        today_load = float(db.query(func.coalesce(func.sum(Booking.quantity), 0)).join(
-            Slot, Booking.slot_id == Slot.id
-        ).filter(
-            Booking.centre_id == c.centre_id,
-            Slot.date == today,
-            Booking.status.in_(["BOOKED", "CONFIRMED", "CHECKED_IN"])
-        ).scalar() or 0.0)
-        cong_level = "CRITICAL" if today_load >= daily_cap * 0.85 else ("HIGH" if today_load >= daily_cap * 0.70 else "MEDIUM")
-
-        for b in bookings:
-            cm = crop_meta_map.get(b.crop.lower())
-            if not cm:
-                continue
-
-            qty = float(b.total_qty)
-            priority_calc = calculate_transport_priority(
-                crop=cm.crop_name,
-                quantity_quintals=qty,
-                origin_centre=c,
-                destination_centre=None,
-                db=db
-            )
-
-            p_score = priority_calc.get("priority_score", priority_calc.get("transport_priority_score", 75.0))
-            priority_rows.append({
-                "centre_id": c.centre_id,
-                "centre_name": c.centre_name,
-                "state": c.state,
-                "district": c.district,
-                "crop": cm.crop_name,
-                "crop_name": cm.crop_name,
-                "category": cm.category,
-                "season": cm.season,
-                "perishability": cm.urgency_level or ("HIGH" if cm.is_perishable else "LOW"),
-                "expected_quantity_quintals": qty,
-                "shelf_life": f"{cm.shelf_life_days} Days",
-                "approx_shelf_life_days": cm.shelf_life_days,
-                "storage": cm.storage_requirements,
-                "storage_type_needed": cm.storage_requirements,
-                "score": p_score,
-                "priority_score": p_score,
-                "transport_priority_score": p_score,
-                "priority_rank": priority_calc.get("priority_level", "MEDIUM"),
-                "breakdown": priority_calc.get("breakdown", {}),
-                "action": priority_calc.get("action", "Immediate priority transport required"),
-                "recommended_fleet_action": priority_calc.get("action", "Immediate priority transport required")
-            })
-
-    # If no active centre bookings found, build baseline priority from crop metadata
-    if not priority_rows and centres:
-        def_c = centres[0]
-        for cm in crop_meta_map.values():
-            priority_calc = calculate_transport_priority(
-                crop=cm.crop_name,
-                quantity_quintals=150.0,
-                origin_centre=def_c,
-                destination_centre=None,
-                db=db
-            )
-            p_score = priority_calc.get("priority_score", priority_calc.get("transport_priority_score", 70.0))
-            priority_rows.append({
-                "centre_id": def_c.centre_id,
-                "centre_name": def_c.centre_name,
-                "state": def_c.state,
-                "district": def_c.district,
-                "crop": cm.crop_name,
-                "crop_name": cm.crop_name,
-                "category": cm.category,
-                "season": cm.season,
-                "perishability": cm.urgency_level or ("HIGH" if cm.is_perishable else "LOW"),
-                "expected_quantity_quintals": 150.0,
-                "shelf_life": f"{cm.shelf_life_days} Days",
-                "approx_shelf_life_days": cm.shelf_life_days,
-                "storage": cm.storage_requirements,
-                "storage_type_needed": cm.storage_requirements,
-                "score": p_score,
-                "priority_score": p_score,
-                "transport_priority_score": p_score,
-                "priority_rank": priority_calc.get("priority_level", "MEDIUM"),
-                "breakdown": priority_calc.get("breakdown", {}),
-                "action": priority_calc.get("action", "Standard Scheduled Fleet"),
-                "recommended_fleet_action": priority_calc.get("action", "Standard Scheduled Fleet")
-            })
-
-    priority_rows.sort(key=lambda x: x["transport_priority_score"], reverse=True)
+    # Sort so high-perishability crops appear first
+    priority_rows.sort(key=lambda x: (x["approx_shelf_life_days"] or 999))
 
     return {
         "success": True,
         "count": len(priority_rows),
-        "data": priority_rows[:25],
-        "priority_rankings": priority_rows[:25]
+        "data": priority_rows,
+        "priority_rankings": priority_rows
     }
 

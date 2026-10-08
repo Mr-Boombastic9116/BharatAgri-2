@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { 
   getCentreBookings, 
   updateBookingStatus, 
@@ -28,7 +28,13 @@ import {
   getCentreInsights,
   getCentreDailyIntelligence,
   getCentreRedirectionOptions,
-  resolveAlert
+  resolveAlert,
+  getCentreEmployees,
+  addCentreEmployee,
+  deleteCentreEmployee,
+  getLiveQueue,
+  getCongestionForecast,
+  queryCentreCopilot
 } from '../services/api';
 import StatusBadge from '../components/StatusBadge';
 import { Html5Qrcode } from 'html5-qrcode';
@@ -53,6 +59,8 @@ import {
   CalendarOff,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
+  ChevronUp,
   ListFilter,
   Wheat,
   Brain,
@@ -64,14 +72,21 @@ import {
   Upload,
   Droplets,
   FileCheck,
-  Eye
+  Eye,
+  Warehouse,
+  UserPlus,
+  RefreshCw,
+  Route,
+  Sparkles,
+  MessageSquare,
+  Bot
 } from 'lucide-react';
 import { formatDateDisplay } from '../utils/dateUtils';
 import DateInput from '../components/DateInput';
 
 const WEEKDAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
-export default function CentreDashboard({ user }) {
+export default function CentreDashboard({ user, navigate }) {
   // Navigation tab state: 'overview' | 'appointments' | 'slots' | 'config'
   const [activeTab, setActiveTab] = useState('overview');
 
@@ -130,6 +145,50 @@ export default function CentreDashboard({ user }) {
   const [rangeSlotCap, setRangeSlotCap] = useState(10);
   const [generatingSchedule, setGeneratingSchedule] = useState(false);
   const [rangeSummary, setRangeSummary] = useState(null);
+
+  // Live Queue & SIH Congestion Forecast (Requirements 8, 15, 16)
+  const resolvedCentreId = centreId;
+  const [sihLiveQueue, setSihLiveQueue] = useState(null);
+  const [sihCongestion, setSihCongestion] = useState(null);
+  const [loadingSihQueue, setLoadingSihQueue] = useState(false);
+
+  const fetchSihQueueData = useCallback(() => {
+    if (!centreId) return;
+    setLoadingSihQueue(true);
+    Promise.all([
+      getLiveQueue(centreId).catch(() => null),
+      getCongestionForecast(centreId).catch(() => null)
+    ])
+      .then(([qData, cData]) => {
+        setSihLiveQueue(qData);
+        setSihCongestion(cData);
+      })
+      .finally(() => setLoadingSihQueue(false));
+  }, [centreId]);
+
+  useEffect(() => {
+    fetchSihQueueData();
+  }, [fetchSihQueueData]);
+
+  // Centre Copilot State (Isolated Mandi Sahayak - Requirement 38)
+  const [centreCopilotQuery, setCentreCopilotQuery] = useState('');
+  const [centreCopilotLoading, setCentreCopilotLoading] = useState(false);
+  const [centreCopilotResponse, setCentreCopilotResponse] = useState(null);
+
+  const handleAskCentreCopilot = async (customPrompt) => {
+    const q = customPrompt || centreCopilotQuery;
+    if (!q || !q.trim()) return;
+    setCentreCopilotLoading(true);
+    setCentreCopilotResponse(null);
+    try {
+      const res = await queryCentreCopilot(resolvedCentreId || centreId, q.trim());
+      setCentreCopilotResponse(res);
+    } catch (err) {
+      setCentreCopilotResponse({ answer: 'Error querying centre copilot: ' + (err.message || 'Network error') });
+    } finally {
+      setCentreCopilotLoading(false);
+    }
+  };
 
   // QR Verification Modal & Scanner state (Single transaction state machine)
   const [showQrModal, setShowQrModal] = useState(false);
@@ -332,25 +391,111 @@ export default function CentreDashboard({ user }) {
   const [alertFilter, setAlertFilter] = useState('ALL');
   const [resolvingAlertId, setResolvingAlertId] = useState(null);
 
+  // Employee Management State for Tab 4 (Configure Days)
+  const [employees, setEmployees] = useState([]);
+  const [loadingEmployees, setLoadingEmployees] = useState(false);
+  const [newEmpForm, setNewEmpForm] = useState({
+    name: '',
+    role: 'Intake Officer',
+    employee_code: '',
+    phone: '',
+    email: ''
+  });
+  const [addingEmp, setAddingEmp] = useState(false);
+  const [empError, setEmpError] = useState('');
+  const [empSuccess, setEmpSuccess] = useState('');
+
+  // Expandable Insights State (Requirement 6)
+  const [expandedInsights, setExpandedInsights] = useState({});
+  const toggleInsight = (key) => {
+    setExpandedInsights(prev => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  const loadEmployees = async () => {
+    if (!centreId) return;
+    setLoadingEmployees(true);
+    try {
+      const res = await getCentreEmployees(centreId);
+      if (res && res.employees) {
+        setEmployees(res.employees);
+      }
+    } catch (e) {
+      console.warn('Could not load employees:', e);
+    } finally {
+      setLoadingEmployees(false);
+    }
+  };
+
+  const handleAddEmployee = async (e) => {
+    e.preventDefault();
+    setEmpError('');
+    setEmpSuccess('');
+    if (!newEmpForm.name.trim()) {
+      setEmpError('Employee name is required.');
+      return;
+    }
+    setAddingEmp(true);
+    try {
+      const code = newEmpForm.employee_code.trim() || `EMP-${Date.now().toString().slice(-4)}`;
+      const payload = {
+        name: newEmpForm.name.trim(),
+        role: newEmpForm.role,
+        employee_code: code,
+        phone: newEmpForm.phone.trim() || '9876543210',
+        email: newEmpForm.email.trim() || `${code.toLowerCase()}@bharatagri.gov.in`
+      };
+      const res = await addCentreEmployee(centreId, payload);
+      if (res && res.success) {
+        setEmpSuccess(`Employee ${payload.name} (${payload.employee_code}) added successfully!`);
+        setNewEmpForm({
+          name: '',
+          role: 'Intake Officer',
+          employee_code: '',
+          phone: '',
+          email: ''
+        });
+        await loadEmployees();
+      }
+    } catch (err) {
+      setEmpError(err.message || 'Failed to add employee.');
+    } finally {
+      setAddingEmp(false);
+    }
+  };
+
+  const handleDeleteEmployee = async (empId, empName) => {
+    if (!window.confirm(`Deactivate employee "${empName}" from centre roster?`)) return;
+    setEmpError('');
+    setEmpSuccess('');
+    try {
+      await deleteCentreEmployee(centreId, empId);
+      setEmpSuccess(`Employee "${empName}" deactivated.`);
+      await loadEmployees();
+    } catch (err) {
+      setEmpError(err.message || 'Failed to deactivate employee.');
+    }
+  };
+
   const loadCentreData = () => {
     if (user && centreId) {
       setLoading(true);
       Promise.all([
-        getCentreBookings(centreId, selectedDate),
-        getSlots(centreId, selectedDate),
-        getOperatingConfig(centreId),
-        getDailyCapacity(centreId, selectedDate),
+        getCentreBookings(centreId, selectedDate).catch(() => []),
+        getSlots(centreId, selectedDate).catch(() => []),
+        getOperatingConfig(centreId).catch(() => null),
+        getDailyCapacity(centreId, selectedDate).catch(() => null),
         getCentreOperationalIntelligence(centreId).catch(() => null),
         getCentreAlerts(centreId).catch(() => []),
         getCentreInsights(centreId).catch(() => null),
         getCentreDailyIntelligence(centreId).catch(() => null),
-        getCentreRedirectionOptions(centreId).catch(() => null)
+        getCentreRedirectionOptions(centreId).catch(() => null),
+        getCentreEmployees(centreId).catch(() => ({ employees: [] }))
       ])
-        .then(([bookingsData, slotsData, configData, capData, intelData, alertsData, insightsData, dailyData, redirData]) => {
-          setBookings(bookingsData || []);
-          setSlots(slotsData || []);
-          setOperatingDays(parseDaysArray(configData.operating_days));
-          setNonOperationalDates(configData.non_operational_dates || []);
+        .then(([bookingsData, slotsData, configData, capData, intelData, alertsData, insightsData, dailyData, redirData, empsData]) => {
+          setBookings(Array.isArray(bookingsData) ? bookingsData : []);
+          setSlots(Array.isArray(slotsData) ? slotsData : []);
+          setOperatingDays(parseDaysArray(configData?.operating_days));
+          setNonOperationalDates(configData?.non_operational_dates || []);
           setDailyCapacityInfo(capData || { max_quintals_per_day: 500, booked_quintals: 0, available_quintals: 500 });
           setEditDailyQuintalVal(capData?.max_quintals_per_day || 500);
           if (intelData?.intelligence) {
@@ -360,9 +505,12 @@ export default function CentreDashboard({ user }) {
           setCentreInsights(insightsData);
           setCentreDailyIntel(dailyData);
           setRedirectionOptions(redirData);
+          setEmployees(empsData?.employees || []);
         })
         .catch(err => setError('Failed to load centre data: ' + (err.message || '')))
         .finally(() => setLoading(false));
+    } else {
+      setLoading(false);
     }
   };
 
@@ -891,7 +1039,7 @@ export default function CentreDashboard({ user }) {
     }, 250);
   };
 
-  const stopCameraScanner = async () => {
+  async function stopCameraScanner() {
     // 1. Immediately terminate and release all video stream tracks
     try {
       const videoEl = document.querySelector('#qr-reader video');
@@ -1166,7 +1314,7 @@ export default function CentreDashboard({ user }) {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
         <div>
           <h1 style={{ fontSize: '1.85rem', color: 'var(--secondary)' }}>
-            Welcome, {user.name}
+            Welcome, {user?.name || 'Centre Manager'}
           </h1>
           <p style={{ fontSize: '0.95rem', color: 'var(--muted)' }}>Procurement Centre Management & Date-based Portal</p>
         </div>
@@ -1202,7 +1350,9 @@ export default function CentreDashboard({ user }) {
           </div>
           <div>
             <div style={{ fontSize: '0.8rem', color: 'var(--muted)', fontWeight: 600 }}>CENTRE NAME</div>
-            <div style={{ fontSize: '1.15rem', fontWeight: 700, color: 'var(--secondary)' }}>{user.name}</div>
+            <div style={{ fontSize: '1.15rem', fontWeight: 700, color: 'var(--secondary)' }}>
+              {user?.centre_name ? `${user.centre_name} (${user.name})` : (user?.name || 'Procurement Centre')}
+            </div>
           </div>
         </div>
 
@@ -1212,7 +1362,9 @@ export default function CentreDashboard({ user }) {
           </div>
           <div>
             <div style={{ fontSize: '0.8rem', color: 'var(--muted)', fontWeight: 600 }}>CENTRE ID</div>
-            <div style={{ fontSize: '1.15rem', fontWeight: 700, color: 'var(--secondary)' }}>{user.user_id}</div>
+            <div style={{ fontSize: '1.15rem', fontWeight: 700, color: 'var(--secondary)' }}>
+              {centreId || user?.centre_id || user?.user_id}
+            </div>
           </div>
         </div>
 
@@ -1297,6 +1449,14 @@ export default function CentreDashboard({ user }) {
         >
           <Brain size={18} /> Centre Insights
         </button>
+
+        <button 
+          className={`btn ${activeTab === 'copilot' ? 'btn-primary' : 'btn-outline'}`}
+          onClick={() => setActiveTab('copilot')}
+          style={{ borderRadius: 'var(--radius-sm) var(--radius-sm) 0 0', display: 'flex', alignItems: 'center', gap: '6px' }}
+        >
+          <Sparkles size={18} /> Centre Copilot
+        </button>
       </div>
 
       {/* UNIVERSAL TOP DATE SELECTION CONTROL (Applies across Overview, Appointments, and Schedule Editor) */}
@@ -1353,6 +1513,127 @@ export default function CentreDashboard({ user }) {
       {/* TAB 1: DATE-BASED OVERVIEW & CROP SUMMARY */}
       {activeTab === 'overview' && (
         <>
+          {/* SIH DYNAMIC AI LIVE QUEUE & HOURLY CONGESTION FORECAST (Requirements 8, 15, 16) */}
+          <div className="card shadow-sm mb-4" style={{
+            padding: '20px 24px',
+            borderRadius: '14px',
+            background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
+            border: '2px solid #10b981',
+            color: '#f8fafc',
+            boxShadow: '0 8px 24px rgba(16, 185, 129, 0.15)'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', borderBottom: '1px solid rgba(255, 255, 255, 0.1)', paddingBottom: '12px', marginBottom: '14px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <span style={{ fontSize: '1.75rem' }}>🔴</span>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, color: '#f8fafc' }}>
+                    Live Queue Operations & Hourly Congestion Forecast
+                  </h3>
+                  <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>
+                    {sihLiveQueue?.centre_name || resolvedCentreId} • Last updated {sihLiveQueue?.last_updated || 'Live'}
+                  </span>
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <span style={{
+                  padding: '4px 12px', borderRadius: '999px', fontSize: '0.78rem', fontWeight: 800,
+                  backgroundColor: sihLiveQueue?.status_color === 'warning' ? 'rgba(245, 158, 11, 0.25)' : 'rgba(16, 185, 129, 0.25)',
+                  color: sihLiveQueue?.status_color === 'warning' ? '#fcd34d' : '#6ee7b7',
+                  border: '1px solid currentColor'
+                }}>
+                  {sihLiveQueue?.status_label || '🟢 Centre operating normally'}
+                </span>
+                <button
+                  onClick={fetchSihQueueData}
+                  disabled={loadingSihQueue}
+                  className="btn btn-outline"
+                  style={{ padding: '4px 10px', fontSize: '0.75rem', color: '#fff', borderColor: 'rgba(255,255,255,0.3)' }}
+                >
+                  <RefreshCw size={12} className={loadingSihQueue ? 'animate-spin' : ''} /> Refresh
+                </button>
+              </div>
+            </div>
+
+            {/* 5 Real KPI Numbers from SIH Queue Events */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '12px', marginBottom: '16px' }}>
+              <div style={{ background: 'rgba(255, 255, 255, 0.05)', padding: '12px 14px', borderRadius: '10px', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
+                <span style={{ fontSize: '0.72rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 700, display: 'block' }}>Farmers Waiting</span>
+                <div style={{ fontSize: '1.8rem', fontWeight: 900, color: '#f8fafc', marginTop: '2px' }}>
+                  {sihLiveQueue?.queue_length ?? 0}
+                </div>
+                <span style={{ fontSize: '0.7rem', color: '#38bdf8' }}>In Mandi Yard</span>
+              </div>
+
+              <div style={{ background: 'rgba(255, 255, 255, 0.05)', padding: '12px 14px', borderRadius: '10px', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
+                <span style={{ fontSize: '0.72rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 700, display: 'block' }}>Serving Token</span>
+                <div style={{ fontSize: '1.8rem', fontWeight: 900, color: '#fde047', marginTop: '2px' }}>
+                  {sihLiveQueue?.current_serving_token ?? '--'}
+                </div>
+                <span style={{ fontSize: '0.7rem', color: '#fde047' }}>At Weighbridge WB-01</span>
+              </div>
+
+              <div style={{ background: 'rgba(255, 255, 255, 0.05)', padding: '12px 14px', borderRadius: '10px', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
+                <span style={{ fontSize: '0.72rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 700, display: 'block' }}>ML Predicted Wait</span>
+                <div style={{ fontSize: '1.8rem', fontWeight: 900, color: '#fca5a5', marginTop: '2px' }}>
+                  {sihLiveQueue?.estimated_wait_min ?? 0} <span style={{ fontSize: '0.9rem' }}>min</span>
+                </div>
+                <span style={{ fontSize: '0.7rem', color: '#94a3b8' }}>Baseline: {sihLiveQueue?.baseline_wait_min ?? 0} min</span>
+              </div>
+
+              <div style={{ background: 'rgba(255, 255, 255, 0.05)', padding: '12px 14px', borderRadius: '10px', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
+                <span style={{ fontSize: '0.72rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 700, display: 'block' }}>Active Weigh Stations</span>
+                <div style={{ fontSize: '1.8rem', fontWeight: 900, color: '#86efac', marginTop: '2px' }}>
+                  {sihLiveQueue?.active_stations ?? opIntelligence?.infrastructure?.weighbridges_active ?? 0} / {opIntelligence?.infrastructure?.weighbridges_total ?? 3}
+                </div>
+                <span style={{ fontSize: '0.7rem', color: '#86efac' }}>Operational</span>
+              </div>
+
+              <div style={{ background: 'rgba(255, 255, 255, 0.05)', padding: '12px 14px', borderRadius: '10px', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
+                <span style={{ fontSize: '0.72rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 700, display: 'block' }}>Processing Rate</span>
+                <div style={{ fontSize: '1.8rem', fontWeight: 900, color: '#cbd5e1', marginTop: '2px' }}>
+                  {sihLiveQueue?.processing_rate_farmers_per_hour ?? 0} <span style={{ fontSize: '0.8rem' }}>/hr</span>
+                </div>
+                <span style={{ fontSize: '0.7rem', color: '#94a3b8' }}>Avg {sihLiveQueue?.avg_processing_time_min ?? 0} min/farmer</span>
+              </div>
+            </div>
+
+            {/* HOURLY CONGESTION FORECAST (Requirement 15) */}
+            {sihCongestion?.hourly_forecast && (
+              <div style={{ borderTop: '1px solid rgba(255, 255, 255, 0.1)', paddingTop: '12px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                  <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#e2e8f0' }}>
+                    📊 Hourly Congestion Forecast (Today 8 AM – 5 PM)
+                  </span>
+                  {sihCongestion.high_congestion_alert && (
+                    <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#fca5a5', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <AlertTriangle size={12} /> Peak congestion window: {sihCongestion.peak_hours_window}
+                    </span>
+                  )}
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(85px, 1fr))', gap: '8px' }}>
+                  {sihCongestion.hourly_forecast.map((h, i) => (
+                    <div key={i} style={{
+                      padding: '8px 10px', borderRadius: '8px', textAlign: 'center',
+                      background: h.congestion_level === 'CRITICAL' ? 'rgba(239, 68, 68, 0.25)' : (h.congestion_level === 'HIGH' ? 'rgba(245, 158, 11, 0.25)' : 'rgba(255, 255, 255, 0.05)'),
+                      border: `1px solid ${h.congestion_level === 'CRITICAL' ? '#ef4444' : (h.congestion_level === 'HIGH' ? '#f59e0b' : 'rgba(255,255,255,0.1)')}`
+                    }}>
+                      <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>{h.display_time}</div>
+                      <div style={{ fontSize: '1.1rem', fontWeight: 900, color: h.congestion_level === 'CRITICAL' ? '#fca5a5' : '#f8fafc', margin: '2px 0' }}>
+                        {h.predicted_arrivals}
+                      </div>
+                      <span style={{
+                        fontSize: '0.65rem', fontWeight: 700, textTransform: 'uppercase',
+                        color: h.congestion_level === 'CRITICAL' ? '#fca5a5' : (h.congestion_level === 'HIGH' ? '#fde047' : '#86efac')
+                      }}>
+                        {h.congestion_level}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
           {/* DAILY INTELLIGENCE EXECUTIVE SUMMARY (Requirement 11) */}
           {centreDailyIntel?.daily_intelligence && (
             <div className="card shadow-sm mb-4" style={{
@@ -2147,10 +2428,31 @@ export default function CentreDashboard({ user }) {
                                     {['ARRIVED', 'VERIFIED', 'RECEIVED', 'QUALITY_CHECKED', 'WEIGHED', 'STORED', 'PAYMENT_INITIATED'].includes(b.status) && (
                                       <button 
                                         className="btn btn-primary btn-sm"
-                                        onClick={() => handleOpenProcurementModal(b)}
-                                        title="Open Procurement & Weighment Workflow"
+                                        onClick={() => {
+                                          if (navigate) {
+                                            navigate('centre-process', { appointmentId: b.appointment_id || b.booking_id });
+                                          } else {
+                                            handleOpenProcurementModal(b);
+                                          }
+                                        }}
+                                        title="Open Dedicated 5-Step Procurement & AI Quality Workflow"
                                       >
                                         <Scale size={14} /> Process ({b.status})
+                                      </button>
+                                    )}
+
+                                    {(['COMPLETED', 'PROCURED', 'PAID'].includes(b.status) || b.is_all_completed) && (
+                                      <button 
+                                        className="btn btn-sm"
+                                        style={{ background: '#2563eb', color: '#fff', borderColor: '#1d4ed8', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                                        onClick={() => {
+                                          if (navigate) {
+                                            navigate('centre-storage', { appointmentId: b.appointment_id || b.booking_id });
+                                          }
+                                        }}
+                                        title="Open Dedicated Storage Page & Final Warehouse Verification"
+                                      >
+                                        <Warehouse size={14} /> Storage
                                       </button>
                                     )}
 
@@ -2338,6 +2640,7 @@ export default function CentreDashboard({ user }) {
 
       {/* TAB 4: OPERATING DAYS & HOLIDAYS CONFIGURATION */}
       {activeTab === 'config' && (
+        <>
         <div className="grid grid-2" style={{ gap: '24px', marginBottom: '2.5rem' }}>
           {/* Section 1: Weekly Operating Days */}
           <div className="card shadow-sm" style={{ padding: '24px' }}>
@@ -2452,6 +2755,171 @@ export default function CentreDashboard({ user }) {
             )}
           </div>
         </div>
+
+        {/* Section 3: Centre Staff & Operating Employee Roster (Requirement 2) */}
+        <div className="card shadow-sm" style={{ padding: '24px', marginTop: '20px', borderRadius: '12px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', marginBottom: '16px', borderBottom: '1px solid var(--border)', paddingBottom: '12px' }}>
+            <div>
+              <h3 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0, display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--secondary)' }}>
+                <Users size={20} color="var(--primary)" /> Centre Staff & Operating Employee Roster
+              </h3>
+              <p style={{ fontSize: '0.85rem', color: 'var(--muted)', margin: '4px 0 0 0' }}>
+                Authorized officers and operators registered in database for gate intake, QC, AI inspection, weighment, and storage checks.
+              </p>
+            </div>
+            <span style={{ fontSize: '0.85rem', fontWeight: 700, background: 'var(--primary-light)', color: 'var(--primary)', padding: '4px 12px', borderRadius: '20px' }}>
+              {employees.length} Active Employees
+            </span>
+          </div>
+
+          {empError && (
+            <div className="alert alert-danger" style={{ marginBottom: '16px', padding: '10px 14px', fontSize: '0.85rem' }}>
+              ⚠ {empError}
+            </div>
+          )}
+
+          {empSuccess && (
+            <div className="alert alert-success" style={{ marginBottom: '16px', padding: '10px 14px', fontSize: '0.85rem' }}>
+              ✓ {empSuccess}
+            </div>
+          )}
+
+          {/* Existing Employees Table */}
+          {loadingEmployees ? (
+            <p style={{ padding: '16px', color: 'var(--muted)' }}>Loading centre staff roster...</p>
+          ) : employees.length === 0 ? (
+            <p style={{ padding: '16px', color: 'var(--muted)', fontStyle: 'italic' }}>No staff members registered. Add new employees below.</p>
+          ) : (
+            <div className="table-container" style={{ marginBottom: '24px' }}>
+              <table className="data-table" style={{ margin: 0 }}>
+                <thead>
+                  <tr>
+                    <th>Employee Name</th>
+                    <th>Role / Assignment</th>
+                    <th>Employee Code</th>
+                    <th>Contact Phone</th>
+                    <th>Email Address</th>
+                    <th>Status</th>
+                    <th style={{ textAlign: 'center' }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {employees.map(emp => (
+                    <tr key={emp.id}>
+                      <td><strong>{emp.name}</strong></td>
+                      <td>
+                        <span style={{
+                          padding: '3px 8px',
+                          borderRadius: '6px',
+                          fontSize: '0.78rem',
+                          fontWeight: 700,
+                          background: emp.role?.includes('Storage') ? 'rgba(37, 99, 235, 0.1)' : emp.role?.includes('QC') ? 'rgba(16, 185, 129, 0.1)' : 'rgba(124, 58, 237, 0.1)',
+                          color: emp.role?.includes('Storage') ? '#2563eb' : emp.role?.includes('QC') ? '#059669' : '#7c3aed'
+                        }}>
+                          {emp.role}
+                        </span>
+                      </td>
+                      <td><code>{emp.employee_code}</code></td>
+                      <td>{emp.phone || '—'}</td>
+                      <td>{emp.email || '—'}</td>
+                      <td>
+                        <span className="badge badge-confirmed" style={{ fontSize: '0.72rem' }}>
+                          {emp.status}
+                        </span>
+                      </td>
+                      <td style={{ textAlign: 'center' }}>
+                        <button
+                          className="btn btn-outline btn-sm"
+                          style={{ color: 'var(--danger)', borderColor: 'var(--danger)', padding: '2px 8px', fontSize: '0.75rem' }}
+                          onClick={() => handleDeleteEmployee(emp.id, emp.name)}
+                          title="Deactivate employee from centre"
+                        >
+                          Deactivate
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* Add Employee Form */}
+          <div style={{ background: 'var(--bg-page)', padding: '18px 20px', borderRadius: '10px', border: '1px solid var(--border)' }}>
+            <h4 style={{ margin: '0 0 14px 0', fontSize: '0.95rem', fontWeight: 800, color: 'var(--secondary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <UserPlus size={16} color="var(--primary)" /> Add New Employee to Centre Roster
+            </h4>
+            <form onSubmit={handleAddEmployee}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px', marginBottom: '14px' }}>
+                <div>
+                  <label className="form-label" style={{ fontSize: '0.8rem', fontWeight: 600 }}>Full Name *</label>
+                  <input
+                    type="text"
+                    required
+                    className="form-control"
+                    placeholder="e.g. Officer Mahesh Sawant"
+                    value={newEmpForm.name}
+                    onChange={e => setNewEmpForm({ ...newEmpForm, name: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="form-label" style={{ fontSize: '0.8rem', fontWeight: 600 }}>Role / Designation *</label>
+                  <select
+                    className="form-control"
+                    value={newEmpForm.role}
+                    onChange={e => setNewEmpForm({ ...newEmpForm, role: e.target.value })}
+                  >
+                    <option value="Intake Officer">Intake Officer (Step 1 Verification)</option>
+                    <option value="Quality Inspector">Quality Inspector (Step 2 QC)</option>
+                    <option value="AI QC Lead">AI QC Lead (Step 3 Vision Analysis)</option>
+                    <option value="Weighbridge Operator">Weighbridge Operator (Step 4 Scale)</option>
+                    <option value="Procurement Manager">Procurement Manager (Step 5 Clearance)</option>
+                    <option value="Storage Supervisor">Storage Supervisor (Storage Check)</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="form-label" style={{ fontSize: '0.8rem', fontWeight: 600 }}>Employee Code</label>
+                  <input
+                    type="text"
+                    className="form-control"
+                    placeholder="e.g. EMP-07"
+                    value={newEmpForm.employee_code}
+                    onChange={e => setNewEmpForm({ ...newEmpForm, employee_code: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="form-label" style={{ fontSize: '0.8rem', fontWeight: 600 }}>Phone Contact</label>
+                  <input
+                    type="tel"
+                    className="form-control"
+                    placeholder="e.g. 9876543210"
+                    value={newEmpForm.phone}
+                    onChange={e => setNewEmpForm({ ...newEmpForm, phone: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="form-label" style={{ fontSize: '0.8rem', fontWeight: 600 }}>Email Address</label>
+                  <input
+                    type="email"
+                    className="form-control"
+                    placeholder="e.g. officer@bharatagri.gov.in"
+                    value={newEmpForm.email}
+                    onChange={e => setNewEmpForm({ ...newEmpForm, email: e.target.value })}
+                  />
+                </div>
+              </div>
+              <button
+                type="submit"
+                className="btn btn-primary btn-sm"
+                disabled={addingEmp}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+              >
+                <Plus size={14} /> {addingEmp ? 'Adding Employee...' : 'Add Employee to Roster'}
+              </button>
+            </form>
+          </div>
+        </div>
+        </>
       )}
 
       {/* TAB 5: CENTRE ALERTS SECTION (Requirement 6) */}
@@ -2628,37 +3096,29 @@ export default function CentreDashboard({ user }) {
                     `Current booked quintals: ${dailyCapacityInfo.booked_quintals || 0} Q against ${dailyCapacityInfo.max_quintals_per_day || 500} Q daily intake limit.`,
                     `Active crop varieties currently being processed: ${cropSummaryList.length} crops recorded in yard.`,
                     `Storage capacity currently holding: ${opIntelligence?.utilization_forecast?.current_storage_quintals?.toLocaleString() || '1,200'} Quintals.`
-                  ]).map((item, idx) => (
-                    <div key={idx} style={{ padding: '10px 12px', background: 'var(--bg-card)', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '0.85rem', color: 'var(--secondary)' }}>
-                      {typeof item === 'string' ? `• ${item}` : (
-                        <div>
-                          <div style={{ fontWeight: 700, color: 'var(--secondary)', marginBottom: '4px' }}>
-                            {item.what || item.summary || item.text}
-                          </div>
-                          {item.evidence && (
-                            <div style={{ fontSize: '0.78rem', color: 'var(--muted)', marginBottom: '3px' }}>
-                              <strong>Evidence:</strong> {item.evidence}
-                            </div>
-                          )}
-                          {item.why && (
-                            <div style={{ fontSize: '0.78rem', color: 'var(--secondary)', marginBottom: '3px' }}>
-                              <strong>Why it matters:</strong> {item.why}
-                            </div>
-                          )}
-                          {item.action && (
-                            <div style={{ fontSize: '0.78rem', color: 'var(--primary)', marginBottom: '2px', background: 'var(--success-bg)', padding: '4px 6px', borderRadius: '4px' }}>
-                              <strong>Action:</strong> {item.action}
-                            </div>
-                          )}
-                          {item.benefit && (
-                            <div style={{ fontSize: '0.75rem', color: 'var(--muted)', marginTop: '2px' }}>
-                              <strong>Benefit:</strong> {item.benefit}
-                            </div>
-                          )}
+                  ]).map((item, idx) => {
+                    const isExpanded = !!expandedInsights[`desc_${idx}`];
+                    const title = typeof item === 'string' ? item : (item.what || item.summary || item.text);
+                    return (
+                      <div key={idx} style={{ background: 'var(--bg-card)', borderRadius: '8px', border: isExpanded ? '1px solid #3b82f6' : '1px solid var(--border)', overflow: 'hidden' }}>
+                        <div
+                          onClick={() => toggleInsight(`desc_${idx}`)}
+                          style={{ padding: '10px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', gap: '8px', background: isExpanded ? 'rgba(59, 130, 246, 0.04)' : 'transparent' }}
+                        >
+                          <div style={{ fontWeight: 700, fontSize: '0.85rem', color: 'var(--secondary)' }}>{title}</div>
+                          <span style={{ color: 'var(--muted)', display: 'flex' }}>{isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}</span>
                         </div>
-                      )}
-                    </div>
-                  ))}
+                        {isExpanded && typeof item === 'object' && (
+                          <div style={{ padding: '10px 12px', borderTop: '1px solid var(--border)', fontSize: '0.8rem', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                            {item.evidence && <div><strong style={{ color: 'var(--muted)' }}>Supporting Data / Evidence:</strong> <span style={{ color: 'var(--secondary)' }}>{item.evidence}</span></div>}
+                            {item.why && <div><strong style={{ color: 'var(--muted)' }}>Explanation:</strong> <span style={{ color: 'var(--secondary)' }}>{item.why}</span></div>}
+                            {item.action && <div style={{ background: 'var(--success-bg)', padding: '4px 8px', borderRadius: '4px' }}><strong style={{ color: 'var(--primary-dark)' }}>Recommended Action:</strong> <span style={{ color: 'var(--primary-dark)' }}>{item.action}</span></div>}
+                            {item.benefit && <div><strong style={{ color: 'var(--muted)' }}>Expected Benefit:</strong> <span style={{ color: 'var(--muted)' }}>{item.benefit}</span></div>}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
 
@@ -2676,37 +3136,29 @@ export default function CentreDashboard({ user }) {
                     `Expected procurement over next 7 days estimated at ${opIntelligence?.expected_procurement?.value || 450} Quintals.`,
                     `Predicted yard congestion level is ${opIntelligence?.congestion_prediction?.level || 'LOW'} with load ratio of ${opIntelligence?.congestion_prediction?.load_ratio_percent || 45}%.`,
                     `Truck fleet deficit predicted: ${opIntelligence?.truck_requirement?.shortfall || 0} additional trucks needed for outgoing transit.`
-                  ]).map((item, idx) => (
-                    <div key={idx} style={{ padding: '10px 12px', background: 'var(--bg-card)', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '0.85rem', color: 'var(--secondary)' }}>
-                      {typeof item === 'string' ? `• ${item}` : (
-                        <div>
-                          <div style={{ fontWeight: 700, color: 'var(--secondary)', marginBottom: '4px' }}>
-                            {item.what || item.summary || item.text}
-                          </div>
-                          {item.evidence && (
-                            <div style={{ fontSize: '0.78rem', color: 'var(--muted)', marginBottom: '3px' }}>
-                              <strong>Evidence:</strong> {item.evidence}
-                            </div>
-                          )}
-                          {item.why && (
-                            <div style={{ fontSize: '0.78rem', color: 'var(--secondary)', marginBottom: '3px' }}>
-                              <strong>Why it matters:</strong> {item.why}
-                            </div>
-                          )}
-                          {item.action && (
-                            <div style={{ fontSize: '0.78rem', color: 'var(--primary)', marginBottom: '2px', background: 'var(--success-bg)', padding: '4px 6px', borderRadius: '4px' }}>
-                              <strong>Action:</strong> {item.action}
-                            </div>
-                          )}
-                          {item.benefit && (
-                            <div style={{ fontSize: '0.75rem', color: 'var(--muted)', marginTop: '2px' }}>
-                              <strong>Benefit:</strong> {item.benefit}
-                            </div>
-                          )}
+                  ]).map((item, idx) => {
+                    const isExpanded = !!expandedInsights[`pred_${idx}`];
+                    const title = typeof item === 'string' ? item : (item.what || item.summary || item.text);
+                    return (
+                      <div key={idx} style={{ background: 'var(--bg-card)', borderRadius: '8px', border: isExpanded ? '1px solid #f59e0b' : '1px solid var(--border)', overflow: 'hidden' }}>
+                        <div
+                          onClick={() => toggleInsight(`pred_${idx}`)}
+                          style={{ padding: '10px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', gap: '8px', background: isExpanded ? 'rgba(245, 158, 11, 0.04)' : 'transparent' }}
+                        >
+                          <div style={{ fontWeight: 700, fontSize: '0.85rem', color: 'var(--secondary)' }}>{title}</div>
+                          <span style={{ color: 'var(--muted)', display: 'flex' }}>{isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}</span>
                         </div>
-                      )}
-                    </div>
-                  ))}
+                        {isExpanded && typeof item === 'object' && (
+                          <div style={{ padding: '10px 12px', borderTop: '1px solid var(--border)', fontSize: '0.8rem', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                            {item.evidence && <div><strong style={{ color: 'var(--muted)' }}>Supporting Data / Evidence:</strong> <span style={{ color: 'var(--secondary)' }}>{item.evidence}</span></div>}
+                            {item.why && <div><strong style={{ color: 'var(--muted)' }}>Explanation:</strong> <span style={{ color: 'var(--secondary)' }}>{item.why}</span></div>}
+                            {item.action && <div style={{ background: 'var(--success-bg)', padding: '4px 8px', borderRadius: '4px' }}><strong style={{ color: 'var(--primary-dark)' }}>Recommended Action:</strong> <span style={{ color: 'var(--primary-dark)' }}>{item.action}</span></div>}
+                            {item.benefit && <div><strong style={{ color: 'var(--muted)' }}>Expected Benefit:</strong> <span style={{ color: 'var(--muted)' }}>{item.benefit}</span></div>}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
 
@@ -2725,40 +3177,210 @@ export default function CentreDashboard({ user }) {
                     'Prioritize dispatch of perishable crops (Tomatoes, Vegetables) within 24 hours of weighing.',
                     'Request 2 additional transit trucks from district logistics pool to avoid storage blockage.',
                     'Pre-position 400 additional Bardan (jute bags) in bay 3 before weekend arrivals surge.'
-                  ]).map((item, idx) => (
-                    <div key={idx} style={{ padding: '10px 12px', background: 'var(--bg-card)', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '0.85rem', color: 'var(--secondary)' }}>
-                      {typeof item === 'string' ? `• ${item}` : (
-                        <div>
-                          <div style={{ fontWeight: 700, color: 'var(--secondary)', marginBottom: '4px' }}>
-                            {item.what || item.summary || item.text}
-                          </div>
-                          {item.evidence && (
-                            <div style={{ fontSize: '0.78rem', color: 'var(--muted)', marginBottom: '3px' }}>
-                              <strong>Evidence:</strong> {item.evidence}
-                            </div>
-                          )}
-                          {item.why && (
-                            <div style={{ fontSize: '0.78rem', color: 'var(--secondary)', marginBottom: '3px' }}>
-                              <strong>Why it matters:</strong> {item.why}
-                            </div>
-                          )}
-                          {item.action && (
-                            <div style={{ fontSize: '0.78rem', color: 'var(--primary)', marginBottom: '2px', background: 'var(--success-bg)', padding: '4px 6px', borderRadius: '4px' }}>
-                              <strong>Action:</strong> {item.action}
-                            </div>
-                          )}
-                          {item.benefit && (
-                            <div style={{ fontSize: '0.75rem', color: 'var(--muted)', marginTop: '2px' }}>
-                              <strong>Benefit:</strong> {item.benefit}
-                            </div>
-                          )}
+                  ]).map((item, idx) => {
+                    const isExpanded = !!expandedInsights[`pres_${idx}`];
+                    const title = typeof item === 'string' ? item : (item.what || item.summary || item.text);
+                    return (
+                      <div key={idx} style={{ background: 'var(--bg-card)', borderRadius: '8px', border: isExpanded ? '1px solid #10b981' : '1px solid var(--border)', overflow: 'hidden' }}>
+                        <div
+                          onClick={() => toggleInsight(`pres_${idx}`)}
+                          style={{ padding: '10px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', gap: '8px', background: isExpanded ? 'rgba(16, 185, 129, 0.04)' : 'transparent' }}
+                        >
+                          <div style={{ fontWeight: 700, fontSize: '0.85rem', color: 'var(--secondary)' }}>{title}</div>
+                          <span style={{ color: 'var(--muted)', display: 'flex' }}>{isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}</span>
                         </div>
-                      )}
-                    </div>
-                  ))}
+                        {isExpanded && typeof item === 'object' && (
+                          <div style={{ padding: '10px 12px', borderTop: '1px solid var(--border)', fontSize: '0.8rem', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                            {item.evidence && <div><strong style={{ color: 'var(--muted)' }}>Supporting Data / Evidence:</strong> <span style={{ color: 'var(--secondary)' }}>{item.evidence}</span></div>}
+                            {item.why && <div><strong style={{ color: 'var(--muted)' }}>Explanation:</strong> <span style={{ color: 'var(--secondary)' }}>{item.why}</span></div>}
+                            {item.action && <div style={{ background: 'var(--success-bg)', padding: '4px 8px', borderRadius: '4px' }}><strong style={{ color: 'var(--primary-dark)' }}>Recommended Action:</strong> <span style={{ color: 'var(--primary-dark)' }}>{item.action}</span></div>}
+                            {item.benefit && <div><strong style={{ color: 'var(--muted)' }}>Expected Benefit:</strong> <span style={{ color: 'var(--muted)' }}>{item.benefit}</span></div>}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* TAB 7: ISOLATED CENTRE COPILOT (Requirement 38) */}
+      {activeTab === 'copilot' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+          <div className="card shadow-sm" style={{
+            padding: '24px',
+            borderRadius: '14px',
+            background: 'var(--surface)',
+            border: '1px solid var(--border)',
+            boxShadow: 'var(--shadow-sm)'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', borderBottom: '1px solid var(--border)', paddingBottom: '16px', marginBottom: '20px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{
+                  width: '44px',
+                  height: '44px',
+                  borderRadius: '12px',
+                  background: 'linear-gradient(135deg, var(--primary) 0%, #15803d 100%)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#ffffff'
+                }}>
+                  <Bot size={24} />
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '1.3rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                    Centre Copilot — Mandi AI Sahayak
+                  </h3>
+                  <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                    Facility: <strong style={{ color: 'var(--primary)' }}>{resolvedCentreId || centreId}</strong> ({user?.name || user?.centre_name || 'Procurement Centre'})
+                  </span>
+                </div>
+              </div>
+
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '6px 14px',
+                borderRadius: '20px',
+                background: 'rgba(16, 185, 129, 0.1)',
+                border: '1px solid rgba(16, 185, 129, 0.3)',
+                color: '#10b981',
+                fontSize: '0.8rem',
+                fontWeight: 700
+              }}>
+                <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#10b981' }}></span>
+                Strict Centre Isolation Active
+              </div>
+            </div>
+
+            <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginBottom: '1.25rem', lineHeight: 1.5 }}>
+              Ask questions about your centre's live queue length, morning bottleneck causes, appointments, procurement intake, capacity limits, and equipment status. Responses are calculated directly from your centre's database records.
+            </p>
+
+            {/* Quick Suggestion Pills */}
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '1.25rem' }}>
+              {[
+                "Why is my queue increasing?",
+                "How many farmers are currently waiting?",
+                "How many appointments do I have today?",
+                "How much have we procured today?",
+                "How much capacity remains for today?",
+                "Which equipment is causing a delay?",
+                "How many farmers are coming in the next hour?",
+                "What is my current processing rate?"
+              ].map((chip, cIdx) => (
+                <button
+                  key={cIdx}
+                  type="button"
+                  onClick={() => { setCentreCopilotQuery(chip); handleAskCentreCopilot(chip); }}
+                  style={{
+                    padding: '6px 14px',
+                    borderRadius: '20px',
+                    border: '1px solid var(--border)',
+                    backgroundColor: 'var(--surface-secondary)',
+                    color: 'var(--text-primary)',
+                    fontSize: '0.8rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease'
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--primary)'; e.currentTarget.style.color = 'var(--primary)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-primary)'; }}
+                >
+                  💬 {chip}
+                </button>
+              ))}
+            </div>
+
+            {/* Query Input */}
+            <div style={{ display: 'flex', gap: '10px', marginBottom: '1.5rem' }}>
+              <input
+                type="text"
+                placeholder="Ask about your centre's queue, intake, appointments or weighbridges..."
+                value={centreCopilotQuery}
+                onChange={(e) => setCentreCopilotQuery(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') handleAskCentreCopilot(); }}
+                style={{
+                  flex: 1,
+                  padding: '12px 16px',
+                  borderRadius: '10px',
+                  border: '1px solid var(--border)',
+                  backgroundColor: 'var(--input-bg)',
+                  color: 'var(--text-primary)',
+                  fontSize: '0.95rem'
+                }}
+              />
+              <button
+                className="btn btn-primary"
+                onClick={() => handleAskCentreCopilot()}
+                disabled={centreCopilotLoading}
+                style={{ padding: '12px 24px', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '8px' }}
+              >
+                {centreCopilotLoading ? (
+                  <>
+                    <RefreshCw size={16} className="animate-spin" /> Retrieving...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles size={16} /> Ask Copilot
+                  </>
+                )}
+              </button>
+            </div>
+
+            {/* Copilot Response Card */}
+            {centreCopilotResponse && (
+              <div style={{
+                padding: '20px',
+                borderRadius: '12px',
+                backgroundColor: 'var(--surface-secondary)',
+                border: '1px solid var(--border)',
+                borderLeft: '4px solid var(--primary)',
+                animation: 'fadeIn 0.2s ease-in-out'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px', color: 'var(--primary)', fontWeight: 800, fontSize: '0.9rem' }}>
+                  <Sparkles size={18} />
+                  CENTRE COPILOT VERIFIED ANSWER
+                </div>
+
+                <p style={{ fontSize: '1rem', color: 'var(--text-primary)', lineHeight: 1.6, margin: '0 0 14px 0', fontWeight: 500 }}>
+                  {centreCopilotResponse.answer}
+                </p>
+
+                {/* Key Data Point Cards */}
+                {centreCopilotResponse.data_points && (
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+                    gap: '12px',
+                    marginTop: '14px',
+                    paddingTop: '14px',
+                    borderTop: '1px solid var(--border)'
+                  }}>
+                    {Object.entries(centreCopilotResponse.data_points).map(([key, val]) => (
+                      <div key={key} style={{
+                        background: 'var(--surface)',
+                        padding: '10px 14px',
+                        borderRadius: '8px',
+                        border: '1px solid var(--border)'
+                      }}>
+                        <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', textTransform: 'uppercase', fontWeight: 700, display: 'block' }}>
+                          {key.replace(/_/g, ' ')}
+                        </span>
+                        <div style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--text-primary)', marginTop: '2px' }}>
+                          {typeof val === 'number' ? (Number.isInteger(val) ? val.toLocaleString() : val.toFixed(1)) : String(val)}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}

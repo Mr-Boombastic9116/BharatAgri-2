@@ -1,0 +1,19 @@
+crop_id,crop_name,regional_name_hi,regional_name_mr,category,season,state_region,procurement_eligibility,msp_rs_per_quintal,procurement_period,shelf_life_days,urgency_level,perishability_score,moisture_std_pct
+CROP_001,Paddy,धान,भात,GRAIN,Kharif,"Maharashtra, Punjab, Uttar Pradesh, Goa",True,2320.0,October - March,365,LOW,0.15,14.0
+CROP_002,Wheat,गेहूं,गहू,GRAIN,Rabi,"Punjab, Uttar Pradesh, Madhya Pradesh, Maharashtra",True,2275.0,April - June,365,LOW,0.15,12.0
+CROP_003,Cotton,कपास,कापूस,FIBER,Kharif,"Maharashtra, Punjab, Gujarat, Madhya Pradesh",True,7521.0,October - February,300,LOW,0.2,8.0
+CROP_004,Soybean,सोयाबीन,सोयाबीन,OILSEED,Kharif,"Maharashtra, Madhya Pradesh",True,5320.0,October - January,180,MEDIUM,0.3,12.0
+CROP_005,Maize,मक्का,मका,GRAIN,Kharif,"Maharashtra, Karnataka, Madhya Pradesh, Uttar Pradesh",True,2225.0,October - December,240,LOW,0.25,14.0
+CROP_006,Tur (Arhar),तुअर / अरहर,तूर,PULSE,Kharif,"Maharashtra, Madhya Pradesh, Karnataka",True,7550.0,December - March,300,LOW,0.2,12.0
+CROP_007,Moong,मूंग,मूग,PULSE,Kharif,"Maharashtra, Rajasthan, Madhya Pradesh",True,8682.0,September - November,270,LOW,0.2,12.0
+CROP_008,Urad,उड़द,उडीद,PULSE,Kharif,"Maharashtra, Madhya Pradesh, Uttar Pradesh",True,7400.0,October - December,270,LOW,0.2,12.0
+CROP_009,Gram (Chana),चना,हरभरा,PULSE,Rabi,"Madhya Pradesh, Maharashtra, Rajasthan",True,5440.0,March - May,300,LOW,0.2,12.0
+CROP_010,Mustard,सरसों,मोहरी,OILSEED,Rabi,"Rajasthan, Madhya Pradesh, Uttar Pradesh",True,5650.0,February - April,240,LOW,0.25,9.0
+CROP_011,Groundnut,मूंगफली,भुईमूग,OILSEED,Kharif,"Gujarat, Maharashtra, Andhra Pradesh",True,6783.0,October - January,180,MEDIUM,0.3,8.0
+CROP_012,Bajra,बाजरा,बाजरी,MILLET,Kharif,"Rajasthan, Uttar Pradesh, Maharashtra",True,2625.0,October - December,180,LOW,0.2,13.0
+CROP_013,Mango,आम,आंबा,HORTICULTURE,Summer/Zaid,"Goa, Maharashtra, Uttar Pradesh",True,4800.0,March - June,14,HIGH,0.85,80.0
+CROP_014,Sugarcane,गन्ना,ऊस,COMMERCIAL,Crushing,"Maharashtra, Uttar Pradesh, Karnataka",True,340.0,October - April,3,CRITICAL,0.9,20.0
+CROP_015,Banana,केला,केळी,HORTICULTURE,All-Season,"Maharashtra, Tamil Nadu, Gujarat",True,2150.0,Year-round,7,HIGH,0.8,75.0
+CROP_016,Tomato,टमाटर,टोमॅटो,PERISHABLE_VEGETABLE,Rabi/Zaid,"Maharashtra, Andhra Pradesh, Karnataka",True,1650.0,November - March,5,CRITICAL,0.95,90.0
+CROP_017,Onion,प्याज,कांदा,PERISHABLE_VEGETABLE,Rabi/Kharif,"Maharashtra, Madhya Pradesh, Karnataka",True,1800.0,December - May,45,HIGH,0.5,65.0
+CROP_018,Potato,आलू,बटाटा,PERISHABLE_VEGETABLE,Rabi,"Uttar Pradesh, West Bengal, Bihar",True,1400.0,January - April,60,MEDIUM,0.4,60.0

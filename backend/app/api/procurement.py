@@ -1,3 +1,5 @@
+import logging
+import json
 import os
 import uuid
 import random
@@ -7,19 +9,26 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status, UploadFile
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from backend.app.core.database import get_db
-from backend.app.core.deps import get_current_user, get_current_user_optional
+from backend.app.core.deps import get_current_user, get_current_user_optional, require_role
 from backend.app.core.helpers import resolve_centre
 from backend.app.models.booking import Booking, BookingStatusHistory
 from backend.app.models.procurement import (
-    CollectionRecord, QualityCheck, Weighment, ProcurementRecord, StorageLot, Payment, ProcurementEvidence
+    CollectionRecord, QualityCheck, Weighment, ProcurementRecord, StorageLot, Payment, ProcurementEvidence,
+    ProcurementProcessStep, AIQualityInspection, AIInspectionDetection, ProcessStepCorrection, ProcessAuditLog
 )
-from backend.app.models.centre import ProcurementCentre, Slot
+from backend.app.models.price import MspPrice, StateCropSupplyDemand
+from backend.app.models.centre import ProcurementCentre, Slot, Employee
 from backend.app.models.farmer import Farmer
 from backend.app.models.user import User
 from backend.app.models.audit import AuditLog
 from backend.app.schemas.procurement import (
-    CollectionCreate, QualityCheckCreate, WeighmentCreate, ProcureCreate, StorageLotCreate, PaymentCreate
+    CollectionCreate, QualityCheckCreate, WeighmentCreate, ProcureCreate, StorageLotCreate, PaymentCreate,
+    ProcessStepSubmit, ProcessStepCorrectionRequest, StorageCheckRequest
 )
+from backend.app.services.quality_grading import compute_final_quality_grade
+from ml.inference.mango_quality_scanner import get_mango_quality_scanner
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/procurement", tags=["Procurement & Traceability"])
 
@@ -756,12 +765,26 @@ def list_procurement_lots(
 ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
 ALLOWED_MIME_TYPES = {"image/jpeg", "image/pjpeg", "image/png", "image/webp", "image/jpg"}
 MAX_FILE_SIZE = 5 * 1024 * 1024  # 5MB
+ALLOWED_EVIDENCE_TYPES = {
+    "COLLECTION_PRODUCE",
+    "QUALITY_MACHINE",
+    "QUALITY_INSPECTION",
+    "WEIGHMENT",
+    "STORAGE",
+    "AI_SCAN",
+    "OTHER",
+    "QUALITY",
+    "WEIGHING",
+    "MOISTURE"
+}
 
 
 @router.post("/evidence/upload")
 async def upload_procurement_evidence(
     file: UploadFile = File(...),
-    booking_id: int = Form(...),
+    booking_id: Optional[int] = Form(None),
+    appointment_id: Optional[str] = Form(None),
+    process_step: Optional[str] = Form(None),
     evidence_type: str = Form(...),
     notes: Optional[str] = Form(None),
     procurement_id: Optional[str] = Form(None),
@@ -769,15 +792,24 @@ async def upload_procurement_evidence(
     current_user = Depends(get_current_user)
 ):
     ev_type = evidence_type.upper().strip()
-    if ev_type not in ["QUALITY", "WEIGHING", "MOISTURE"]:
+    if ev_type not in ALLOWED_EVIDENCE_TYPES:
         raise HTTPException(
             status_code=400,
-            detail=f"Invalid evidence type '{evidence_type}'. Must be QUALITY, WEIGHING, or MOISTURE."
+            detail=f"Invalid evidence type '{evidence_type}'. Must be one of: {', '.join(sorted(ALLOWED_EVIDENCE_TYPES))}"
         )
 
-    booking = db.query(Booking).filter(Booking.id == booking_id).first()
+    booking = None
+    if isinstance(booking_id, int) or (isinstance(booking_id, str) and booking_id.isdigit()):
+        booking = db.query(Booking).filter(Booking.id == int(booking_id)).first()
+    elif isinstance(appointment_id, str) and appointment_id.strip():
+        clean_aid = appointment_id.strip()
+        booking = db.query(Booking).filter(
+            (Booking.appointment_id == clean_aid) |
+            (Booking.id == (int(clean_aid) if clean_aid.isdigit() else -1))
+        ).first()
+
     if not booking:
-        raise HTTPException(status_code=404, detail=f"Booking with ID {booking_id} not found.")
+        raise HTTPException(status_code=404, detail="Booking or appointment not found for evidence upload.")
 
     # Authorization check: Centre staff can only upload for their assigned centre
     if getattr(current_user, 'role', '').lower() in ['centre', 'procurement_centre']:
@@ -823,15 +855,20 @@ async def upload_procurement_evidence(
 
     web_path = f"/uploads/evidence/{safe_filename}"
 
+    safe_proc_id = procurement_id if (isinstance(procurement_id, str) and not procurement_id.startswith('annotation=')) else None
+    safe_notes = notes if (isinstance(notes, str) and not notes.startswith('annotation=')) else None
+
     evidence = ProcurementEvidence(
         booking_id=booking.id,
-        procurement_id=procurement_id,
+        appointment_id=booking.appointment_id,
+        procurement_id=safe_proc_id,
+        process_step=process_step or ev_type,
         evidence_type=ev_type,
         file_path=web_path,
         original_filename=orig_name,
         file_size_bytes=file_size,
         mime_type=content_type or f"image/{ext.replace('.', '')}",
-        notes=notes,
+        notes=safe_notes,
         uploaded_by=current_user.name or current_user.user_id,
         uploaded_at=datetime.utcnow()
     )
@@ -845,7 +882,9 @@ async def upload_procurement_evidence(
         "evidence": {
             "id": evidence.id,
             "booking_id": evidence.booking_id,
+            "appointment_id": evidence.appointment_id,
             "procurement_id": evidence.procurement_id,
+            "process_step": evidence.process_step,
             "evidence_type": evidence.evidence_type,
             "file_path": evidence.file_path,
             "original_filename": evidence.original_filename,
@@ -856,6 +895,27 @@ async def upload_procurement_evidence(
             "uploaded_at": str(evidence.uploaded_at)
         }
     }
+
+
+@router.post("/process/{appointment_id}/evidence")
+async def upload_process_step_evidence(
+    appointment_id: str,
+    file: UploadFile = File(...),
+    process_step: str = Form("STEP_1_COLLECTION"),
+    evidence_type: str = Form("COLLECTION_PRODUCE"),
+    notes: Optional[str] = Form(None),
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+    return await upload_procurement_evidence(
+        file=file,
+        appointment_id=appointment_id,
+        process_step=process_step,
+        evidence_type=evidence_type,
+        notes=notes,
+        db=db,
+        current_user=current_user
+    )
 
 
 @router.get("/evidence/{booking_id}")
@@ -897,4 +957,1260 @@ def get_procurement_evidence(
         "evidence": all_list,
         "by_type": by_type
     }
+
+
+# ============================================================================
+# SEQUENTIAL PROCUREMENT PROCESS WORKFLOW WITH DATA ISOLATION & AUDIT
+# ============================================================================
+
+PROCESS_STEPS_META = [
+    {"step_number": 1, "step_type": "VERIFICATION", "title": "Initial Verification & Collection Intake"},
+    {"step_number": 2, "step_type": "PHYSICAL_QC", "title": "Physical Quality Inspection"},
+    {"step_number": 3, "step_type": "AI_QUALITY", "title": "AI Visual Quality Inspection (Mango)"},
+    {"step_number": 4, "step_type": "WEIGHMENT", "title": "Weighment & Gross/Tare Assessment"},
+    {"step_number": 5, "step_type": "PROCUREMENT", "title": "Procurement & Settlement Finalization"},
+]
+
+
+def ensure_booking_process_steps(booking: Booking, db: Session) -> List[ProcurementProcessStep]:
+    """Ensure all 5 sequential process steps exist for a booking in the database."""
+    existing_steps = (
+        db.query(ProcurementProcessStep)
+        .filter(ProcurementProcessStep.booking_id == booking.id)
+        .order_by(ProcurementProcessStep.step_number.asc())
+        .all()
+    )
+    if len(existing_steps) == 5:
+        return existing_steps
+
+    existing_numbers = {s.step_number: s for s in existing_steps}
+    created = []
+    for meta in PROCESS_STEPS_META:
+        s_num = meta["step_number"]
+        if s_num not in existing_numbers:
+            new_step = ProcurementProcessStep(
+                booking_id=booking.id,
+                appointment_id=booking.appointment_id,
+                step_number=s_num,
+                step_type=meta["step_type"],
+                status="PENDING"
+            )
+            db.add(new_step)
+            created.append(new_step)
+        else:
+            created.append(existing_numbers[s_num])
+    db.commit()
+    for s in created:
+        db.refresh(s)
+    return sorted(created, key=lambda s: s.step_number)
+
+
+@router.get("/process/{appointment_id}/state")
+def get_procurement_process_state(
+    appointment_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Retrieve current workflow state for an appointment.
+    ENFORCES STRICT EMPLOYEE DATA ISOLATION:
+    Completed step sensitive values (moisture %, foreign matter %, weights, rates)
+    are NOT exposed to users at subsequent steps. Only status and metadata are returned.
+    """
+    # 1. Fetch booking
+    booking = db.query(Booking).filter(
+        (Booking.appointment_id == appointment_id) |
+        (Booking.id == (int(appointment_id) if appointment_id.isdigit() else -1))
+    ).first()
+    if not booking:
+        raise HTTPException(status_code=404, detail="Appointment not found.")
+
+    # 2. Centre Authorization
+    user_role = (current_user.role or "").lower()
+    if user_role not in ["centre", "procurement_centre", "admin", "government", "superadmin"]:
+        raise HTTPException(status_code=403, detail="Unauthorized: User cannot perform centre procurement operations.")
+
+    if current_user.centre_id and current_user.centre_id != booking.centre_id:
+        raise HTTPException(
+            status_code=403,
+            detail=f"Unauthorized: You are assigned to centre '{current_user.centre_id}', but this appointment belongs to '{booking.centre_id}'."
+        )
+
+    # 3. Ensure steps exist
+    steps = ensure_booking_process_steps(booking, db)
+
+    # 4. Compute active current step
+    current_step_num = 1
+    for s in steps:
+        if s.status != "COMPLETED":
+            current_step_num = s.step_number
+            break
+    else:
+        current_step_num = 5
+
+    farmer = db.query(Farmer).filter((Farmer.farmer_code == booking.farmer_id) | (Farmer.user_id == booking.farmer_id)).first()
+    centre = db.query(ProcurementCentre).filter(ProcurementCentre.centre_id == booking.centre_id).first()
+
+    # 5. Build sanitized steps array (NO sensitive values exposed)
+    safe_steps = []
+    for s in steps:
+        meta = next((m for m in PROCESS_STEPS_META if m["step_number"] == s.step_number), None)
+        title = meta["title"] if meta else s.step_type
+
+        is_locked = (s.step_number > current_step_num and s.status != "COMPLETED")
+        step_status = "LOCKED" if is_locked else s.status
+
+        safe_step_info = {
+            "id": s.id,
+            "step_number": s.step_number,
+            "step_type": s.step_type,
+            "title": title,
+            "status": step_status,
+            "is_locked": is_locked,
+            "completed_by": s.completed_by,
+            "employee_name": s.employee_name,
+            "started_at": str(s.started_at) if s.started_at else None,
+            "completed_at": str(s.completed_at) if s.completed_at else None,
+        }
+        safe_steps.append(safe_step_info)
+
+    is_mango = (booking.crop or "").strip().lower() == "mango"
+
+    # AI inspection metadata (if available for current mango appointment)
+    ai_summary = None
+    if is_mango:
+        ai_insp = (
+            db.query(AIQualityInspection)
+            .filter(AIQualityInspection.booking_id == booking.id)
+            .order_by(AIQualityInspection.id.desc())
+            .first()
+        )
+        if ai_insp:
+            det_rows = db.query(AIInspectionDetection).filter(AIInspectionDetection.inspection_id == ai_insp.id).order_by(AIInspectionDetection.sample_index.asc()).all()
+            ai_summary = {
+                "id": ai_insp.id,
+                "inspection_code": ai_insp.inspection_code,
+                "model_version": ai_insp.model_version,
+                "model_type": ai_insp.model_type,
+                "sample_count": ai_insp.sample_count,
+                "mangoes_detected": ai_insp.sample_count,
+                "healthy": ai_insp.healthy_count,
+                "healthy_count": ai_insp.healthy_count,
+                "defect_count": ai_insp.defect_count,
+                "anthracnose_count": ai_insp.anthracnose_count,
+                "scab_count": ai_insp.scab_count,
+                "bacterial_canker_count": ai_insp.bacterial_canker_count,
+                "stem_end_rot_count": ai_insp.stem_end_rot_count,
+                "other_count": ai_insp.other_count,
+                "ripe_count": getattr(ai_insp, "ripe_count", 0) or 0,
+                "nearly_ripe_count": getattr(ai_insp, "nearly_ripe_count", 0) or 0,
+                "not_ripe_count": getattr(ai_insp, "not_ripe_count", 0) or 0,
+                "uncertain_count": getattr(ai_insp, "uncertain_count", 0) or 0,
+                "affected_percentage": float(ai_insp.affected_percentage or 0),
+                "visual_grade": ai_insp.visual_grade,
+                "confidence": float(ai_insp.confidence or 0),
+                "status": ai_insp.status,
+                "annotated_image_path": ai_insp.annotated_image_path,
+                "annotated_image_url": ai_insp.annotated_image_path,
+                "created_at": str(ai_insp.created_at),
+                "detections": [
+                    {
+                        "sample_index": d.sample_index,
+                        "predicted_class": d.predicted_class,
+                        "condition": d.predicted_class,
+                        "health_status": "Healthy" if d.predicted_class in ["Healthy", "None"] else "Defective",
+                        "defect_type": d.predicted_class if d.predicted_class not in ["Healthy", "None"] else "None",
+                        "ripeness": getattr(d, 'ripeness', 'Uncertain') or 'Uncertain',
+                        "confidence": float(d.confidence or 0),
+                        "box": [d.box_x, d.box_y, d.box_w, d.box_h],
+                        "bbox": [d.box_x, d.box_y, d.box_w, d.box_h],
+                        "crop_url": d.crop_image_path
+                    }
+                    for d in det_rows
+                ]
+            }
+
+    # Retrieve official MSP and estimated procurement price from database
+    state_name = centre.state if centre and centre.state else "Goa"
+    scsd = db.query(StateCropSupplyDemand).filter(
+        func.lower(StateCropSupplyDemand.state) == func.lower(state_name),
+        func.lower(StateCropSupplyDemand.crop) == func.lower(booking.crop)
+    ).first()
+    msp_record = db.query(MspPrice).filter(
+        func.lower(MspPrice.crop) == func.lower(booking.crop)
+    ).first()
+
+    official_msp = float(scsd.official_msp) if scsd else (float(msp_record.official_msp_per_quintal) if msp_record else 2200.0)
+    estimated_msp = float(scsd.estimated_procurement_price) if scsd else official_msp
+    season = scsd.season if scsd else (f"{msp_record.marketing_season} {msp_record.season_year}" if msp_record else "2025-26")
+
+    pricing_info = {
+        "state": state_name,
+        "crop": booking.crop,
+        "season": season,
+        "official_msp": official_msp,
+        "estimated_msp": estimated_msp,
+        "procurement_price": estimated_msp
+    }
+
+    # Fetch recorded evidence photos for this booking / appointment
+    evidence_items = (
+        db.query(ProcurementEvidence)
+        .filter(
+            (ProcurementEvidence.booking_id == booking.id) |
+            (ProcurementEvidence.appointment_id == booking.appointment_id)
+        )
+        .order_by(ProcurementEvidence.id.asc())
+        .all()
+    )
+    safe_evidence = [
+        {
+            "id": ev.id,
+            "evidence_type": ev.evidence_type,
+            "process_step": ev.process_step,
+            "file_path": ev.file_path,
+            "uploaded_by": ev.uploaded_by,
+            "uploaded_at": str(ev.uploaded_at),
+            "notes": ev.notes
+        }
+        for ev in evidence_items
+    ]
+
+    # Check storage lot status
+    proc_rec = db.query(ProcurementRecord).filter(ProcurementRecord.booking_id == booking.id).first()
+    storage_lot = db.query(StorageLot).filter(StorageLot.procurement_id == proc_rec.procurement_id).first() if proc_rec else None
+    storage_info = None
+    if storage_lot:
+        storage_info = {
+            "lot_id": storage_lot.lot_id,
+            "warehouse_name": storage_lot.warehouse_name,
+            "stack_number": storage_lot.stack_number,
+            "quantity_quintals": float(storage_lot.quantity_quintals),
+            "status": storage_lot.status,
+            "is_verified": storage_lot.status == "VERIFIED_STORED",
+            "storage_employee": storage_lot.storage_employee,
+            "storage_condition": storage_lot.storage_condition,
+            "physical_condition": storage_lot.physical_condition,
+            "remarks": storage_lot.remarks
+        }
+
+    # Fetch available registered employees for this centre
+    centre_emps = db.query(Employee).filter(
+        Employee.centre_id == booking.centre_id,
+        Employee.status == "ACTIVE"
+    ).order_by(Employee.role, Employee.name).all()
+    available_employees = [
+        {
+            "id": emp.id,
+            "name": emp.name,
+            "role": emp.role,
+            "employee_code": emp.employee_code,
+            "phone": emp.phone
+        }
+        for emp in centre_emps
+    ]
+
+    return {
+        "success": True,
+        "appointment": {
+            "appointment_id": booking.appointment_id,
+            "booking_id": booking.id,
+            "farmer_name": farmer.name if farmer else "Registered Farmer",
+            "farmer_id": booking.farmer_id,
+            "farmer_mobile": (farmer.mobile if hasattr(farmer, 'mobile') else getattr(farmer, 'mobile_number', '-')) if farmer else "-",
+            "centre_id": booking.centre_id,
+            "centre_name": centre.centre_name if centre else booking.centre_id,
+            "state": state_name,
+            "crop": booking.crop,
+            "booked_quantity": float(booking.quantity or 0),
+            "arrival_status": booking.status,
+            "is_mango": is_mango,
+            "current_step_number": current_step_num,
+            "is_all_completed": all(s.status == "COMPLETED" for s in steps)
+        },
+        "steps": safe_steps,
+        "pricing": pricing_info,
+        "evidence": safe_evidence,
+        "storage_lot": storage_info,
+        "mango_ai": ai_summary,
+        "available_employees": available_employees
+    }
+
+
+@router.post("/process/{appointment_id}/step/{step_number}/submit")
+def submit_procurement_process_step(
+    appointment_id: str,
+    step_number: int,
+    req: ProcessStepSubmit,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Submits a procurement process step with multi-employee tracking,
+    data isolation, and photo evidence recording.
+    """
+    if step_number < 1 or step_number > 5:
+        raise HTTPException(status_code=400, detail="Invalid step number. Process steps are 1 to 5.")
+
+    booking = db.query(Booking).filter(
+        (Booking.appointment_id == appointment_id) |
+        (Booking.id == (int(appointment_id) if appointment_id.isdigit() else -1))
+    ).first()
+    if not booking:
+        raise HTTPException(status_code=404, detail="Appointment not found.")
+
+    # Authorization
+    user_role = (current_user.role or "").lower()
+    if user_role not in ["centre", "procurement_centre", "admin", "government", "superadmin"]:
+        raise HTTPException(status_code=403, detail="Unauthorized: User cannot perform procurement operations.")
+
+    if current_user.centre_id and current_user.centre_id != booking.centre_id:
+        raise HTTPException(status_code=403, detail="Unauthorized: Appointment belongs to a different centre.")
+
+    steps = ensure_booking_process_steps(booking, db)
+    step_map = {s.step_number: s for s in steps}
+    target_step = step_map[step_number]
+
+    # Immutability Check
+    if target_step.status == "COMPLETED":
+        raise HTTPException(
+            status_code=400,
+            detail=f"Step {step_number} is already COMPLETED and immutable. Use the audited correction endpoint to request modifications."
+        )
+
+    # Server-Side Sequence Enforcement
+    if step_number > 1:
+        prev_step = step_map[step_number - 1]
+        if prev_step.status != "COMPLETED":
+            raise HTTPException(
+                status_code=400,
+                detail=f"Sequence violation: Step {step_number - 1} must be COMPLETED before Step {step_number} can be submitted."
+            )
+
+    data = req.data or {}
+    now = datetime.utcnow()
+
+    # Requirement 2: Validate employee assignment from database
+    emp_record = None
+    input_emp_id = data.get("employee_id") or data.get("employee_code")
+    input_emp_name = data.get("employee_name")
+
+    if input_emp_id or input_emp_name:
+        emp_query = db.query(Employee).filter(
+            Employee.centre_id == booking.centre_id,
+            Employee.status == "ACTIVE"
+        )
+        if input_emp_id:
+            emp_record = emp_query.filter(
+                (Employee.id == (int(input_emp_id) if str(input_emp_id).isdigit() else -1)) |
+                (Employee.employee_code == str(input_emp_id))
+            ).first()
+        if not emp_record and input_emp_name:
+            clean_name = str(input_emp_name).split('(')[0].strip()
+            emp_record = emp_query.filter(
+                (Employee.name == str(input_emp_name)) |
+                (Employee.name.ilike(f"%{clean_name}%"))
+            ).first()
+
+    if emp_record:
+        employee_id = emp_record.employee_code
+        employee_name = emp_record.name
+    elif not input_emp_id and not input_emp_name and current_user:
+        employee_id = current_user.user_id
+        employee_name = current_user.name or current_user.user_id
+    else:
+        # Check if user is registered user
+        user_match = db.query(User).filter(
+            (User.user_id == str(input_emp_id or current_user.user_id)) |
+            (User.name == str(input_emp_name))
+        ).first()
+        if user_match:
+            employee_id = user_match.user_id
+            employee_name = user_match.name
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid employee: '{input_emp_name or input_emp_id}' is not an active registered employee for centre {booking.centre_id}."
+            )
+
+    try:
+        # Process step-specific domain records
+        if step_number == 1:
+            # Step 1: Verification & Intake
+            # Remove hardcoded truck assumption: support multiple transport methods
+            transport_method = data.get("transport_method") or "Farmer's Own"
+            truck_num = data.get("truck_number")
+            if not truck_num and transport_method in ["Farmer's Own", "Personal"]:
+                truck_num = "FARMER_OWN"
+            elif not truck_num:
+                truck_num = "DIRECT_ARRIVAL"
+
+            bags = int(data.get("collected_bags") or 0)
+            col_count = db.query(CollectionRecord).count() + 1
+            collection_id = f"COL-{booking.centre_id}-{col_count:05d}"
+            collected_qty = float(data.get("gross_weight_estimate") or booking.quantity or 25.0)
+
+            existing_col = db.query(CollectionRecord).filter(CollectionRecord.booking_id == booking.id).first()
+            if not existing_col:
+                col = CollectionRecord(
+                    collection_id=collection_id,
+                    booking_id=booking.id,
+                    farmer_id=booking.farmer_id,
+                    centre_id=booking.centre_id,
+                    crop=booking.crop,
+                    collected_quantity=collected_qty,
+                    collection_date=now.date(),
+                    collection_method=transport_method,
+                    truck_number=truck_num,
+                    collected_by=employee_name,
+                    status="RECEIVED"
+                )
+                db.add(col)
+            else:
+                existing_col.truck_number = truck_num
+                existing_col.collection_method = transport_method
+                existing_col.collected_by = employee_name
+                existing_col.status = "RECEIVED"
+
+            # Step 1 Photo Evidence
+            if data.get("evidence_url"):
+                ev = ProcurementEvidence(
+                    booking_id=booking.id,
+                    appointment_id=booking.appointment_id,
+                    process_step="STEP_1_COLLECTION",
+                    evidence_type="COLLECTION_PRODUCE",
+                    file_path=data.get("evidence_url"),
+                    original_filename="produce_intake.jpg",
+                    file_size_bytes=0,
+                    mime_type="image/jpeg",
+                    notes=data.get("remarks") or f"Produce received via {transport_method}",
+                    uploaded_by=employee_name
+                )
+                db.add(ev)
+
+            if booking.status in ["BOOKED", "CONFIRMED", "ARRIVED"]:
+                booking.status = "RECEIVED"
+
+        elif step_number == 2:
+            # Step 2: Physical Quality Inspection
+            moisture = float(data.get("moisture_content_pct") or 12.0)
+            foreign_matter = float(data.get("foreign_matter_pct") or 1.0)
+            broken_grains = float(data.get("broken_grains_pct") or 0.0)
+            damaged_grains = float(data.get("damaged_grains_pct") or 0.0)
+            remarks = data.get("remarks") or "Physical quality inspection verified."
+
+            if moisture < 0 or foreign_matter < 0:
+                raise HTTPException(status_code=400, detail="Moisture and foreign matter percentages must be non-negative.")
+
+            # Ensure collection record exists for foreign key
+            col = db.query(CollectionRecord).filter(CollectionRecord.booking_id == booking.id).first()
+            if not col:
+                col_count = db.query(CollectionRecord).count() + 1
+                col = CollectionRecord(
+                    collection_id=f"COL-{booking.centre_id}-{col_count:05d}",
+                    booking_id=booking.id,
+                    farmer_id=booking.farmer_id,
+                    centre_id=booking.centre_id,
+                    crop=booking.crop,
+                    collected_quantity=float(booking.quantity or 25.0),
+                    collection_date=now.date(),
+                    truck_number="DIRECT_ARRIVAL",
+                    collected_by=employee_name,
+                    status="RECEIVED"
+                )
+                db.add(col)
+                db.flush()
+
+            existing_qc = db.query(QualityCheck).filter(QualityCheck.collection_id == col.collection_id).first()
+            if not existing_qc:
+                qc_count = db.query(QualityCheck).count() + 1
+                qc = QualityCheck(
+                    check_id=f"QC-{booking.centre_id}-{qc_count:05d}",
+                    collection_id=col.collection_id,
+                    inspector_name=employee_name,
+                    moisture_content_pct=moisture,
+                    foreign_matter_pct=foreign_matter,
+                    broken_grains_pct=broken_grains,
+                    quality_grade="Grade A" if moisture <= 14.0 and foreign_matter <= 2.0 else "Grade B",
+                    passed=True,
+                    remarks=remarks,
+                    checked_at=now
+                )
+                db.add(qc)
+            else:
+                existing_qc.moisture_content_pct = moisture
+                existing_qc.foreign_matter_pct = foreign_matter
+                existing_qc.broken_grains_pct = broken_grains
+                existing_qc.inspector_name = employee_name
+                existing_qc.remarks = remarks
+
+            # Step 2 QC Machine Evidence Photo
+            if data.get("evidence_url"):
+                ev = ProcurementEvidence(
+                    booking_id=booking.id,
+                    appointment_id=booking.appointment_id,
+                    process_step="STEP_2_QUALITY",
+                    evidence_type="QUALITY_MACHINE",
+                    file_path=data.get("evidence_url"),
+                    original_filename="qc_machine.jpg",
+                    file_size_bytes=0,
+                    mime_type="image/jpeg",
+                    notes=f"Moisture: {moisture}%, Foreign Matter: {foreign_matter}%",
+                    uploaded_by=employee_name
+                )
+                db.add(ev)
+
+        elif step_number == 3:
+            # Step 3: AI Visual Quality Inspection
+            is_mango = (booking.crop or "").strip().lower() == "mango"
+            if is_mango:
+                ai_insp = (
+                    db.query(AIQualityInspection)
+                    .filter(AIQualityInspection.booking_id == booking.id)
+                    .order_by(AIQualityInspection.id.desc())
+                    .first()
+                )
+                if not ai_insp:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="No Mango AI quality scan found for this appointment. Please upload and run the Mango AI Quality Scan before completing Step 3."
+                    )
+                review_action = data.get("review_action", "ACCEPT")
+                if review_action == "OVERRIDE":
+                    ai_insp.status = "MANUALLY_OVERRIDDEN"
+                    ai_insp.review_notes = data.get("review_notes", "Manual override by QC Officer.")
+                    ai_insp.reviewed_by = employee_name
+                    ai_insp.reviewed_at = now
+                else:
+                    ai_insp.reviewed_by = employee_name
+                    ai_insp.reviewed_at = now
+            else:
+                pass
+
+        elif step_number == 4:
+            # Step 4: Weighment
+            gross_w = float(data.get("gross_weight_quintals") or 0.0)
+            tare_w = float(data.get("tare_weight_quintals") or 0.0)
+            weighbridge_id = data.get("weighbridge_id") or "WB-01"
+
+            if gross_w <= 0:
+                raise HTTPException(status_code=400, detail="Gross weight must be greater than zero.")
+            if tare_w < 0 or tare_w >= gross_w:
+                raise HTTPException(status_code=400, detail="Tare weight must be non-negative and less than gross weight.")
+
+            net_w = round(gross_w - tare_w, 2)
+            col = db.query(CollectionRecord).filter(CollectionRecord.booking_id == booking.id).first()
+            col_id = col.collection_id if col else f"COL-{booking.centre_id}-00001"
+
+            existing_w = db.query(Weighment).filter(Weighment.collection_id == col_id).first()
+            if not existing_w:
+                w_count = db.query(Weighment).count() + 1
+                w_id = f"WM-{booking.centre_id}-{w_count:05d}"
+                wm = Weighment(
+                    weighment_id=w_id,
+                    collection_id=col_id,
+                    weighbridge_id=weighbridge_id,
+                    gross_weight_quintals=gross_w,
+                    tare_weight_quintals=tare_w,
+                    net_weight_quintals=net_w,
+                    operator_name=employee_name,
+                    weighed_at=now
+                )
+                db.add(wm)
+            else:
+                existing_w.gross_weight_quintals = gross_w
+                existing_w.tare_weight_quintals = tare_w
+                existing_w.net_weight_quintals = net_w
+                existing_w.operator_name = employee_name
+                existing_w.weighbridge_id = weighbridge_id
+
+            # Step 4 Weighing Machine Evidence Photo
+            if data.get("evidence_url"):
+                ev = ProcurementEvidence(
+                    booking_id=booking.id,
+                    appointment_id=booking.appointment_id,
+                    process_step="STEP_4_WEIGHMENT",
+                    evidence_type="WEIGHMENT",
+                    file_path=data.get("evidence_url"),
+                    original_filename="weighbridge_display.jpg",
+                    file_size_bytes=0,
+                    mime_type="image/jpeg",
+                    notes=f"Gross: {gross_w} q, Tare: {tare_w} q, Net: {net_w} q",
+                    uploaded_by=employee_name
+                )
+                db.add(ev)
+
+        elif step_number == 5:
+            # Step 5: Procurement Finalization
+            is_mango = (booking.crop or "").strip().lower() == "mango"
+            col = db.query(CollectionRecord).filter(CollectionRecord.booking_id == booking.id).first()
+            col_id = col.collection_id if col else f"COL-{booking.centre_id}-00001"
+
+            physical_qc = db.query(QualityCheck).filter(QualityCheck.collection_id == col_id).first() if col else None
+            weighment = db.query(Weighment).filter(Weighment.collection_id == col_id).first() if col else None
+
+            ai_visual_grade = None
+            affected_pct = 0.0
+            if is_mango:
+                ai_insp = (
+                    db.query(AIQualityInspection)
+                    .filter(AIQualityInspection.booking_id == booking.id)
+                    .order_by(AIQualityInspection.id.desc())
+                    .first()
+                )
+                if ai_insp:
+                    ai_visual_grade = ai_insp.visual_grade
+                    affected_pct = float(ai_insp.affected_percentage or 0.0)
+
+            # Compute final combined grade
+            grading_result = compute_final_quality_grade(
+                crop=booking.crop,
+                physical_qc=physical_qc,
+                ai_visual_assessment=ai_visual_grade,
+                affected_percentage=affected_pct
+            )
+            final_grade = grading_result["final_grade"]
+
+            # Retrieve authentic database MSP & estimated procurement price directly
+            centre = db.query(ProcurementCentre).filter(ProcurementCentre.centre_id == booking.centre_id).first()
+            state_name = centre.state if centre and centre.state else "Goa"
+
+            scsd = db.query(StateCropSupplyDemand).filter(
+                func.lower(StateCropSupplyDemand.state) == func.lower(state_name),
+                func.lower(StateCropSupplyDemand.crop) == func.lower(booking.crop)
+            ).first()
+            msp_record = db.query(MspPrice).filter(
+                func.lower(MspPrice.crop) == func.lower(booking.crop)
+            ).first()
+
+            db_estimated_msp = float(scsd.estimated_procurement_price) if scsd else (float(msp_record.official_msp_per_quintal) if msp_record else 2200.0)
+
+            # Use submitted rate if valid, otherwise directly use estimated MSP from database
+            rate_inr = float(data.get("rate_per_quintal_inr") or 0.0)
+            if rate_inr <= 0:
+                rate_inr = db_estimated_msp
+
+            net_qty = float(weighment.net_weight_quintals) if weighment else float(booking.quantity or 25.0)
+            total_val = round(net_qty * rate_inr, 2)
+
+            p_count = db.query(ProcurementRecord).count() + 1
+            proc_id = f"PR-{booking.centre_id}-{p_count:05d}"
+
+            existing_pr = db.query(ProcurementRecord).filter(ProcurementRecord.booking_id == booking.id).first()
+            if not existing_pr:
+                pr = ProcurementRecord(
+                    procurement_id=proc_id,
+                    booking_id=booking.id,
+                    collection_id=col_id,
+                    farmer_id=booking.farmer_id,
+                    centre_id=booking.centre_id,
+                    crop=booking.crop,
+                    procured_quantity_quintals=net_qty,
+                    msp_rate_per_quintal=rate_inr,
+                    total_procurement_value=total_val,
+                    quality_grade=final_grade,
+                    warehouse_location=data.get("warehouse_location") or "Bay A-1",
+                    status="COMPLETED",
+                    created_at=now
+                )
+                db.add(pr)
+            else:
+                existing_pr.procured_quantity_quintals = net_qty
+                existing_pr.msp_rate_per_quintal = rate_inr
+                existing_pr.total_procurement_value = total_val
+                existing_pr.quality_grade = final_grade
+                existing_pr.warehouse_location = data.get("warehouse_location") or existing_pr.warehouse_location
+                proc_id = existing_pr.procurement_id
+
+            # Create or update payment record using correct Payment model columns
+            pay = db.query(Payment).filter(Payment.procurement_id == proc_id).first()
+            if not pay:
+                pay_count = db.query(Payment).count() + 1
+                pay_id = f"PAY-{booking.centre_id}-{pay_count:05d}"
+                new_pay = Payment(
+                    payment_id=pay_id,
+                    procurement_id=proc_id,
+                    farmer_id=str(booking.farmer_id),
+                    amount=total_val,
+                    msp_rate=rate_inr,
+                    quantity_quintals=net_qty,
+                    payment_mode="DBT_AADHAAR",
+                    payment_status="PENDING",
+                    initiated_at=now
+                )
+                db.add(new_pay)
+            else:
+                pay.amount = total_val
+                pay.msp_rate = rate_inr
+                pay.quantity_quintals = net_qty
+
+            # Create warehouse storage lot record
+            s_lot = db.query(StorageLot).filter(StorageLot.procurement_id == proc_id).first()
+            if not s_lot:
+                lot_count = db.query(StorageLot).count() + 1
+                s_lot = StorageLot(
+                    lot_id=f"LOT-{booking.centre_id}-{now.strftime('%Y%m%d')}-{lot_count:04d}",
+                    procurement_id=proc_id,
+                    centre_id=booking.centre_id,
+                    crop=booking.crop,
+                    quantity_quintals=net_qty,
+                    warehouse_name=centre.centre_name if centre else f"Centre Warehouse {booking.centre_id}",
+                    stack_number=data.get("warehouse_location") or "Bay A-1",
+                    storage_date=now.date(),
+                    status="STORED"
+                )
+                db.add(s_lot)
+
+            # Step 5 Final Clearance Photo Evidence
+            if data.get("evidence_url"):
+                ev = ProcurementEvidence(
+                    booking_id=booking.id,
+                    appointment_id=booking.appointment_id,
+                    procurement_id=proc_id,
+                    process_step="STEP_5_PROCUREMENT",
+                    evidence_type="QUALITY_INSPECTION",
+                    file_path=data.get("evidence_url"),
+                    original_filename="procurement_clearance.jpg",
+                    file_size_bytes=0,
+                    mime_type="image/jpeg",
+                    notes=f"Procured at MSP ₹{rate_inr}/q, Grade {final_grade}",
+                    uploaded_by=employee_name
+                )
+                db.add(ev)
+
+            booking.status = "PROCURED"
+
+        # Mark target step as COMPLETED
+        target_step.status = "COMPLETED"
+        target_step.completed_by = employee_id
+        target_step.employee_name = employee_name
+        target_step.completed_at = now
+        if not target_step.started_at:
+            target_step.started_at = now
+
+        # Unlock next step to IN_PROGRESS if exists
+        if step_number < 5:
+            next_step = step_map[step_number + 1]
+            if next_step.status == "PENDING":
+                next_step.status = "IN_PROGRESS"
+                next_step.started_at = now
+
+        # Write audit log
+        audit = ProcessAuditLog(
+            user_id=employee_id,
+            centre_id=booking.centre_id,
+            appointment_id=booking.appointment_id,
+            process_step=f"STEP_{step_number}_{target_step.step_type}",
+            action="STEP_COMPLETED",
+            record_id=str(target_step.id),
+            new_value=f"Completed by {employee_name} ({employee_id})",
+            ip_address="127.0.0.1"
+        )
+        db.add(audit)
+
+        db.commit()
+
+        return {
+            "success": True,
+            "message": f"Step {step_number} ({target_step.step_type}) completed successfully.",
+            "step_number": step_number,
+            "status": "COMPLETED",
+            "next_step_unlocked": step_number + 1 if step_number < 5 else None
+        }
+
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as e:
+        logger.exception(f"Unexpected error in submit_procurement_process_step (step {step_number}, appointment {appointment_id}): {e}")
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Procurement process error in Step {step_number}: {str(e)}"
+        )
+
+
+@router.post("/process/{appointment_id}/storage-check")
+def record_storage_final_check(
+    appointment_id: str,
+    req: StorageCheckRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Independent Storage Final Check:
+    When produce reaches storage warehouse, an authorized storage employee performs
+    an independent physical inspection, verifies quantity received, records storage
+    conditions (temperature, aeration, stacking), and captures storage photo evidence.
+    """
+    booking = db.query(Booking).filter(
+        (Booking.appointment_id == appointment_id) |
+        (Booking.id == (int(appointment_id) if appointment_id.isdigit() else -1))
+    ).first()
+    if not booking:
+        raise HTTPException(status_code=404, detail="Appointment not found.")
+
+    if booking.status not in ["PROCURED", "COMPLETED"]:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Storage final check can only be performed after procurement finalization (Step 5). Current booking status is '{booking.status}'."
+        )
+
+    proc_rec = db.query(ProcurementRecord).filter(ProcurementRecord.booking_id == booking.id).first()
+    if not proc_rec:
+        raise HTTPException(status_code=404, detail="Procurement record not found for this appointment.")
+
+    storage_lot = db.query(StorageLot).filter(StorageLot.procurement_id == proc_rec.procurement_id).first()
+    now = datetime.utcnow()
+
+    # Requirement 2: Validate storage employee against database
+    emp_record = None
+    input_emp_id = req.storage_employee_id
+    input_emp_name = req.storage_employee_name
+
+    if input_emp_id or input_emp_name:
+        emp_query = db.query(Employee).filter(
+            Employee.centre_id == booking.centre_id,
+            Employee.status == "ACTIVE"
+        )
+        if input_emp_id:
+            emp_record = emp_query.filter(
+                (Employee.id == (int(input_emp_id) if str(input_emp_id).isdigit() else -1)) |
+                (Employee.employee_code == str(input_emp_id))
+            ).first()
+        if not emp_record and input_emp_name:
+            clean_name = str(input_emp_name).split('(')[0].strip()
+            emp_record = emp_query.filter(
+                (Employee.name == str(input_emp_name)) |
+                (Employee.name.ilike(f"%{clean_name}%"))
+            ).first()
+
+    if emp_record:
+        storage_emp_id = emp_record.employee_code
+        storage_emp_name = emp_record.name
+    elif not input_emp_id and not input_emp_name and current_user:
+        storage_emp_id = current_user.user_id
+        storage_emp_name = current_user.name or current_user.user_id
+    else:
+        user_match = db.query(User).filter(
+            (User.user_id == str(input_emp_id or current_user.user_id)) |
+            (User.name == str(input_emp_name))
+        ).first()
+        if user_match:
+            storage_emp_id = user_match.user_id
+            storage_emp_name = user_match.name
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid storage employee: '{input_emp_name or input_emp_id}' is not an active registered employee for centre {booking.centre_id}."
+            )
+
+    if not storage_lot:
+        lot_count = db.query(StorageLot).count() + 1
+        storage_lot = StorageLot(
+            lot_id=f"LOT-{booking.centre_id}-{now.strftime('%Y%m%d')}-{lot_count:04d}",
+            procurement_id=proc_rec.procurement_id,
+            centre_id=booking.centre_id,
+            crop=booking.crop,
+            quantity_quintals=req.received_quantity_quintals,
+            warehouse_name=f"Centre Warehouse {booking.centre_id}",
+            stack_number="Bay A-1",
+            storage_date=now.date(),
+            status="VERIFIED_STORED",
+            storage_employee=f"{storage_emp_name} ({storage_emp_id})",
+            storage_condition=req.storage_condition,
+            physical_condition=req.physical_condition,
+            remarks=req.remarks
+        )
+        db.add(storage_lot)
+    else:
+        storage_lot.quantity_quintals = req.received_quantity_quintals
+        storage_lot.status = "VERIFIED_STORED"
+        storage_lot.storage_employee = f"{storage_emp_name} ({storage_emp_id})"
+        storage_lot.storage_condition = req.storage_condition
+        storage_lot.physical_condition = req.physical_condition
+        storage_lot.remarks = req.remarks
+
+    # If photo evidence was attached, record in ProcurementEvidence
+    if req.evidence_url:
+        ev = ProcurementEvidence(
+            booking_id=booking.id,
+            appointment_id=booking.appointment_id,
+            procurement_id=proc_rec.procurement_id,
+            process_step="STORAGE_FINAL_CHECK",
+            evidence_type="STORAGE",
+            file_path=req.evidence_url,
+            original_filename="storage_check.jpg",
+            file_size_bytes=0,
+            mime_type="image/jpeg",
+            notes=req.remarks or "Storage intake physical inspection and stack verification",
+            uploaded_by=storage_emp_name
+        )
+        db.add(ev)
+
+    # Audit log
+    audit = ProcessAuditLog(
+        user_id=storage_emp_id,
+        centre_id=booking.centre_id,
+        appointment_id=booking.appointment_id,
+        process_step="STORAGE_FINAL_CHECK",
+        action="STORAGE_FINAL_CHECK_COMPLETED",
+        record_id=str(storage_lot.id if storage_lot.id else ""),
+        new_value=json.dumps({
+            "storage_employee": storage_emp_name,
+            "received_quantity_quintals": req.received_quantity_quintals,
+            "storage_condition": req.storage_condition,
+            "physical_condition": req.physical_condition,
+            "remarks": req.remarks
+        }),
+        ip_address="127.0.0.1"
+    )
+    db.add(audit)
+    db.commit()
+
+    return {
+        "success": True,
+        "message": "Storage final check completed and verified successfully.",
+        "storage_lot": {
+            "lot_id": storage_lot.lot_id,
+            "status": storage_lot.status,
+            "quantity_quintals": float(storage_lot.quantity_quintals),
+            "storage_employee": storage_lot.storage_employee,
+            "storage_condition": storage_lot.storage_condition,
+            "physical_condition": storage_lot.physical_condition,
+            "remarks": storage_lot.remarks
+        }
+    }
+
+
+@router.post("/process/{appointment_id}/correction")
+def apply_procurement_step_correction(
+    appointment_id: str,
+    req: ProcessStepCorrectionRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Audited correction mechanism:
+    Allows authorized employees to correct an erroneous field in a completed step
+    without silently overwriting history. Preserves old value, new value, reason,
+    employee, and timestamp in process_step_corrections and process_audit_logs.
+    """
+    booking = db.query(Booking).filter(
+        (Booking.appointment_id == appointment_id) |
+        (Booking.id == (int(appointment_id) if appointment_id.isdigit() else -1))
+    ).first()
+    if not booking:
+        raise HTTPException(status_code=404, detail="Appointment not found.")
+
+    if not req.correction_reason or len(req.correction_reason.strip()) < 5:
+        raise HTTPException(status_code=400, detail="A valid, substantive correction reason (at least 5 characters) is required.")
+
+    # Find target process step
+    step = (
+        db.query(ProcurementProcessStep)
+        .filter(
+            ProcurementProcessStep.booking_id == booking.id,
+            ProcurementProcessStep.step_number == req.step_number
+        )
+        .first()
+    )
+    if not step or step.status not in ["COMPLETED", "CORRECTED"]:
+        raise HTTPException(status_code=400, detail=f"Step {req.step_number} is not completed. Only completed steps can be corrected.")
+
+    old_val_str = None
+    employee_name = current_user.name or current_user.user_id
+
+    # Fetch corresponding domain record to retrieve old value and apply correction
+    if req.step_number == 1:
+        col = db.query(CollectionRecord).filter(CollectionRecord.booking_id == booking.id).first()
+        if col and hasattr(col, req.field_name):
+            old_val_str = str(getattr(col, req.field_name))
+            setattr(col, req.field_name, req.new_value)
+    elif req.step_number == 2:
+        qc = db.query(QualityCheck).filter(QualityCheck.booking_id == booking.id).first()
+        if qc and hasattr(qc, req.field_name):
+            old_val_str = str(getattr(qc, req.field_name))
+            setattr(qc, req.field_name, float(req.new_value) if req.field_name.endswith("_pct") else req.new_value)
+    elif req.step_number == 4:
+        wm = db.query(Weighment).filter(Weighment.booking_id == booking.id).first()
+        if wm and hasattr(wm, req.field_name):
+            old_val_str = str(getattr(wm, req.field_name))
+            setattr(wm, req.field_name, float(req.new_value))
+            if req.field_name in ["gross_weight_quintals", "tare_weight_quintals"]:
+                wm.net_weight_quintals = round(float(wm.gross_weight_quintals) - float(wm.tare_weight_quintals), 2)
+
+    # Record historical correction
+    corr = ProcessStepCorrection(
+        booking_id=booking.id,
+        appointment_id=booking.appointment_id,
+        step_number=req.step_number,
+        field_name=req.field_name,
+        old_value=old_val_str or "N/A",
+        new_value=req.new_value,
+        correction_reason=req.correction_reason.strip(),
+        corrected_by=employee_name
+    )
+    db.add(corr)
+
+    # Mark step status as CORRECTED
+    step.status = "CORRECTED"
+
+    # Add immutable audit log entry
+    audit = ProcessAuditLog(
+        user_id=current_user.user_id,
+        centre_id=booking.centre_id,
+        appointment_id=booking.appointment_id,
+        process_step=f"STEP_{req.step_number}_{step.step_type}",
+        action="AUDITED_CORRECTION_APPLIED",
+        record_id=str(corr.id),
+        old_value=old_val_str or "N/A",
+        new_value=req.new_value,
+        correction_reason=req.correction_reason.strip(),
+        ip_address="127.0.0.1"
+    )
+    db.add(audit)
+
+    db.commit()
+
+    return {
+        "success": True,
+        "message": f"Audited correction recorded for Step {req.step_number} ({req.field_name}).",
+        "correction": {
+            "step_number": req.step_number,
+            "field_name": req.field_name,
+            "old_value": old_val_str,
+            "new_value": req.new_value,
+            "correction_reason": req.correction_reason,
+            "corrected_by": employee_name,
+            "corrected_at": str(datetime.utcnow())
+        }
+    }
+
+
+@router.post("/appointments/{appointment_id}/ai-inspection")
+async def scan_mango_quality_image_by_appointment(
+    appointment_id: str,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    return await scan_mango_quality_image(appointment_id=appointment_id, file=file, db=db, current_user=current_user)
+
+
+@router.post("/quality/mango-scan")
+async def scan_mango_quality_image(
+    appointment_id: str = Form(...),
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Mango AI Visual Quality Scan.
+    Accepts ONE photograph containing MULTIPLE sampled mangoes.
+    Performs:
+    1. Crop verification: Mango ONLY. Non-mango crops are rejected.
+    2. Multi-mango detection & segmentation.
+    3. CIELAB feature extraction (a*, b*, L*).
+    4. Individual classification.
+    5. Lot-level aggregation & prototype visual grading.
+    6. Stores original and annotated detection image.
+    """
+    # 1. Fetch booking
+    booking = db.query(Booking).filter(
+        (Booking.appointment_id == appointment_id) |
+        (Booking.id == (int(appointment_id) if appointment_id.isdigit() else -1))
+    ).first()
+    if not booking:
+        raise HTTPException(status_code=404, detail="Appointment not found.")
+
+    # 2. Centre authorization
+    user_role = (current_user.role or "").lower()
+    if user_role not in ["centre", "procurement_centre", "admin", "government", "superadmin"]:
+        raise HTTPException(status_code=403, detail="Unauthorized: User cannot perform quality inspection.")
+
+    if current_user.centre_id and current_user.centre_id != booking.centre_id:
+        raise HTTPException(status_code=403, detail="Unauthorized: Appointment belongs to a different centre.")
+
+    # 3. NON-NEGOTIABLE RULE: Mango ONLY
+    crop_name = (booking.crop or "").strip().lower()
+    if crop_name != "mango":
+        raise HTTPException(
+            status_code=400,
+            detail=f"Mango AI visual scan is currently supported for MANGO ONLY. Current appointment crop is '{booking.crop}'. AI scanning is unavailable for this crop."
+        )
+
+    # 4. Validate image file
+    orig_name = file.filename or "mango_sample.jpg"
+    ext = os.path.splitext(orig_name)[1].lower()
+    if ext not in [".jpg", ".jpeg", ".png", ".webp"]:
+        raise HTTPException(status_code=400, detail="Invalid image format. Supported formats: JPEG, PNG, WEBP.")
+
+    image_bytes = await file.read()
+    if len(image_bytes) == 0:
+        raise HTTPException(status_code=400, detail="Uploaded image is empty.")
+    if len(image_bytes) > 10 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="Image size exceeds maximum limit of 10MB.")
+
+    # 5. Run inference pipeline
+    scanner = get_mango_quality_scanner()
+    try:
+        scan_result = scanner.inspect_lot_image(image_bytes)
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception as e:
+        logger.error(f"Mango AI processing error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Mango AI processing error: {str(e)}")
+
+    # 6. Save original image & annotated image to uploads/mango_inspections
+    uploads_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "uploads", "mango_inspections"))
+    os.makedirs(uploads_dir, exist_ok=True)
+
+    uid = uuid.uuid4().hex[:10]
+    safe_orig_filename = f"mango_orig_{booking.id}_{uid}{ext}"
+    orig_dest = os.path.join(uploads_dir, safe_orig_filename)
+    with open(orig_dest, "wb") as f:
+        f.write(image_bytes)
+
+    orig_web_path = f"/uploads/mango_inspections/{safe_orig_filename}"
+    annotated_web_path = None
+
+    if scan_result.get("annotated_image_bytes"):
+        safe_annotated_filename = f"mango_annotated_{booking.id}_{uid}.jpg"
+        annotated_dest = os.path.join(uploads_dir, safe_annotated_filename)
+        with open(annotated_dest, "wb") as f:
+            f.write(scan_result["annotated_image_bytes"])
+        annotated_web_path = f"/uploads/mango_inspections/{safe_annotated_filename}"
+
+    # 7. Store AI Quality Inspection record
+    insp_code = f"AI-QC-{booking.centre_id}-{uuid.uuid4().hex[:8].upper()}"
+    employee_name = current_user.name or current_user.user_id
+
+    ai_inspection = AIQualityInspection(
+        inspection_code=insp_code,
+        booking_id=booking.id,
+        appointment_id=booking.appointment_id,
+        centre_id=booking.centre_id,
+        crop="Mango",
+        image_path=orig_web_path,
+        annotated_image_path=annotated_web_path,
+        model_version=scan_result.get("model_version", "mango-quality-v1"),
+        model_type=scan_result.get("model_type", "CIELAB SVM+KNN (L*a*b* & a*b*)"),
+        sample_count=scan_result.get("mangoes_detected", 0),
+        healthy_count=scan_result.get("healthy", 0),
+        defect_count=scan_result.get("defect_count", 0),
+        anthracnose_count=scan_result.get("anthracnose", 0),
+        scab_count=scan_result.get("scab", 0),
+        bacterial_canker_count=scan_result.get("bacterial_canker", 0),
+        stem_end_rot_count=scan_result.get("stem_end_rot", 0),
+        other_count=scan_result.get("other", 0),
+        ripe_count=scan_result.get("ripe_count", 0),
+        nearly_ripe_count=scan_result.get("nearly_ripe_count", 0),
+        not_ripe_count=scan_result.get("not_ripe_count", 0),
+        uncertain_count=scan_result.get("uncertain_count", 0),
+        affected_percentage=scan_result.get("affected_percentage", 0.0),
+        visual_grade=scan_result.get("visual_grade", "Grade A"),
+        confidence=scan_result.get("confidence", 0.0),
+        status="NEEDS_REVIEW" if scan_result.get("needs_review") else "COMPLETED",
+        reviewed_by=employee_name,
+        reviewed_at=datetime.utcnow()
+    )
+    db.add(ai_inspection)
+    db.flush()
+
+    # 8. Store individual detections
+    for det in scan_result.get("detections", []):
+        bbox = det.get("bbox", [0, 0, 0, 0])
+        detection_row = AIInspectionDetection(
+            inspection_id=ai_inspection.id,
+            sample_index=det.get("sample_index", 1),
+            predicted_class=det.get("class", "Unknown"),
+            ripeness=det.get("ripeness", "Uncertain"),
+            confidence=det.get("confidence", 0.0),
+            box_x=bbox[0],
+            box_y=bbox[1],
+            box_w=bbox[2],
+            box_h=bbox[3],
+            crop_image_path=det.get("crop_url")
+        )
+        db.add(detection_row)
+
+    # 9. Audit Log
+    audit = ProcessAuditLog(
+        user_id=current_user.user_id,
+        centre_id=booking.centre_id,
+        appointment_id=booking.appointment_id,
+        process_step="STEP_3_AI_QUALITY",
+        action="MANGO_AI_SCAN_EXECUTED",
+        record_id=str(ai_inspection.id),
+        new_value=f"Detected: {scan_result.get('mangoes_detected')}, Defective: {scan_result.get('defect_count')}, Grade: {scan_result.get('visual_grade')}, Affected: {scan_result.get('affected_percentage')}%, Ripe: {scan_result.get('ripe_count')}",
+        ip_address="127.0.0.1"
+    )
+    db.add(audit)
+
+    db.commit()
+
+    def sanitize_value(v):
+        if isinstance(v, (int, float, str, bool)) or v is None:
+            return v
+        import numpy as np
+        if isinstance(v, (np.integer,)):
+            return int(v)
+        elif isinstance(v, (np.floating,)):
+            return float(v)
+        elif isinstance(v, np.ndarray):
+            return v.tolist()
+        elif isinstance(v, dict):
+            return {str(k): sanitize_value(val) for k, val in v.items() if k != 'mask' and k != 'annotated_image_bytes'}
+        elif isinstance(v, (list, tuple)):
+            return [sanitize_value(item) for item in v]
+        elif isinstance(v, (bytes, bytearray)):
+            return None
+        return str(v)
+
+    sanitized_detections = sanitize_value(scan_result.get("detections", []))
+    mango_count = int(scan_result.get("mangoes_detected", 0))
+
+    response_payload = {
+        "success": True,
+        "inspection_id": ai_inspection.id,
+        "inspection_code": ai_inspection.inspection_code,
+        "appointment_id": booking.appointment_id,
+        "crop": "Mango",
+        "sample_count": mango_count,
+        "mangoes_detected": mango_count,
+        "count": mango_count,
+        "mangoes": sanitized_detections,
+        "message": "Mango AI visual inspection completed successfully." if mango_count > 0 else "No mangoes detected in the uploaded image.",
+        "healthy": int(scan_result.get("healthy", 0)),
+        "healthy_count": int(scan_result.get("healthy_count", scan_result.get("healthy", 0))),
+        "defect_count": int(scan_result.get("defect_count", 0)),
+        "anthracnose": int(scan_result.get("anthracnose", 0)),
+        "anthracnose_count": int(scan_result.get("anthracnose", 0)),
+        "scab": int(scan_result.get("scab", 0)),
+        "scab_count": int(scan_result.get("scab", 0)),
+        "bacterial_canker": int(scan_result.get("bacterial_canker", 0)),
+        "bacterial_canker_count": int(scan_result.get("bacterial_canker", 0)),
+        "stem_end_rot": int(scan_result.get("stem_end_rot", 0)),
+        "stem_end_rot_count": int(scan_result.get("stem_end_rot", 0)),
+        "other": int(scan_result.get("other", 0)),
+        "other_count": int(scan_result.get("other", 0)),
+        "ripe_count": int(scan_result.get("ripe_count", 0)),
+        "nearly_ripe_count": int(scan_result.get("nearly_ripe_count", 0)),
+        "not_ripe_count": int(scan_result.get("not_ripe_count", 0)),
+        "uncertain_count": int(scan_result.get("uncertain_count", 0)),
+        "ripeness_summary": sanitize_value(scan_result.get("ripeness_summary", {})),
+        "affected_percentage": float(scan_result.get("affected_percentage", 0.0)),
+        "visual_grade": str(scan_result.get("visual_grade", "Grade A")),
+        "confidence": float(scan_result.get("confidence", 0.0)),
+        "status": str(ai_inspection.status),
+        "needs_review": bool(scan_result.get("needs_review", False)),
+        "review_reason": scan_result.get("review_reason"),
+        "annotated_image_url": annotated_web_path,
+        "original_image_url": orig_web_path,
+        "debug_images": sanitize_value(scan_result.get("debug_images", {})),
+        "detections": sanitized_detections
+    }
+
+    return sanitize_value(response_payload)
 

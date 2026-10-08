@@ -27,9 +27,17 @@ def resolve_centre(centre_id_or_uid: str, db: Session) -> Optional[ProcurementCe
         if c:
             return c
 
-    # 4. Fallback for demo centre manager
+    # 4. Fallback for demo centre manager or legacy Goa centre identifier
+    if cid in ["CENTRE-GOA-01", "PC-GOA-01"]:
+        c = db.query(ProcurementCentre).filter(ProcurementCentre.centre_id == "PC-GOA-01").first()
+        if c:
+            return c
+        c = db.query(ProcurementCentre).filter(ProcurementCentre.centre_id == "C001").first()
+        if c:
+            return c
+
     if "centre" in cid.lower() and ("demo" in cid.lower() or "01" in cid.lower() or cid.lower() == "centre"):
-        c = db.query(ProcurementCentre).filter(ProcurementCentre.centre_id == "CENTRE-GOA-01").first()
+        c = db.query(ProcurementCentre).filter(ProcurementCentre.centre_id == "C001").first()
         if c:
             return c
 
@@ -58,8 +66,11 @@ def resolve_farmer(farmer_id_or_uid: str, db: Session) -> Optional[Farmer]:
         return f
 
     # 4. Fallback for demo farmer
-    if "farmer" in fid.lower():
+    if "farmer" in fid.lower() or fid.lower() in ["demo", "default"]:
         f = db.query(Farmer).filter(Farmer.user_id == "farmer@bharatagri.demo").first()
+        if f:
+            return f
+        f = db.query(Farmer).filter(Farmer.farmer_code == "F00001").first()
         if f:
             return f
 

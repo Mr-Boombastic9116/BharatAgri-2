@@ -42,17 +42,20 @@ class FarmerRegisterRequest(BaseModel):
     bank_account_no: Optional[str] = None
     bank_ifsc: Optional[str] = "SBIN0001234"
     ekyc_status: Optional[str] = "VERIFIED"
+    crop_name: Optional[str] = None
 
 class CentreRegisterRequest(BaseModel):
     centre_name: str
     centre_id: str
     password: str
+    state: Optional[str] = "Goa"
+    district: Optional[str] = "North Goa"
     location: Optional[str] = "Main Market Yard"
     contact_number: Optional[str] = "9876543210"
     operating_days: Optional[str] = "Monday,Tuesday,Wednesday,Thursday,Friday,Saturday"
     opening_time: Optional[str] = "09:00 AM"
     closing_time: Optional[str] = "05:00 PM"
-    supported_crops: Optional[str] = "Paddy,Wheat,Maize,Cotton"
+    supported_crops: Optional[str] = None
 
 class AgentRegisterRequest(BaseModel):
     name: str

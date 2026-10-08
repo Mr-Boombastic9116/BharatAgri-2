@@ -11,6 +11,7 @@ from backend.app.core.deps import get_current_user, require_role
 from backend.app.models.logistics import Truck, TruckRequest, TruckAllocation, TruckCollectionRoute, TruckRoutePrediction, TruckRouteApproval
 from backend.app.models.centre import ProcurementCentre, Slot
 from backend.app.models.booking import Booking
+from backend.app.models.queue import CentreDailyMetric
 from backend.app.models.audit import AuditLog
 from ml.inference.truck_optimizer import TruckOptimizer
 
@@ -244,6 +245,14 @@ def allocate_truck(
     if not truck:
         raise HTTPException(status_code=404, detail={"code": "TRUCK_NOT_FOUND", "message": "Truck not found"})
     
+    if not truck.is_available or truck.current_status == "ON_ROUTE":
+        raise HTTPException(status_code=400, detail={"code": "TRUCK_UNAVAILABLE", "message": f"Truck {truck.truck_number} is already on route or unavailable."})
+
+    if payload.request_id:
+        req = db.query(TruckRequest).filter(TruckRequest.id == payload.request_id).first()
+        if req and req.status == "ALLOCATED":
+            raise HTTPException(status_code=400, detail={"code": "REQUEST_ALREADY_ALLOCATED", "message": "This truck request has already been allocated."})
+
     alloc_code = f"TAL-{datetime.now().strftime('%Y%m%d')}-{uuid.uuid4().hex[:6].upper()}"
     allocation = TruckAllocation(
         allocation_code=alloc_code,
@@ -495,18 +504,21 @@ def generate_route_predictions(
             Booking.status.in_(["BOOKED", "CONFIRMED", "ARRIVED", "CHECKED_IN"])
         ).scalar() or 0
         load_ratio = float(t_bookings) / max(float(c.max_daily_capacity_quintals or 800.0), 1.0)
-        congestion = "CRITICAL" if (load_ratio >= 0.9 or ratio >= 0.85) else "HIGH" if (load_ratio >= 0.75 or ratio >= 0.7) else "MEDIUM" if ratio >= 0.35 else "LOW"
 
-        # Quantified trigger: Allocate additional trucks only when a real, quantified need exists:
-        # 1. Capacity bottleneck: ratio >= 0.80 (storage > 80% full)
-        # 2. Daily congestion: CRITICAL or HIGH daily booking queue
-        # 3. Perishable crop urgency: Sugarcane, Tomato, Onion requiring timely evacuation
-        # 4. Regional buffer surplus state with active surplus balance
-        is_perish = primary_crop.lower() in ["sugarcane", "tomato", "onion", "potato"]
-        has_quantified_need = (ratio >= 0.80) or (congestion in ["CRITICAL", "HIGH"]) or is_perish or (sentiment == "SURPLUS" and ratio >= 0.65)
+        # SIH CentreDailyMetric yard congestion check
+        latest_metric = db.query(CentreDailyMetric).filter(CentreDailyMetric.centre_id == c.centre_id).order_by(CentreDailyMetric.date.desc()).first()
+        high_flag = latest_metric.high_congestion_flag if latest_metric else 0
+        c_score = float(latest_metric.congestion_score or 0) if latest_metric else 0.0
+        arrivals = latest_metric.arrivals if latest_metric else 0
+
+        congestion = "CRITICAL" if (c_score >= 0.90 or load_ratio >= 0.9 or ratio >= 0.85) else "HIGH" if (high_flag == 1 or c_score >= 0.70 or load_ratio >= 0.75 or ratio >= 0.7 or arrivals >= 130) else "MEDIUM" if ratio >= 0.35 else "LOW"
+
+        # Quantified trigger: Allocate additional trucks when real congestion or storage bottlenecks exist
+        is_perish = primary_crop.lower() in ["sugarcane", "tomato", "onion", "potato", "mango"]
+        has_quantified_need = (ratio >= 0.80) or (congestion in ["CRITICAL", "HIGH"]) or is_perish or (sentiment == "SURPLUS" and ratio >= 0.65) or (high_flag == 1)
 
         if has_quantified_need and usage >= 400.0:
-            surplus_qty = max(200.0, usage - (0.50 * cap)) if ratio >= 0.80 else min(usage * 0.30, 800.0)
+            surplus_qty = max(400.0, usage - (0.50 * cap)) if ratio >= 0.80 else min(max(usage * 0.30, 400.0), 800.0)
             surplus_sources.append({
                 "centre_id": c.centre_id,
                 "centre_name": c.centre_name,
@@ -547,12 +559,27 @@ def generate_route_predictions(
                 "total_capacity": cap,
                 "current_usage": usage,
                 "available_capacity": avail,
-                "crop": req.crop.strip() if req.crop else "Paddy",
+                "crop": req.crop.strip() if req.crop else (c.supported_crops.split(',')[0].strip() if c.supported_crops else "Mango"),
                 "sentiment": "BALANCED"
             })
 
-    # Available fleet
-    avail_trucks_count = db.query(func.count(Truck.id)).filter(Truck.is_available == True).scalar() or 15
+    # Available fleet from real database
+    avail_trucks_count = db.query(func.count(Truck.id)).filter(Truck.is_available == True).scalar() or 0
+    if avail_trucks_count == 0:
+        total_trucks = db.query(func.count(Truck.id)).scalar() or 0
+        if total_trucks == 0:
+            return {
+                "success": True,
+                "engine": "Optimization Engine (Google OR-Tools)",
+                "solver_status": "INSUFFICIENT_DATA",
+                "message": "Insufficient data: No logistics trucks currently registered in the database.",
+                "routes_created_count": 0,
+                "count": 0,
+                "routes": [],
+                "routes_created": []
+            }
+        # If all trucks are busy
+        avail_trucks_count = total_trucks
 
     # Execute mathematical optimization using Google OR-Tools MIP solver
     opt_result = truck_optimizer.optimize_inter_centre_routes(
@@ -566,6 +593,17 @@ def generate_route_predictions(
     routes_data = opt_result.get("routes", [])
 
     for r in routes_data:
+        # Prevent duplicate route predictions for identical origin-destination pair in active status for today
+        existing_active = db.query(TruckRoutePrediction).filter(
+            TruckRoutePrediction.origin_centre_id == r["origin_centre_id"],
+            TruckRoutePrediction.destination_centre_id == r["destination_centre_id"],
+            TruckRoutePrediction.departure_date >= today,
+            TruckRoutePrediction.status.in_(["PROPOSED", "APPROVED", "SCHEDULED", "IN_TRANSIT"])
+        ).first()
+        if existing_active:
+            created_routes.append(existing_active.route_code)
+            continue
+
         route_code = f"TRP-{datetime.now().strftime('%y%m%d')}-{uuid.uuid4().hex[:6].upper()}"
         prediction = TruckRoutePrediction(
             route_code=route_code,
@@ -610,8 +648,10 @@ def generate_route_predictions(
         "solver_status": opt_result.get("solver_status", "OPTIMAL"),
         "is_optimal": opt_result.get("is_optimal", True),
         "message": msg,
-        "recommendation": "No additional allocation required" if not created_routes else f"{len(created_routes)} route(s) recommended",
-        "routes_created": created_routes
+        "recommendation": f"{len(created_routes)} route(s) recommended" if created_routes else "No additional allocation required",
+        "routes_created": created_routes,
+        "count": len(created_routes),
+        "routes_created_count": len(created_routes)
     }
 
 
@@ -639,6 +679,15 @@ def approve_route(
         comments=comments
     )
     db.add(approval_rec)
+
+    # Allocate physical truck from origin centre to update available fleet count
+    physical_truck = db.query(Truck).filter(
+        Truck.is_available == True,
+        Truck.assigned_centre_id == route.origin_centre_id
+    ).first()
+    if physical_truck:
+        physical_truck.is_available = False
+        physical_truck.status = "ASSIGNED"
 
     audit = AuditLog(
         user_id=route.reviewed_by,

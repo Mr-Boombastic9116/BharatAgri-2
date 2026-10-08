@@ -85,7 +85,7 @@ export async function getFarmerProfile(farmerId) {
 // ----------------------------------------------------
 // PROCUREMENT CENTRES & SLOTS
 // ----------------------------------------------------
-export async function registerCentre(centreName, centreId, password, location, contactNumber, operatingDays, openingTime, closingTime, supportedCrops) {
+export async function registerCentre(centreName, centreId, password, location, contactNumber, operatingDays, openingTime, closingTime, supportedCrops, state = 'Goa', district = 'North Goa') {
   const res = await fetch(`${API_BASE}/centres/register`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -98,7 +98,9 @@ export async function registerCentre(centreName, centreId, password, location, c
       operating_days: operatingDays,
       opening_time: openingTime,
       closing_time: closingTime,
-      supported_crops: supportedCrops
+      supported_crops: supportedCrops,
+      state,
+      district
     })
   });
   const data = await res.json();
@@ -451,8 +453,108 @@ export async function getProcurementEvidence(bookingId) {
   return data;
 }
 
-
 // ----------------------------------------------------
+// SEQUENTIAL 5-STEP PROCUREMENT WORKFLOW & MANGO AI SCAN
+// ----------------------------------------------------
+export async function getProcurementProcessState(appointmentId) {
+  const res = await fetch(`${API_BASE}/procurement/process/${encodeURIComponent(appointmentId)}/state`, {
+    headers: getAuthHeaders()
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error?.message || data.detail || 'Failed to load procurement process state');
+  return data;
+}
+
+export async function submitProcurementProcessStep(appointmentId, stepNumber, stepData = {}, notes = '') {
+  const res = await fetch(`${API_BASE}/procurement/process/${encodeURIComponent(appointmentId)}/step/${stepNumber}/submit`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ step_number: stepNumber, data: stepData, notes })
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error?.message || data.detail || `Failed to submit Step ${stepNumber}`);
+  return data;
+}
+
+export async function applyProcurementStepCorrection(appointmentId, stepNumber, fieldName, newValue, correctionReason) {
+  const res = await fetch(`${API_BASE}/procurement/process/${encodeURIComponent(appointmentId)}/correction`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify({
+      step_number: stepNumber,
+      field_name: fieldName,
+      new_value: String(newValue),
+      correction_reason: correctionReason
+    })
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error?.message || data.detail || 'Failed to submit step correction');
+  return data;
+}
+
+export async function recordStorageFinalCheck(appointmentId, payload) {
+  const res = await fetch(`${API_BASE}/procurement/process/${encodeURIComponent(appointmentId)}/storage-check`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify(payload)
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error?.message || data.detail || 'Storage check failed');
+  return data;
+}
+
+export async function uploadProcessEvidence(appointmentId, formData) {
+  let authHeader = {};
+  try {
+    const userStr = localStorage.getItem('bharatagri_user');
+    if (userStr) {
+      const user = JSON.parse(userStr);
+      if (user && (user.token || user.access_token)) {
+        authHeader['Authorization'] = `Bearer ${user.token || user.access_token}`;
+      }
+    }
+  } catch (e) {
+    console.error('Error resolving auth token for process evidence:', e);
+  }
+
+  const res = await fetch(`${API_BASE}/procurement/process/${encodeURIComponent(appointmentId)}/evidence`, {
+    method: 'POST',
+    headers: authHeader,
+    body: formData
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error?.message || data.detail || 'Failed to upload photo evidence');
+  return data;
+}
+
+export async function scanMangoQuality(appointmentId, imageFile) {
+  let authHeader = {};
+  try {
+    const userStr = localStorage.getItem('bharatagri_user');
+    if (userStr) {
+      const user = JSON.parse(userStr);
+      if (user && (user.token || user.access_token)) {
+        authHeader['Authorization'] = `Bearer ${user.token || user.access_token}`;
+      }
+    }
+  } catch (e) {
+    console.error('Error resolving token for mango scan:', e);
+  }
+
+  const formData = new FormData();
+  formData.append('appointment_id', appointmentId);
+  formData.append('file', imageFile);
+
+  const res = await fetch(`${API_BASE}/procurement/quality/mango-scan`, {
+    method: 'POST',
+    headers: authHeader,
+    body: formData
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error?.message || data.detail || 'Mango AI scan failed');
+  return data;
+}
+
 // AI & OPTIMIZATION ENGINES
 // ----------------------------------------------------
 export async function getSupplyForecast(payload) {
@@ -1125,4 +1227,181 @@ export async function getFarmerDailyIntelligence(farmerId) {
   if (!res.ok) throw new Error('Failed to fetch farmer daily intelligence');
   return data;
 }
+
+// ----------------------------------------------------
+// PROCUREMENT CENTRE EMPLOYEES (Requirement 2)
+// ----------------------------------------------------
+export async function getCentreEmployees(centreId) {
+  const res = await fetch(`${API_BASE}/centres/${encodeURIComponent(centreId)}/employees`, {
+    headers: getAuthHeaders()
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.detail?.message || data.detail || 'Failed to fetch centre employees');
+  return data.data || [];
+}
+
+export async function addCentreEmployee(centreId, payload) {
+  const res = await fetch(`${API_BASE}/centres/${encodeURIComponent(centreId)}/employees`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify(payload)
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.detail?.message || data.detail || 'Failed to add centre employee');
+  return data;
+}
+
+export async function deleteCentreEmployee(centreId, employeeId) {
+  const res = await fetch(`${API_BASE}/centres/${encodeURIComponent(centreId)}/employees/${encodeURIComponent(employeeId)}`, {
+    method: 'DELETE',
+    headers: getAuthHeaders()
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.detail?.message || data.detail || 'Failed to delete centre employee');
+  return data;
+}
+
+// ----------------------------------------------------
+// DEDICATED STORAGE & EVIDENCE
+// ----------------------------------------------------
+export async function submitStorageFinalCheck(appointmentId, payload) {
+  const res = await fetch(`${API_BASE}/procurement/process/${encodeURIComponent(appointmentId)}/storage-check`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify(payload)
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.detail?.message || data.detail || 'Failed to submit storage final check');
+  return data;
+}
+
+export async function uploadProcessStepEvidence(appointmentId, file, processStep = 'STORAGE', evidenceType = 'STORAGE_FINAL_CHECK', notes = '') {
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('process_step', processStep);
+  formData.append('evidence_type', evidenceType);
+  if (notes) formData.append('notes', notes);
+
+  const token = localStorage.getItem('token');
+  const headers = {};
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+
+  const res = await fetch(`${API_BASE}/procurement/process/${encodeURIComponent(appointmentId)}/evidence`, {
+    method: 'POST',
+    headers,
+    body: formData
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.detail?.message || data.detail || 'Failed to upload step evidence');
+  return data;
+}
+
+// ----------------------------------------------------
+// DYNAMIC AI QUEUE & SIH INTELLIGENCE
+// ----------------------------------------------------
+export async function getLiveQueue(centreId) {
+  const res = await fetch(`${API_BASE}/queue/live/${encodeURIComponent(centreId)}`, {
+    headers: getAuthHeaders()
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.detail?.message || data.detail || 'Failed to fetch live queue');
+  return data.data;
+}
+
+export async function trackToken(tokenOrId) {
+  const res = await fetch(`${API_BASE}/queue/token/${encodeURIComponent(tokenOrId)}`, {
+    headers: getAuthHeaders()
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.detail?.message || data.detail || 'Failed to track token');
+  return data.data;
+}
+
+export async function recommendCentre(payload) {
+  const res = await fetch(`${API_BASE}/queue/recommend-centre`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify(payload)
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.detail?.message || data.detail || 'Failed to fetch centre recommendations');
+  return data;
+}
+
+export async function getRecommendedSlots(centreId, date) {
+  const url = date ? `${API_BASE}/queue/recommended-slots/${encodeURIComponent(centreId)}?date=${encodeURIComponent(date)}` : `${API_BASE}/queue/recommended-slots/${encodeURIComponent(centreId)}`;
+  const res = await fetch(url, { headers: getAuthHeaders() });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.detail?.message || data.detail || 'Failed to fetch recommended slots');
+  return data;
+}
+
+export async function getCongestionForecast(centreId) {
+  const res = await fetch(`${API_BASE}/queue/congestion-forecast/${encodeURIComponent(centreId)}`, {
+    headers: getAuthHeaders()
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.detail?.message || data.detail || 'Failed to fetch congestion forecast');
+  return data.data;
+}
+
+export async function getFarmerOverview(farmerId) {
+  const res = await fetch(`${API_BASE}/queue/farmer-overview/${encodeURIComponent(farmerId)}`, {
+    headers: getAuthHeaders()
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.detail?.message || data.detail || 'Failed to fetch farmer overview');
+  return data;
+}
+
+export async function getFarmerNotifications(farmerId) {
+  const res = await fetch(`${API_BASE}/queue/notifications/${encodeURIComponent(farmerId)}`, {
+    headers: getAuthHeaders()
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.detail?.message || data.detail || 'Failed to fetch farmer notifications');
+  return data.notifications || [];
+}
+
+export async function queryCopilot(query) {
+  const res = await fetch(`${API_BASE}/queue/copilot`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ query })
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.detail?.message || data.detail || 'Failed to query copilot');
+  return data.data;
+}
+
+export async function queryCentreCopilot(centreId, query) {
+  const res = await fetch(`${API_BASE}/queue/centre-copilot/${encodeURIComponent(centreId)}`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ query })
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.detail?.message || data.detail || 'Failed to query centre copilot');
+  return data.data;
+}
+
+
+export async function getOperationalAnomalies() {
+  const res = await fetch(`${API_BASE}/queue/anomalies`, {
+    headers: getAuthHeaders()
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.detail?.message || data.detail || 'Failed to fetch anomalies');
+  return data;
+}
+
+export async function getCropsMaster() {
+  const res = await fetch(`${API_BASE}/queue/crops-master`, {
+    headers: getAuthHeaders()
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.detail?.message || data.detail || 'Failed to fetch crops master');
+  return data.crops || [];
+}
+
 

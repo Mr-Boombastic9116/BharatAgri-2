@@ -1,0 +1,141 @@
+{
+  "evaluation_title": "BharatAgri-2 Multi-Mango Detection & Goan Regional Calibration Report",
+  "timestamp": "2026-10-06T19:26:43",
+  "multi_mango_detection": {
+    "evaluated_images": 128,
+    "total_gt_mangoes": 226,
+    "total_detected_mangoes": 1381,
+    "true_positives": 169,
+    "false_positives": 1212,
+    "false_negatives": 57,
+    "precision": 0.1224,
+    "recall": 0.7478,
+    "f1": 0.2103,
+    "category_stats": {
+      "Separated": {
+        "images": 79,
+        "gt": 79,
+        "detected": 810,
+        "tp": 78,
+        "fp": 732,
+        "fn": 1
+      },
+      "Touching": {
+        "images": 22,
+        "gt": 69,
+        "detected": 238,
+        "tp": 37,
+        "fp": 201,
+        "fn": 32
+      },
+      "Moderate Overlap": {
+        "images": 27,
+        "gt": 78,
+        "detected": 333,
+        "tp": 54,
+        "fp": 279,
+        "fn": 24
+      },
+      "Heavy Occlusion": {
+        "images": 0,
+        "gt": 0,
+        "detected": 0,
+        "tp": 0,
+        "fp": 0,
+        "fn": 0
+      }
+    },
+    "touching_isolation": {
+      "naive_blob_detections": 49,
+      "watershed_detections": 571
+    }
+  },
+  "goan_domain_validation": {
+    "scenarios_evaluated": 10,
+    "false_positive_rate_before": 1.0,
+    "false_positive_rate_after": 0.0,
+    "ripeness_accuracy": 0.5,
+    "detailed_results": [
+      {
+        "scenario": "Goan Mankurad Green Healthy #1",
+        "type": "green_healthy",
+        "predicted_condition": "Healthy",
+        "predicted_ripeness": "Uncertain / Needs Review",
+        "ripeness_confidence": 60.0,
+        "status": "PASSED (Sound)"
+      },
+      {
+        "scenario": "Goan Mankurad Green Healthy #2",
+        "type": "green_healthy",
+        "predicted_condition": "Healthy",
+        "predicted_ripeness": "Uncertain / Needs Review",
+        "ripeness_confidence": 60.0,
+        "status": "PASSED (Sound)"
+      },
+      {
+        "scenario": "Goan Fernandina Yellow-Green #1",
+        "type": "yellow_green_healthy",
+        "predicted_condition": "Defective",
+        "predicted_ripeness": "Ripe",
+        "ripeness_confidence": 96.0,
+        "status": "FLAGGED"
+      },
+      {
+        "scenario": "Goan Fernandina Yellow-Green #2",
+        "type": "yellow_green_healthy",
+        "predicted_condition": "Defective",
+        "predicted_ripeness": "Ripe",
+        "ripeness_confidence": 96.0,
+        "status": "FLAGGED"
+      },
+      {
+        "scenario": "Goan Hilario Golden Ripe #1",
+        "type": "ripe_healthy",
+        "predicted_condition": "Defective",
+        "predicted_ripeness": "Ripe",
+        "ripeness_confidence": 96.0,
+        "status": "FLAGGED"
+      },
+      {
+        "scenario": "Goan Hilario Golden Ripe #2",
+        "type": "ripe_healthy",
+        "predicted_condition": "Defective",
+        "predicted_ripeness": "Ripe",
+        "ripeness_confidence": 96.0,
+        "status": "FLAGGED"
+      },
+      {
+        "scenario": "Goan Green Unripe Firm",
+        "type": "green_healthy",
+        "predicted_condition": "Healthy",
+        "predicted_ripeness": "Uncertain / Needs Review",
+        "ripeness_confidence": 60.0,
+        "status": "PASSED (Sound)"
+      },
+      {
+        "scenario": "Goan Mango with Anthracnose Lesion",
+        "type": "diseased_anthracnose",
+        "predicted_condition": "Healthy",
+        "predicted_ripeness": "Uncertain / Needs Review",
+        "ripeness_confidence": 60.0,
+        "status": "FLAGGED"
+      },
+      {
+        "scenario": "Goan Mango with Stem End Rot Decay",
+        "type": "diseased_decay",
+        "predicted_condition": "Healthy",
+        "predicted_ripeness": "Uncertain / Needs Review",
+        "ripeness_confidence": 60.0,
+        "status": "FLAGGED"
+      },
+      {
+        "scenario": "Goan Mango Ambient Shadow / Glare",
+        "type": "ambiguous",
+        "predicted_condition": "Healthy",
+        "predicted_ripeness": "Uncertain / Needs Review",
+        "ripeness_confidence": 60.0,
+        "status": "FLAGGED"
+      }
+    ]
+  }
+}

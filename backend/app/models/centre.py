@@ -18,6 +18,10 @@ class ProcurementCentre(Base):
     max_daily_capacity_quintals = Column(Numeric(10, 2), default=800.00)
     total_storage_capacity_quintals = Column(Numeric(12, 2), default=15000.00)
     current_storage_usage_quintals = Column(Numeric(12, 2), default=3200.00)
+    daily_capacity_farmers = Column(Integer, default=120)
+    weighing_machines = Column(Integer, default=2)
+    quality_stations = Column(Integer, default=2)
+    staff_count = Column(Integer, default=10)
     status = Column(String(20), default="OPERATIONAL")
     created_at = Column(DateTime, server_default=func.now())
 
@@ -60,3 +64,16 @@ class Slot(Base):
     start_time = Column(String(20), nullable=False)
     end_time = Column(String(20), nullable=False)
     max_capacity = Column(Integer, nullable=False, default=20)
+
+class Employee(Base):
+    __tablename__ = "employees"
+    id = Column(Integer, primary_key=True, index=True)
+    centre_id = Column(String(50), nullable=False, index=True)
+    name = Column(String(150), nullable=False)
+    role = Column(String(100), nullable=False)
+    employee_code = Column(String(50), nullable=False, index=True)
+    phone = Column(String(20), nullable=True)
+    email = Column(String(150), nullable=True)
+    status = Column(String(20), default="ACTIVE")
+    created_at = Column(DateTime, server_default=func.now())
+

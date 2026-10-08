@@ -13,9 +13,14 @@ from backend.app.schemas.auth import (
 from backend.app.models.user import User
 from backend.app.models.farmer import Farmer, FarmerCrop
 from backend.app.models.agent import Agent
-from backend.app.models.centre import ProcurementCentre
+from backend.app.models.centre import ProcurementCentre, Employee
 from backend.app.models.audit import AuditLog
 
+STATE_CROPS = {
+    "Goa": ["Mango", "Banana", "Tomato"],
+    "Maharashtra": ["Sugarcane", "Wheat", "Cotton"],
+    "Karnataka": ["Paddy", "Maize", "Bajra"]
+}
 
 logger = logging.getLogger("bharatagri.auth")
 
@@ -42,10 +47,10 @@ def login(req: LoginRequest, db: Session = Depends(get_db)):
 
         clean_role = None
         if req.role:
-            clean_role = req.role.strip().lower()
-            if clean_role in ["procurement_centre", "procurement centre"]:
+            clean_role = req.role.strip().lower().replace("-", "_").replace(" ", "_")
+            if clean_role in ["centre", "center", "procurement_centre", "procurement_center"]:
                 clean_role = "centre"
-            elif clean_role in ["admin"]:
+            elif clean_role in ["admin", "superadmin", "government"]:
                 clean_role = "government"
             query = query.filter(User.role == clean_role)
 
@@ -74,8 +79,31 @@ def login(req: LoginRequest, db: Session = Depends(get_db)):
     logger.info(f"[Auth] Login success for user '{user.user_id}', role='{user.role}'.")
 
     cid = getattr(user, "centre_id", None)
-    if user.role == "centre" and not cid:
-        cid = "CENTRE-GOA-01"
+    if user.role == "centre":
+        if not cid:
+            # Check if user.user_id corresponds to a known ProcurementCentre
+            pc_by_uid = db.query(ProcurementCentre).filter(
+                or_(
+                    ProcurementCentre.centre_id == user.user_id,
+                    func.lower(ProcurementCentre.centre_id) == func.lower(user.user_id)
+                )
+            ).first()
+            if pc_by_uid:
+                cid = pc_by_uid.centre_id
+            else:
+                first_pc = db.query(ProcurementCentre).first()
+                cid = first_pc.centre_id if first_pc else None
+        else:
+            pc = db.query(ProcurementCentre).filter(ProcurementCentre.centre_id == cid).first()
+            if not pc:
+                pc_match = db.query(ProcurementCentre).filter(
+                    func.lower(ProcurementCentre.centre_id) == func.lower(cid)
+                ).first()
+                if pc_match:
+                    cid = pc_match.centre_id
+                elif cid in ["CENTRE-GOA-01", "PC-GOA-01"]:
+                    pc_goa = db.query(ProcurementCentre).filter(ProcurementCentre.centre_id == "PC-GOA-01").first()
+                    cid = pc_goa.centre_id if pc_goa else None
 
     farmer_code = None
     if user.role == "farmer":
@@ -109,6 +137,12 @@ def login(req: LoginRequest, db: Session = Depends(get_db)):
     except Exception:
         db.rollback()
 
+    centre_name = None
+    if user.role == "centre" and cid:
+        pc_rec = db.query(ProcurementCentre).filter(ProcurementCentre.centre_id == cid).first()
+        if pc_rec:
+            centre_name = pc_rec.centre_name
+
     user_dict = {
         "id": user.id,
         "name": user.name,
@@ -118,6 +152,7 @@ def login(req: LoginRequest, db: Session = Depends(get_db)):
         "preferred_language": user.preferred_language or "English",
         "role": user.role,
         "centre_id": cid,
+        "centre_name": centre_name,
         "farmer_code": farmer_code,
         "agent_code": agent_code,
         "status": user.status
@@ -165,6 +200,11 @@ def register_farmer(req: FarmerRegisterRequest, db: Session = Depends(get_db)):
     db.flush()
 
     farmer_code = (req.farmer_id or f"FRM-2026-{new_user.id:05d}").strip()
+    f_state = req.state.strip() if req.state else "Goa"
+    if f_state not in STATE_CROPS:
+        f_state = "Goa"
+    f_district = req.district.strip() if req.district else ("North Goa" if f_state == "Goa" else "Central District")
+
     new_farmer = Farmer(
         farmer_code=farmer_code,
         user_id=clean_uid,
@@ -175,8 +215,8 @@ def register_farmer(req: FarmerRegisterRequest, db: Session = Depends(get_db)):
         address=req.address.strip() if req.address else None,
         village=req.village.strip() if req.village else "Main Village",
         taluka=req.taluka.strip() if req.taluka else "Bicholim",
-        district=req.district.strip() if req.district else "North Goa",
-        state=req.state.strip() if req.state else "Goa",
+        district=f_district,
+        state=f_state,
         land_area_hectares=req.land_area or 2.5,
         ekyc_status=req.ekyc_status or "VERIFIED",
         bank_name=req.bank_name.strip() if req.bank_name else "State Bank of India",
@@ -186,11 +226,16 @@ def register_farmer(req: FarmerRegisterRequest, db: Session = Depends(get_db)):
     db.add(new_farmer)
     db.flush()
 
-    # Add default crop
+    # Determine region-appropriate registered crop
+    allowed_crops = STATE_CROPS[f_state]
+    chosen_crop = req.crop_name.strip() if req.crop_name else allowed_crops[0]
+    if chosen_crop not in allowed_crops:
+        chosen_crop = allowed_crops[0]
+
     new_crop = FarmerCrop(
         farmer_id=new_farmer.id,
-        crop_name="Paddy",
-        season="Kharif",
+        crop_name=chosen_crop,
+        season="Kharif 2026-27",
         estimated_quantity_quintals=50.0
     )
     db.add(new_crop)
@@ -200,7 +245,7 @@ def register_farmer(req: FarmerRegisterRequest, db: Session = Depends(get_db)):
         action="FARMER_REGISTERED",
         entity="FARMER",
         entity_id=farmer_code,
-        new_value=f"Name: {req.name}, Mobile: {req.mobile}"
+        new_value=f"Name: {req.name}, Mobile: {req.mobile}, State: {f_state}, Crop: {chosen_crop}"
     )
     db.add(audit)
     db.commit()
@@ -222,7 +267,8 @@ def register_farmer(req: FarmerRegisterRequest, db: Session = Depends(get_db)):
             "user_id": new_user.user_id,
             "farmer_code": new_farmer.farmer_code,
             "preferred_language": new_user.preferred_language,
-            "role": "farmer"
+            "role": "farmer",
+            "state": new_farmer.state
         }
     }
 
@@ -251,28 +297,58 @@ def register_centre(req: CentreRegisterRequest, db: Session = Depends(get_db)):
     db.add(new_user)
     db.flush()
 
+    c_state = req.state.strip() if req.state else "Goa"
+    if c_state not in STATE_CROPS:
+        c_state = "Goa"
+    c_district = req.district.strip() if req.district else ("North Goa" if c_state == "Goa" else "Central District")
+    allowed_crops = STATE_CROPS[c_state]
+    supp_crops = req.supported_crops or (",".join(allowed_crops))
+
     new_centre = ProcurementCentre(
         centre_id=clean_id,
         centre_name=req.centre_name.strip(),
         location=req.location or "Main Market Yard",
         contact_number=req.contact_number or "9876543210",
-        state="Goa",
-        district="North Goa",
+        state=c_state,
+        district=c_district,
         operating_days=req.operating_days or "Monday,Tuesday,Wednesday,Thursday,Friday,Saturday",
         opening_time=req.opening_time or "09:00 AM",
         closing_time=req.closing_time or "05:00 PM",
-        supported_crops=req.supported_crops or "Paddy,Wheat,Maize,Cotton",
+        supported_crops=supp_crops,
         max_daily_capacity_quintals=800.0,
         status="OPERATIONAL"
     )
     db.add(new_centre)
+    db.flush()
+
+    # Automatically create the standard operational employees for the newly registered centre
+    emp_roles = [
+        ("Intake Officer", "EMP-01"),
+        ("QC Officer", "EMP-02"),
+        ("AI QC Lead", "EMP-03"),
+        ("Weighbridge Op", "EMP-04"),
+        ("Procurement Mgr", "EMP-05"),
+        ("Storage Supervisor", "EMP-06")
+    ]
+    for role, code_suffix in emp_roles:
+        code = f"{clean_id}-{code_suffix}"
+        emp = Employee(
+            centre_id=clean_id,
+            name=f"{req.centre_name} {role}",
+            role=role,
+            employee_code=code,
+            phone=req.contact_number or "9876543210",
+            email=f"{clean_id.lower()}-{code_suffix.lower()}@bharatagri.gov.in",
+            status="ACTIVE"
+        )
+        db.add(emp)
 
     audit = AuditLog(
         user_id=clean_id,
         action="CENTRE_REGISTERED",
         entity="PROCUREMENT_CENTRE",
         entity_id=clean_id,
-        new_value=f"Name: {req.centre_name}"
+        new_value=f"Name: {req.centre_name}, State: {c_state}"
     )
     db.add(audit)
     db.commit()

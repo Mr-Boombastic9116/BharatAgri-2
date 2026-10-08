@@ -1,21 +1,31 @@
 import random
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 from sqlalchemy import func, text, cast, String
 
 from backend.app.core.database import get_db
-from backend.app.core.helpers import resolve_centre
+from backend.app.core.helpers import resolve_centre, resolve_farmer
 from backend.app.models.booking import Booking, BookingStatusHistory, QRCode
 from backend.app.models.centre import Slot, DailyCapacity, NonOperationalDate, ProcurementCentre
 from backend.app.models.farmer import Farmer
 from backend.app.models.user import User
 from backend.app.models.audit import AuditLog
+from backend.app.models.queue import Appointment, ProcurementTransaction
 from backend.app.models.procurement import CollectionRecord, QualityCheck, Weighment, ProcurementRecord, StorageLot, Payment
 from backend.app.schemas.booking import BookingCreate, StatusUpdateRequest
 
 router = APIRouter(prefix="/bookings", tags=["Bookings"])
+
+STATE_CROP_RULES = {
+    "Maharashtra": ["Paddy", "Wheat", "Cotton", "Soybean", "Maize", "Sugarcane"],
+    "Punjab": ["Paddy", "Wheat", "Cotton", "Soybean", "Maize"],
+    "Madhya Pradesh": ["Paddy", "Wheat", "Cotton", "Soybean", "Maize"],
+    "Uttar Pradesh": ["Paddy", "Wheat", "Cotton", "Soybean", "Maize"],
+    "Karnataka": ["Paddy", "Maize", "Bajra"],
+    "Goa": ["Mango", "Banana", "Tomato"],
+}
 
 day_names = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
 
@@ -86,22 +96,81 @@ def create_booking(req: BookingCreate, db: Session = Depends(get_db)):
             detail=f"Daily quantity limit reached. Only {remaining_q:.2f} Quintals remain available for this date."
         )
 
-    # 6. Crop support check
+    # 6. Crop support check & State Crop Restrictions
+    if centre.state and centre.state in STATE_CROP_RULES:
+        allowed_state_crops = STATE_CROP_RULES[centre.state]
+        if req.crop.strip().lower() not in [c.lower() for c in allowed_state_crops]:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Crop '{req.crop}' is not permitted for state '{centre.state}'. Permitted crops for {centre.state}: {', '.join(allowed_state_crops)}."
+            )
+
     if centre.supported_crops:
         supp = [c.strip().lower() for c in centre.supported_crops.split(",") if c.strip()]
         if req.crop.strip().lower() not in supp:
             raise HTTPException(status_code=400, detail=f"Crop '{req.crop}' is not supported by {centre.centre_name}.")
 
-    # 7. Generate Appointment ID & QR Code
+    # 6.5 Duplicate & Conflict Booking Prevention (Part 27)
+    farmer = resolve_farmer(req.farmer_id, db)
+    actual_farmer_code = farmer.farmer_code if farmer else req.farmer_id.strip()
+    farmer_uid_options = [actual_farmer_code, req.farmer_id.strip()]
+    if farmer:
+        if farmer.user_id and farmer.user_id not in farmer_uid_options:
+            farmer_uid_options.append(farmer.user_id)
+        if str(farmer.id) not in farmer_uid_options:
+            farmer_uid_options.append(str(farmer.id))
+
+    active_statuses = ["BOOKED", "CONFIRMED", "CHECKED_IN", "WAITING", "IN_SERVICE"]
+
+    # Check 1: Duplicate active booking for same farmer, centre, crop, and date
+    duplicate_booking = db.query(Booking).join(Slot, Booking.slot_id == Slot.id).filter(
+        Booking.farmer_id.in_(farmer_uid_options),
+        Booking.centre_id == actual_centre_id,
+        Booking.crop == req.crop.strip(),
+        Slot.date == slot_date,
+        Booking.status.in_(active_statuses)
+    ).first()
+
+    if duplicate_booking:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Duplicate booking conflict: You already have an active appointment ({duplicate_booking.appointment_id}) for {req.crop} at {centre.centre_name} on {slot_date}. Please manage or cancel your existing appointment before creating another."
+        )
+
+    # Check 2: Time slot conflict on the exact same slot
+    slot_conflict = db.query(Booking).join(Slot, Booking.slot_id == Slot.id).filter(
+        Booking.farmer_id.in_(farmer_uid_options),
+        Booking.slot_id == req.slot_id,
+        Booking.status.in_(active_statuses)
+    ).first()
+
+    if slot_conflict:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Slot conflict: You already have an active booking ({slot_conflict.appointment_id}) for this exact time slot on {slot_date}."
+        )
+
+    # 7. Generate Appointment ID, Token & QR Code
     appt_id = generate_appointment_id(str(slot_date), db)
     qr_token = f"BA-QR-{appt_id}"
+
+    # Generate sequential token (e.g. A184)
+    appt_seq = db.query(Appointment).filter(
+        Appointment.centre_id == actual_centre_id,
+        Appointment.appointment_date == slot_date
+    ).count() + 1
+    token_val = f"A{appt_seq:03d}" if appt_seq <= 999 else f"A{random.randint(100, 999)}"
+
+    # Estimate queue before and wait
+    queue_before_val = max(1, booked_count)
+    pred_wait = round(queue_before_val * 3.5, 1)
 
     try:
         new_booking = Booking(
             appointment_id=appt_id,
             booking_id=appt_id,
-            farmer_id=req.farmer_id.strip(),
-            centre_id=req.centre_id.strip(),
+            farmer_id=actual_farmer_code,
+            centre_id=actual_centre_id,
             slot_id=req.slot_id,
             crop=req.crop.strip(),
             quantity=req.quantity,
@@ -110,6 +179,36 @@ def create_booking(req: BookingCreate, db: Session = Depends(get_db)):
         )
         db.add(new_booking)
         db.flush()
+
+        # Parse slot start time for Appointment
+        slot_time_str = slot.start_time or "09:00 AM"
+        try:
+            parsed_t = datetime.strptime(slot_time_str.strip(), "%I:%M %p").time()
+        except Exception:
+            try:
+                parsed_t = datetime.strptime(slot_time_str.strip(), "%H:%M").time()
+            except Exception:
+                parsed_t = datetime.strptime("09:30", "%H:%M").time()
+        slot_dt = datetime.combine(slot_date, parsed_t)
+
+        new_appt = Appointment(
+            appointment_id=appt_id,
+            farmer_id=actual_farmer_code,
+            centre_id=actual_centre_id,
+            appointment_date=slot_date,
+            slot_start=slot_dt,
+            slot_duration_min=30,
+            queue_before=queue_before_val,
+            active_weighing_machines=2,
+            staff_available=8,
+            predicted_wait_min=pred_wait,
+            status="CONFIRMED",
+            crop=req.crop.strip(),
+            quantity_quintals=req.quantity,
+            token_number=token_val,
+            qr_token=qr_token
+        )
+        db.add(new_appt)
 
         # Add QR record
         db.add(QRCode(
@@ -124,17 +223,17 @@ def create_booking(req: BookingCreate, db: Session = Depends(get_db)):
             booking_id=new_booking.id,
             old_status=None,
             new_status="CONFIRMED",
-            changed_by=req.farmer_id.strip(),
+            changed_by=actual_farmer_code,
             notes="Initial appointment confirmed"
         ))
 
         # Audit
         db.add(AuditLog(
-            user_id=req.farmer_id.strip(),
+            user_id=actual_farmer_code,
             action="BOOKING_CREATED",
             entity="BOOKING",
             entity_id=appt_id,
-            new_value=f"Centre: {req.centre_id}, Crop: {req.crop}, Qty: {req.quantity}Q"
+            new_value=f"Centre: {actual_centre_id}, Crop: {req.crop}, Qty: {req.quantity}Q, Token: {token_val}"
         ))
 
         db.commit()
@@ -143,8 +242,7 @@ def create_booking(req: BookingCreate, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=f"Transaction failed while creating booking: {str(e)}")
 
     # Fetch farmer name for response
-    farmer = db.query(Farmer).filter(Farmer.user_id == req.farmer_id).first()
-    f_user = db.query(User).filter(User.user_id == req.farmer_id).first()
+    f_user = db.query(User).filter((User.user_id == req.farmer_id) | (User.email == req.farmer_id)).first()
     f_name = farmer.name if farmer else (f_user.name if f_user else req.farmer_id)
     f_mobile = farmer.mobile if farmer else (f_user.mobile if f_user else "")
 
@@ -154,18 +252,22 @@ def create_booking(req: BookingCreate, db: Session = Depends(get_db)):
             "id": new_booking.id,
             "appointment_id": appt_id,
             "booking_id": appt_id,
-            "farmer_id": req.farmer_id,
+            "token": token_val,
+            "token_number": token_val,
+            "farmer_id": actual_farmer_code,
             "farmer_name": f_name,
             "farmer_mobile": f_mobile,
             "centre_id": centre.centre_id,
             "centre_name": centre.centre_name,
             "location": centre.location,
             "crop": req.crop,
-            "quantity": req.quantity,
+            "quantity": float(req.quantity),
             "date": str(slot.date),
             "start_time": slot.start_time,
             "end_time": slot.end_time,
             "time_slot": f"{slot.start_time} - {slot.end_time}",
+            "farmers_ahead": queue_before_val,
+            "expected_wait_min": pred_wait,
             "status": "CONFIRMED",
             "qr_token": qr_token,
             "created_at": str(new_booking.created_at)
@@ -282,43 +384,127 @@ def check_capacity_and_redirect(
 
 @router.get("/farmer/{farmer_id}")
 def get_farmer_bookings(farmer_id: str, db: Session = Depends(get_db)):
-    bookings = (
-        db.query(Booking, Slot, ProcurementCentre)
-        .join(Slot, Booking.slot_id == Slot.id)
-        .join(ProcurementCentre, Booking.centre_id == ProcurementCentre.centre_id)
-        .filter(Booking.farmer_id == farmer_id)
+    farmer = resolve_farmer(farmer_id, db)
+    farmer_identifiers = [farmer_id.strip()]
+    if farmer:
+        if farmer.farmer_code and farmer.farmer_code not in farmer_identifiers:
+            farmer_identifiers.append(farmer.farmer_code)
+        if farmer.user_id and farmer.user_id not in farmer_identifiers:
+            farmer_identifiers.append(farmer.user_id)
+        if str(farmer.id) not in farmer_identifiers:
+            farmer_identifiers.append(str(farmer.id))
+
+    # Pre-cache centres for instant lookup
+    centres_map = {c.centre_id: c for c in db.query(ProcurementCentre).all()}
+
+    # Pre-cache transactions for payment status
+    pts_by_appt = {pt.appointment_id: pt for pt in db.query(ProcurementTransaction).filter(ProcurementTransaction.farmer_id.in_(farmer_identifiers)).all()}
+
+    # 1. Fetch bookings from bookings table with outerjoins
+    bk_rows = (
+        db.query(Booking, Slot)
+        .outerjoin(Slot, Booking.slot_id == Slot.id)
+        .filter(Booking.farmer_id.in_(farmer_identifiers))
         .order_by(Booking.id.desc())
         .all()
     )
 
-    f_user = db.query(User).filter(User.user_id == farmer_id).first()
-    f_name = f_user.name if f_user else farmer_id
-    f_mobile = f_user.mobile if f_user else ""
-
     result = []
-    for b, s, pc in bookings:
+    seen_appt_ids = set()
+
+    f_user = db.query(User).filter((User.user_id == farmer_id) | (User.email == farmer_id)).first()
+    f_name = farmer.name if farmer else (f_user.name if f_user else farmer_id)
+    f_mobile = farmer.mobile if farmer else (f_user.mobile if f_user else "")
+
+    for b, s in bk_rows:
+        seen_appt_ids.add(b.appointment_id)
+        pc = centres_map.get(b.centre_id)
+        pt = pts_by_appt.get(b.appointment_id)
+
+        # Linked appointment for token
+        appt_rec = db.query(Appointment).filter(Appointment.appointment_id == b.appointment_id).first()
+        token_num = appt_rec.token_number if appt_rec and appt_rec.token_number else f"A{b.id % 900 + 100:03d}"
+
+        # Payment details
+        payment_status = pt.payment_status if pt else ("COMPLETED" if b.status == "COMPLETED" else "PENDING")
+        payment_amount = float(pt.gross_amount_rs) if pt else None
+        procured_qty = float(pt.quantity_quintals) if pt else None
+
         result.append({
             "id": b.id,
             "appointment_id": b.appointment_id,
             "booking_id": b.id,
+            "token": token_num,
+            "token_number": token_num,
             "farmer_id": b.farmer_id,
             "farmer_name": f_name,
             "farmer_mobile": f_mobile,
             "centre_id": b.centre_id,
-            "centre_name": pc.centre_name,
-            "location": pc.location,
+            "centre_name": pc.centre_name if pc else b.centre_id,
+            "location": pc.location if pc else "",
             "crop": b.crop,
             "quantity": float(b.quantity),
-            "date": str(s.date),
-            "start_time": s.start_time,
-            "end_time": s.end_time,
-            "time_slot": f"{s.start_time} - {s.end_time}",
+            "date": str(s.date) if s else (str(appt_rec.appointment_date) if appt_rec else str(date.today())),
+            "start_time": s.start_time if s else "09:30 AM",
+            "end_time": s.end_time if s else "10:00 AM",
+            "time_slot": f"{s.start_time} - {s.end_time}" if s else "09:30 AM - 10:00 AM",
             "status": b.status,
+            "payment_status": payment_status,
+            "payment_amount": payment_amount,
+            "procured_quantity": procured_qty,
+            "dbt_reference": pt.dbt_reference if pt else None,
             "qr_token": b.qr_token,
+            "farmers_ahead": appt_rec.queue_before if appt_rec else 5,
+            "estimated_wait_min": float(appt_rec.predicted_wait_min) if appt_rec and appt_rec.predicted_wait_min else 20.0,
             "redirected_from_centre_id": b.redirected_from_centre_id,
             "verified_at": str(b.verified_at) if b.verified_at else None,
             "created_at": str(b.created_at)
         })
+
+    # 2. Also merge any appointments from Appointment table not present in Booking table
+    appts_extra = (
+        db.query(Appointment)
+        .filter(Appointment.farmer_id.in_(farmer_identifiers))
+        .order_by(Appointment.id.desc())
+        .all()
+    )
+    for a in appts_extra:
+        if a.appointment_id in seen_appt_ids:
+            continue
+        seen_appt_ids.add(a.appointment_id)
+        pc = centres_map.get(a.centre_id)
+        pt = pts_by_appt.get(a.appointment_id)
+        payment_status = pt.payment_status if pt else ("COMPLETED" if a.status == "COMPLETED" else "PENDING")
+
+        result.append({
+            "id": a.id,
+            "appointment_id": a.appointment_id,
+            "booking_id": a.id,
+            "token": a.token_number or f"A{a.id % 900 + 100:03d}",
+            "token_number": a.token_number or f"A{a.id % 900 + 100:03d}",
+            "farmer_id": a.farmer_id,
+            "farmer_name": f_name,
+            "farmer_mobile": f_mobile,
+            "centre_id": a.centre_id,
+            "centre_name": pc.centre_name if pc else a.centre_id,
+            "location": pc.location if pc else "",
+            "crop": a.crop or "Paddy",
+            "quantity": float(a.quantity_quintals or 40.0),
+            "date": str(a.appointment_date),
+            "start_time": a.slot_start.strftime("%I:%M %p") if a.slot_start else "09:30 AM",
+            "end_time": (a.slot_start + timedelta(minutes=a.slot_duration_min or 30)).strftime("%I:%M %p") if a.slot_start else "10:00 AM",
+            "time_slot": f"{a.slot_start.strftime('%I:%M %p')} - {(a.slot_start + timedelta(minutes=a.slot_duration_min or 30)).strftime('%I:%M %p')}" if a.slot_start else "09:30 AM - 10:00 AM",
+            "status": a.status,
+            "payment_status": payment_status,
+            "payment_amount": float(pt.gross_amount_rs) if pt else None,
+            "procured_quantity": float(pt.quantity_quintals) if pt else None,
+            "dbt_reference": pt.dbt_reference if pt else None,
+            "qr_token": a.qr_token or f"QR-BA-{a.appointment_id}",
+            "farmers_ahead": a.queue_before or 5,
+            "estimated_wait_min": float(a.predicted_wait_min) if a.predicted_wait_min else 20.0,
+            "created_at": str(a.created_at)
+        })
+
     return result
 
 @router.get("/centre/{centre_id}")

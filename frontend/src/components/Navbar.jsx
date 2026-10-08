@@ -1,7 +1,7 @@
 import React from 'react';
 import {
   Sprout, LogOut, LogIn, Home, Info, User, Building2, Calendar,
-  LayoutDashboard, Moon, Sun, Globe, Users, Briefcase
+  LayoutDashboard, Moon, Sun, Globe, Users, Briefcase, Ticket
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { useTranslation } from '../context/LanguageContext';
@@ -73,15 +73,26 @@ export default function Navbar({ user, activePage, navigate, onLogout }) {
                 </li>
 
                 {user.role?.toLowerCase() === 'farmer' && (
-                  <li
-                    className={`nav-link ${activePage === 'book-slot' ? 'active' : ''}`}
-                    onClick={() => navigate('book-slot')}
-                    style={{ cursor: 'pointer' }}
-                  >
-                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '0.9rem', fontWeight: 500 }}>
-                      <Calendar size={15} /> {t('book_slot')}
-                    </span>
-                  </li>
+                  <>
+                    <li
+                      className={`nav-link ${activePage === 'my-booking' ? 'active' : ''}`}
+                      onClick={() => navigate('my-booking')}
+                      style={{ cursor: 'pointer' }}
+                    >
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '0.9rem', fontWeight: 500 }}>
+                        <Ticket size={15} /> My Booking
+                      </span>
+                    </li>
+                    <li
+                      className={`nav-link ${activePage === 'book-slot' ? 'active' : ''}`}
+                      onClick={() => navigate('book-slot')}
+                      style={{ cursor: 'pointer' }}
+                    >
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '0.9rem', fontWeight: 500 }}>
+                        <Calendar size={15} /> {t('book_slot')}
+                      </span>
+                    </li>
+                  </>
                 )}
 
                 <li>

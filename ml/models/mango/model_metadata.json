@@ -1,0 +1,81 @@
+{
+  "model_version": "mango-quality-v1",
+  "best_model_name": "Model D (Optional: RBF SVM, L*a*b*)",
+  "training_timestamp": "2026-10-06T21:22:21.983118",
+  "random_seed": 42,
+  "python_version": "3.12.10 (tags/v3.12.10:0cc8128, Apr  8 2025, 12:21:36) [MSC v.1943 64 bit (AMD64)]",
+  "scikit_learn_version": "1.9.1",
+  "os_platform": "Windows-11-10.0.22631-SP0",
+  "feature_representation": "RGB -> CIELAB color space transformation",
+  "feature_set": "a*, b* color metrics + lesion roughness + chroma metrics",
+  "classes": [
+    "Anthracnose",
+    "Bacterial Canker",
+    "Healthy",
+    "Other",
+    "Scab",
+    "Stem End Rot"
+  ],
+  "split_summary": {
+    "train_samples": 3568,
+    "test_samples": 920,
+    "leakage_prevention": "Strict Group-Stratified splitting; zero group crossover between train and test."
+  },
+  "best_metrics": {
+    "model_name": "Model D (Optional: RBF SVM, L*a*b*)",
+    "features": "L*, a*, b*",
+    "cv_macro_f1": 0.7753,
+    "test_accuracy": 0.8109,
+    "macro_precision": 0.7877,
+    "macro_recall": 0.768,
+    "macro_f1": 0.7745,
+    "weighted_f1": 0.8084,
+    "fit_time_seconds": 1.41
+  },
+  "comparison_table": [
+    {
+      "model_name": "Model A (RBF SVM, a*b*)",
+      "features": "a*, b*",
+      "cv_macro_f1": 0.7394,
+      "test_accuracy": 0.7815,
+      "macro_precision": 0.7476,
+      "macro_recall": 0.7278,
+      "macro_f1": 0.736,
+      "weighted_f1": 0.779,
+      "fit_time_seconds": 1.42
+    },
+    {
+      "model_name": "Model B (KNN, a*b*)",
+      "features": "a*, b*",
+      "cv_macro_f1": 0.7014,
+      "test_accuracy": 0.7293,
+      "macro_precision": 0.689,
+      "macro_recall": 0.6813,
+      "macro_f1": 0.6844,
+      "weighted_f1": 0.7272,
+      "fit_time_seconds": 0.0
+    },
+    {
+      "model_name": "Model C (SVM + KNN Fusion, a*b*)",
+      "features": "a*, b*",
+      "cv_macro_f1": 0.7399,
+      "test_accuracy": 0.7837,
+      "macro_precision": 0.758,
+      "macro_recall": 0.739,
+      "macro_f1": 0.7475,
+      "weighted_f1": 0.7815,
+      "fit_time_seconds": 1.39
+    },
+    {
+      "model_name": "Model D (Optional: RBF SVM, L*a*b*)",
+      "features": "L*, a*, b*",
+      "cv_macro_f1": 0.7753,
+      "test_accuracy": 0.8109,
+      "macro_precision": 0.7877,
+      "macro_recall": 0.768,
+      "macro_f1": 0.7745,
+      "weighted_f1": 0.8084,
+      "fit_time_seconds": 1.41
+    }
+  ]
+}

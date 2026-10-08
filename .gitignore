@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+venv/
+env/
+ENV/
+
+# Node / Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# ML Data & Artifacts (Raw ZIPs preserved, extracts/artifacts ignored)
+ml/data/mango/extracted/
+ml/data/mango/processed/
+ml/data/mango/splits/
+ml/models/mango/*.joblib
+uploads/
+uploads/mango_inspections/
+uploads/evidence/
+
+# Environment & IDE
+.env
+.idea/
+.vscode/
+*.swp
+*.swo
+ml/data/mango/raw/MangoFruitBD.zip

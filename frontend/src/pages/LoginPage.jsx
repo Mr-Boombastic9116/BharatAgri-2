@@ -10,6 +10,12 @@ const DEMO_ACCOUNTS = {
   government: { email: 'admin@bharatagri.demo', password: 'BharatAgri@2026', role: 'GOVERNMENT' }
 };
 
+const REGIONAL_STATE_CROPS = {
+  Goa: ['Mango', 'Banana', 'Tomato'],
+  Maharashtra: ['Sugarcane', 'Wheat', 'Cotton'],
+  Karnataka: ['Paddy', 'Maize', 'Bajra']
+};
+
 export default function LoginPage({ initialRole = 'farmer', onLoginSuccess, navigate }) {
   const { t } = useTranslation();
   const [role, setRole] = useState(initialRole.toLowerCase());
@@ -26,6 +32,7 @@ export default function LoginPage({ initialRole = 'farmer', onLoginSuccess, navi
   const [regTaluka, setRegTaluka] = useState('Ponda');
   const [regDistrict, setRegDistrict] = useState('North Goa');
   const [regState, setRegState] = useState('Goa');
+  const [regCrop, setRegCrop] = useState('Mango');
   const [regLandArea, setRegLandArea] = useState('2.5');
   const [regBankName, setRegBankName] = useState('State Bank of India');
   const [regBankAccount, setRegBankAccount] = useState('10293847561');
@@ -50,11 +57,21 @@ export default function LoginPage({ initialRole = 'farmer', onLoginSuccess, navi
   const [regOperatingDays, setRegOperatingDays] = useState('Monday,Tuesday,Wednesday,Thursday,Friday,Saturday');
   const [regOpeningTime, setRegOpeningTime] = useState('09:00 AM');
   const [regClosingTime, setRegClosingTime] = useState('05:00 PM');
-  const [regCrops, setRegCrops] = useState('Paddy,Wheat,Maize,Cotton');
+  const [regCrops, setRegCrops] = useState('Mango,Banana,Tomato');
 
   // Error & Loading States
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  const handleStateChange = (newState) => {
+    setRegState(newState);
+    const stateCrops = REGIONAL_STATE_CROPS[newState] || ['Paddy', 'Wheat'];
+    setRegCrop(stateCrops[0]);
+    setRegCrops(stateCrops.join(','));
+    if (newState === 'Goa') setRegDistrict('North Goa');
+    else if (newState === 'Maharashtra') setRegDistrict('Pune');
+    else if (newState === 'Karnataka') setRegDistrict('Bengaluru Rural');
+  };
 
   const handleQuickFill = (roleKey) => {
     const creds = DEMO_ACCOUNTS[roleKey];
@@ -91,7 +108,7 @@ export default function LoginPage({ initialRole = 'farmer', onLoginSuccess, navi
     setError('');
 
     if (!regName.trim() || !regId.trim() || !regPassword.trim()) {
-      setError('Please fill in all mandatory fields.');
+      setError('Please fill in all mandatory account fields (Name, Login ID, Password).');
       return;
     }
 
@@ -99,8 +116,13 @@ export default function LoginPage({ initialRole = 'farmer', onLoginSuccess, navi
     try {
       let registeredUser;
       if (role === 'farmer') {
-        if (!regMobile.trim() || !regVillage.trim()) {
-          setError('Mobile number and Village are required for Farmer registration.');
+        if (!regMobile.trim() || !regVillage.trim() || !regTaluka.trim() || !regDistrict.trim()) {
+          setError('Mobile number, Village, Taluka, and District are required for Farmer registration.');
+          setLoading(false);
+          return;
+        }
+        if (!regBankAccount.trim() || !regBankIfsc.trim() || !regBankName.trim()) {
+          setError('Bank details (Account No, IFSC, Bank Name) are required for DBT settlements.');
           setLoading(false);
           return;
         }
@@ -115,6 +137,7 @@ export default function LoginPage({ initialRole = 'farmer', onLoginSuccess, navi
           district: regDistrict.trim(),
           state: regState.trim(),
           land_area: parseFloat(regLandArea) || 2.5,
+          crop_name: regCrop,
           user_id: regId.trim(),
           user_code: regId.trim(),
           farmer_id: cleanFarmerCode,
@@ -125,11 +148,16 @@ export default function LoginPage({ initialRole = 'farmer', onLoginSuccess, navi
           preferred_language: regLanguage
         });
       } else if (role === 'agent') {
+        if (!regAgencyName.trim() || !regLicenseNo.trim() || !regMobile.trim()) {
+          setError('Agency Name, License Number, and Mobile Contact are required for Agent registration.');
+          setLoading(false);
+          return;
+        }
         registeredUser = await registerAgent({
           name: regName.trim(),
           user_id: regId.trim(),
           password: regPassword,
-          mobile: regMobile.trim() || '9876543210',
+          mobile: regMobile.trim(),
           email: regEmail.trim() || `${regId.trim()}@bharatagri.demo`,
           district: regDistrict.trim() || 'North Goa',
           state: regState.trim() || 'Goa',
@@ -137,6 +165,11 @@ export default function LoginPage({ initialRole = 'farmer', onLoginSuccess, navi
           license_number: regLicenseNo.trim()
         });
       } else if (role === 'centre') {
+        if (!regLocation.trim() || !regContact.trim() || !regCrops.trim()) {
+          setError('Yard Address, Contact Phone, and Supported Commodities are required for Centre registration.');
+          setLoading(false);
+          return;
+        }
         registeredUser = await registerCentre(
           regName.trim(),
           regId.trim(),
@@ -146,9 +179,16 @@ export default function LoginPage({ initialRole = 'farmer', onLoginSuccess, navi
           regOperatingDays,
           regOpeningTime,
           regClosingTime,
-          regCrops
+          regCrops.trim(),
+          regState.trim() || 'Goa',
+          regDistrict.trim() || 'North Goa'
         );
       } else if (role === 'government') {
+        if (!regDepartment.trim() || !regDesignation.trim() || !regEmployeeId.trim()) {
+          setError('Department, Designation, and Employee ID are required for Government Official registration.');
+          setLoading(false);
+          return;
+        }
         registeredUser = await registerGovernment({
           name: regName.trim(),
           user_id: regId.trim(),
@@ -403,19 +443,38 @@ export default function LoginPage({ initialRole = 'farmer', onLoginSuccess, navi
                   </div>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.75rem' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
                   <div>
                     <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.3rem', color: 'var(--secondary)' }}>
                       State *
                     </label>
-                    <input
-                      type="text"
-                      required
+                    <select
                       value={regState}
-                      onChange={(e) => setRegState(e.target.value)}
+                      onChange={(e) => handleStateChange(e.target.value)}
                       style={{ width: '100%', padding: '0.7rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', backgroundColor: 'var(--bg-page)', color: 'var(--secondary)' }}
-                    />
+                    >
+                      <option value="Goa">Goa</option>
+                      <option value="Maharashtra">Maharashtra</option>
+                      <option value="Karnataka">Karnataka</option>
+                    </select>
                   </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.3rem', color: 'var(--secondary)' }}>
+                      Primary Crop for MSP Registration *
+                    </label>
+                    <select
+                      value={regCrop}
+                      onChange={(e) => setRegCrop(e.target.value)}
+                      style={{ width: '100%', padding: '0.7rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', backgroundColor: 'var(--bg-page)', color: 'var(--secondary)' }}
+                    >
+                      {(REGIONAL_STATE_CROPS[regState] || ['Paddy']).map(crop => (
+                        <option key={crop} value={crop}>{crop}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
                   <div>
                     <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.3rem', color: 'var(--secondary)' }}>
                       District *
@@ -480,7 +539,17 @@ export default function LoginPage({ initialRole = 'farmer', onLoginSuccess, navi
                       </span>
                     )}
                   </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '0.75rem' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr 1fr', gap: '0.75rem' }}>
+                    <div>
+                      <input
+                        type="text"
+                        required
+                        value={regBankName}
+                        onChange={(e) => setRegBankName(e.target.value)}
+                        placeholder="Bank Name"
+                        style={{ width: '100%', padding: '0.6rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', backgroundColor: 'var(--bg-card)', color: 'var(--secondary)' }}
+                      />
+                    </div>
                     <div>
                       <input
                         type="text"
@@ -598,6 +667,35 @@ export default function LoginPage({ initialRole = 'farmer', onLoginSuccess, navi
             {/* CENTRE SPECIFIC */}
             {role === 'centre' && (
               <>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.3rem', color: 'var(--secondary)' }}>
+                      Operating State *
+                    </label>
+                    <select
+                      value={regState}
+                      onChange={(e) => handleStateChange(e.target.value)}
+                      style={{ width: '100%', padding: '0.7rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', backgroundColor: 'var(--bg-page)', color: 'var(--secondary)' }}
+                    >
+                      <option value="Goa">Goa</option>
+                      <option value="Maharashtra">Maharashtra</option>
+                      <option value="Karnataka">Karnataka</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.3rem', color: 'var(--secondary)' }}>
+                      District *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={regDistrict}
+                      onChange={(e) => setRegDistrict(e.target.value)}
+                      style={{ width: '100%', padding: '0.7rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', backgroundColor: 'var(--bg-page)', color: 'var(--secondary)' }}
+                    />
+                  </div>
+                </div>
+
                 <div>
                   <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.3rem', color: 'var(--secondary)' }}>
                     Yard / Godown Address *

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Numeric, Date, DateTime, Text, ForeignKey
+from sqlalchemy import Column, Integer, String, Numeric, Date, DateTime, Text, ForeignKey, Boolean
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from backend.app.core.database import Base
@@ -19,6 +19,12 @@ class Farmer(Base):
     taluka = Column(String(100), nullable=False)
     village = Column(String(100), nullable=False)
     land_area_hectares = Column(Numeric(8, 2), nullable=False, default=2.50)
+    land_acres = Column(Numeric(8, 2), nullable=True)
+    primary_crop = Column(String(100), nullable=True)
+    expected_quantity_quintals = Column(Numeric(10, 2), nullable=True)
+    distance_to_nearest_centre_km = Column(Numeric(8, 2), nullable=True)
+    preferred_language = Column(String(20), default="hi")
+    mobile_verified = Column(Boolean, default=True)
     ekyc_status = Column(String(20), default="VERIFIED")
     aadhaar_masked = Column(String(20), default="XXXX-XXXX-1234")
     bank_name = Column(String(100), default="State Bank of India")

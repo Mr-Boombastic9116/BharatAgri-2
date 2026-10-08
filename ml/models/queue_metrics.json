@@ -1,0 +1,53 @@
+{
+  "comparison": {
+    "baseline_queueing_model": {
+      "mae_min": 37.34,
+      "rmse_min": 72.43,
+      "r2_score": -0.4594,
+      "description": "Deterministic Little's Law approximation: (queue_before * historical_avg_processing_min) / active_weighing_machines"
+    },
+    "random_forest": {
+      "mae_min": 11.65,
+      "rmse_min": 14.69,
+      "r2_score": 0.94
+    },
+    "gradient_boosting": {
+      "mae_min": 11.29,
+      "rmse_min": 14.08,
+      "r2_score": 0.9448
+    },
+    "xgboost": {
+      "mae_min": 11.3,
+      "rmse_min": 14.11,
+      "r2_score": 0.9446
+    }
+  },
+  "best_model": "gradient_boosting",
+  "feature_columns": [
+    "queue_before",
+    "active_weighing_machines",
+    "staff_available",
+    "equipment_failure_flag",
+    "weather_delay_flag",
+    "travel_distance_km",
+    "historical_avg_processing_min",
+    "hour",
+    "day_of_week",
+    "is_peak_hour"
+  ],
+  "feature_importances": {
+    "queue_before": 0.2109024693892975,
+    "active_weighing_machines": 0.5105406296861669,
+    "staff_available": 0.002662768036892666,
+    "equipment_failure_flag": 0.014302593242934992,
+    "weather_delay_flag": 0.004058481824199411,
+    "travel_distance_km": 0.001498622225974784,
+    "historical_avg_processing_min": 0.2550992212018293,
+    "hour": 0.0005365471923612616,
+    "day_of_week": 0.0003701509699143459,
+    "is_peak_hour": 2.851623042887092e-05
+  },
+  "sample_count": 18000,
+  "test_sample_count": 3600,
+  "residual_std": 14.081245324404412
+}

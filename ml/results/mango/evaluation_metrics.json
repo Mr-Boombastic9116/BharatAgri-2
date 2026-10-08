@@ -1,0 +1,498 @@
+{
+  "Model A (RBF SVM, a*b*)": {
+    "summary": {
+      "model_name": "Model A (RBF SVM, a*b*)",
+      "features": "a*, b*",
+      "cv_macro_f1": 0.7394,
+      "test_accuracy": 0.7815,
+      "macro_precision": 0.7476,
+      "macro_recall": 0.7278,
+      "macro_f1": 0.736,
+      "weighted_f1": 0.779,
+      "fit_time_seconds": 1.42
+    },
+    "classification_report": {
+      "Anthracnose": {
+        "precision": 0.6823529411764706,
+        "recall": 0.651685393258427,
+        "f1-score": 0.6666666666666666,
+        "support": 178.0
+      },
+      "Bacterial Canker": {
+        "precision": 0.5409836065573771,
+        "recall": 0.55,
+        "f1-score": 0.5454545454545454,
+        "support": 60.0
+      },
+      "Healthy": {
+        "precision": 0.8583333333333333,
+        "recall": 0.9307228915662651,
+        "f1-score": 0.8930635838150289,
+        "support": 332.0
+      },
+      "Other": {
+        "precision": 0.7622377622377622,
+        "recall": 0.8014705882352942,
+        "f1-score": 0.7813620071684588,
+        "support": 136.0
+      },
+      "Scab": {
+        "precision": 0.7843137254901961,
+        "recall": 0.6666666666666666,
+        "f1-score": 0.7207207207207207,
+        "support": 120.0
+      },
+      "Stem End Rot": {
+        "precision": 0.8571428571428571,
+        "recall": 0.7659574468085106,
+        "f1-score": 0.8089887640449438,
+        "support": 94.0
+      },
+      "accuracy": 0.7815217391304348,
+      "macro avg": {
+        "precision": 0.7475607043229994,
+        "recall": 0.7277504977558605,
+        "f1-score": 0.7360427146450608,
+        "support": 920.0
+      },
+      "weighted avg": {
+        "precision": 0.779606432482727,
+        "recall": 0.7815217391304348,
+        "f1-score": 0.7790083831545115,
+        "support": 920.0
+      }
+    },
+    "confusion_matrix": {
+      "labels": [
+        "Anthracnose",
+        "Bacterial Canker",
+        "Healthy",
+        "Other",
+        "Scab",
+        "Stem End Rot"
+      ],
+      "matrix": [
+        [
+          116,
+          3,
+          36,
+          17,
+          3,
+          3
+        ],
+        [
+          7,
+          33,
+          1,
+          1,
+          17,
+          1
+        ],
+        [
+          15,
+          1,
+          309,
+          2,
+          2,
+          3
+        ],
+        [
+          19,
+          0,
+          3,
+          109,
+          0,
+          5
+        ],
+        [
+          8,
+          24,
+          8,
+          0,
+          80,
+          0
+        ],
+        [
+          5,
+          0,
+          3,
+          14,
+          0,
+          72
+        ]
+      ]
+    }
+  },
+  "Model B (KNN, a*b*)": {
+    "summary": {
+      "model_name": "Model B (KNN, a*b*)",
+      "features": "a*, b*",
+      "cv_macro_f1": 0.7014,
+      "test_accuracy": 0.7293,
+      "macro_precision": 0.689,
+      "macro_recall": 0.6813,
+      "macro_f1": 0.6844,
+      "weighted_f1": 0.7272,
+      "fit_time_seconds": 0.0
+    },
+    "classification_report": {
+      "Anthracnose": {
+        "precision": 0.5878787878787879,
+        "recall": 0.5449438202247191,
+        "f1-score": 0.565597667638484,
+        "support": 178.0
+      },
+      "Bacterial Canker": {
+        "precision": 0.5,
+        "recall": 0.5,
+        "f1-score": 0.5,
+        "support": 60.0
+      },
+      "Healthy": {
+        "precision": 0.8386167146974063,
+        "recall": 0.8765060240963856,
+        "f1-score": 0.8571428571428571,
+        "support": 332.0
+      },
+      "Other": {
+        "precision": 0.6912751677852349,
+        "recall": 0.7573529411764706,
+        "f1-score": 0.7228070175438597,
+        "support": 136.0
+      },
+      "Scab": {
+        "precision": 0.7232142857142857,
+        "recall": 0.675,
+        "f1-score": 0.6982758620689655,
+        "support": 120.0
+      },
+      "Stem End Rot": {
+        "precision": 0.7931034482758621,
+        "recall": 0.7340425531914894,
+        "f1-score": 0.7624309392265194,
+        "support": 94.0
+      },
+      "accuracy": 0.7293478260869565,
+      "macro avg": {
+        "precision": 0.689014734058596,
+        "recall": 0.6813075564481775,
+        "f1-score": 0.6843757239367809,
+        "support": 920.0
+      },
+      "weighted avg": {
+        "precision": 0.7265369943091308,
+        "recall": 0.7293478260869565,
+        "f1-score": 0.7271860647093612,
+        "support": 920.0
+      }
+    },
+    "confusion_matrix": {
+      "labels": [
+        "Anthracnose",
+        "Bacterial Canker",
+        "Healthy",
+        "Other",
+        "Scab",
+        "Stem End Rot"
+      ],
+      "matrix": [
+        [
+          97,
+          3,
+          42,
+          22,
+          8,
+          6
+        ],
+        [
+          6,
+          30,
+          1,
+          1,
+          20,
+          2
+        ],
+        [
+          20,
+          5,
+          291,
+          7,
+          3,
+          6
+        ],
+        [
+          25,
+          2,
+          2,
+          103,
+          0,
+          4
+        ],
+        [
+          11,
+          20,
+          6,
+          2,
+          81,
+          0
+        ],
+        [
+          6,
+          0,
+          5,
+          14,
+          0,
+          69
+        ]
+      ]
+    }
+  },
+  "Model C (SVM + KNN Fusion, a*b*)": {
+    "summary": {
+      "model_name": "Model C (SVM + KNN Fusion, a*b*)",
+      "features": "a*, b*",
+      "cv_macro_f1": 0.7399,
+      "test_accuracy": 0.7837,
+      "macro_precision": 0.758,
+      "macro_recall": 0.739,
+      "macro_f1": 0.7475,
+      "weighted_f1": 0.7815,
+      "fit_time_seconds": 1.39
+    },
+    "classification_report": {
+      "Anthracnose": {
+        "precision": 0.6745562130177515,
+        "recall": 0.6404494382022472,
+        "f1-score": 0.6570605187319885,
+        "support": 178.0
+      },
+      "Bacterial Canker": {
+        "precision": 0.6363636363636364,
+        "recall": 0.5833333333333334,
+        "f1-score": 0.6086956521739131,
+        "support": 60.0
+      },
+      "Healthy": {
+        "precision": 0.8615819209039548,
+        "recall": 0.9186746987951807,
+        "f1-score": 0.8892128279883382,
+        "support": 332.0
+      },
+      "Other": {
+        "precision": 0.7310344827586207,
+        "recall": 0.7794117647058824,
+        "f1-score": 0.7544483985765125,
+        "support": 136.0
+      },
+      "Scab": {
+        "precision": 0.7837837837837838,
+        "recall": 0.725,
+        "f1-score": 0.7532467532467533,
+        "support": 120.0
+      },
+      "Stem End Rot": {
+        "precision": 0.8604651162790697,
+        "recall": 0.7872340425531915,
+        "f1-score": 0.8222222222222222,
+        "support": 94.0
+      },
+      "accuracy": 0.783695652173913,
+      "macro avg": {
+        "precision": 0.7579641921844695,
+        "recall": 0.7390172129316391,
+        "f1-score": 0.7474810621566212,
+        "support": 920.0
+      },
+      "weighted avg": {
+        "precision": 0.7811483548679892,
+        "recall": 0.783695652173913,
+        "f1-score": 0.7815007085236545,
+        "support": 920.0
+      }
+    },
+    "confusion_matrix": {
+      "labels": [
+        "Anthracnose",
+        "Bacterial Canker",
+        "Healthy",
+        "Other",
+        "Scab",
+        "Stem End Rot"
+      ],
+      "matrix": [
+        [
+          114,
+          1,
+          35,
+          21,
+          4,
+          3
+        ],
+        [
+          6,
+          35,
+          0,
+          1,
+          17,
+          1
+        ],
+        [
+          16,
+          1,
+          305,
+          4,
+          3,
+          3
+        ],
+        [
+          20,
+          2,
+          3,
+          106,
+          0,
+          5
+        ],
+        [
+          9,
+          16,
+          8,
+          0,
+          87,
+          0
+        ],
+        [
+          4,
+          0,
+          3,
+          13,
+          0,
+          74
+        ]
+      ]
+    }
+  },
+  "Model D (Optional: RBF SVM, L*a*b*)": {
+    "summary": {
+      "model_name": "Model D (Optional: RBF SVM, L*a*b*)",
+      "features": "L*, a*, b*",
+      "cv_macro_f1": 0.7753,
+      "test_accuracy": 0.8109,
+      "macro_precision": 0.7877,
+      "macro_recall": 0.768,
+      "macro_f1": 0.7745,
+      "weighted_f1": 0.8084,
+      "fit_time_seconds": 1.41
+    },
+    "classification_report": {
+      "Anthracnose": {
+        "precision": 0.7375,
+        "recall": 0.6629213483146067,
+        "f1-score": 0.6982248520710059,
+        "support": 178.0
+      },
+      "Bacterial Canker": {
+        "precision": 0.5967741935483871,
+        "recall": 0.6166666666666667,
+        "f1-score": 0.6065573770491803,
+        "support": 60.0
+      },
+      "Healthy": {
+        "precision": 0.8707865168539326,
+        "recall": 0.9337349397590361,
+        "f1-score": 0.9011627906976745,
+        "support": 332.0
+      },
+      "Other": {
+        "precision": 0.7577639751552795,
+        "recall": 0.8970588235294118,
+        "f1-score": 0.8215488215488216,
+        "support": 136.0
+      },
+      "Scab": {
+        "precision": 0.8484848484848485,
+        "recall": 0.7,
+        "f1-score": 0.7671232876712328,
+        "support": 120.0
+      },
+      "Stem End Rot": {
+        "precision": 0.9146341463414634,
+        "recall": 0.7978723404255319,
+        "f1-score": 0.8522727272727273,
+        "support": 94.0
+      },
+      "accuracy": 0.8108695652173913,
+      "macro avg": {
+        "precision": 0.7876572800639852,
+        "recall": 0.7680423531158755,
+        "f1-score": 0.7744816427184404,
+        "support": 920.0
+      },
+      "weighted avg": {
+        "precision": 0.8119915950041372,
+        "recall": 0.8108695652173913,
+        "f1-score": 0.8084375906717846,
+        "support": 920.0
+      }
+    },
+    "confusion_matrix": {
+      "labels": [
+        "Anthracnose",
+        "Bacterial Canker",
+        "Healthy",
+        "Other",
+        "Scab",
+        "Stem End Rot"
+      ],
+      "matrix": [
+        [
+          118,
+          2,
+          32,
+          25,
+          0,
+          1
+        ],
+        [
+          5,
+          37,
+          2,
+          0,
+          15,
+          1
+        ],
+        [
+          14,
+          1,
+          310,
+          3,
+          0,
+          4
+        ],
+        [
+          11,
+          1,
+          1,
+          122,
+          0,
+          1
+        ],
+        [
+          7,
+          21,
+          8,
+          0,
+          84,
+          0
+        ],
+        [
+          5,
+          0,
+          3,
+          11,
+          0,
+          75
+        ]
+      ]
+    }
+  }
+}

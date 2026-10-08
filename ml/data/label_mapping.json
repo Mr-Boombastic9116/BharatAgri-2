@@ -1,0 +1,72 @@
+{
+  "MangoDHDS": {
+    "Anthracnose": {
+      "unified": "Anthracnose",
+      "decision": "Direct match: Colletotrichum gloeosporioides fungal anthracnose."
+    },
+    "Bacterial Canker": {
+      "unified": "Bacterial Canker",
+      "decision": "Direct match: Xanthomonas campestris pv. mangiferaeindicae bacterial lesions."
+    },
+    "Healthy": {
+      "unified": "Healthy",
+      "decision": "Direct match: Sound healthy unblemished fruit."
+    },
+    "Scab": {
+      "unified": "Scab",
+      "decision": "Direct match: Elsinoe mangiferae fruit scab spots."
+    },
+    "Stem End Rot": {
+      "unified": "Stem End Rot",
+      "decision": "Direct match: Lasiodiplodia theobromae stem-end decay."
+    }
+  },
+  "MangoFruitBD": {
+    "0": {
+      "original_name": "Alternaria",
+      "unified": "Other",
+      "decision": "Mapped to Other: Alternaria black spot is a distinct fungal decay class."
+    },
+    "1": {
+      "original_name": "Anthracnose",
+      "unified": "Anthracnose",
+      "decision": "Direct match: Anthracnose."
+    },
+    "2": {
+      "original_name": "Healthy",
+      "unified": "Healthy",
+      "decision": "Direct match: Sound healthy mango."
+    },
+    "3": {
+      "original_name": "Scab",
+      "unified": "Scab",
+      "decision": "Direct match: Fruit scab."
+    }
+  },
+  "MangoFruitDDS": {
+    "Anthracnose": {
+      "unified": "Anthracnose",
+      "decision": "Direct match: Anthracnose."
+    },
+    "Healthy": {
+      "unified": "Healthy",
+      "decision": "Direct match: Sound healthy mango."
+    },
+    "Stem end Rot": {
+      "unified": "Stem End Rot",
+      "decision": "Direct match: Stem end rot decay."
+    },
+    "Stem and Rot": {
+      "unified": "Stem End Rot",
+      "decision": "Direct match: Typo variant of Stem end Rot in dataset."
+    },
+    "Alternaria": {
+      "unified": "Other",
+      "decision": "Mapped to Other: Alternaria decay."
+    },
+    "Black Mould Rot": {
+      "unified": "Other",
+      "decision": "Mapped to Other: Aspergillus niger black mould rot."
+    }
+  }
+}

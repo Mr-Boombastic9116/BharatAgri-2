@@ -1,0 +1,72 @@
+{
+  "report_title": "BharatAgri-2 Mango Quality Dataset Preparation & Leakage-Prevention Report",
+  "random_seed": 42,
+  "split_ratio": "80% Train / 20% Test (Group-Stratified)",
+  "leakage_prevention": {
+    "method": "Group-level splitting by parent image/fruit entity",
+    "rule": "Samples originating from the same photograph (e.g. MangoFruitBD multi-mango boxes) or fruit sequence share a group_id and never cross the train/test barrier.",
+    "duplicate_filtering": "SenMangoFruitDDS_bgremoved excluded because it contains identical background-removed duplicates of SenMangoFruitDDS_original."
+  },
+  "summary": {
+    "total_usable_samples": 4488,
+    "train_samples": 3568,
+    "test_samples": 920,
+    "total_unique_groups": 3648,
+    "train_groups": 2916,
+    "test_groups": 732,
+    "unified_classes": [
+      "Anthracnose",
+      "Bacterial Canker",
+      "Healthy",
+      "Other",
+      "Scab",
+      "Stem End Rot"
+    ]
+  },
+  "class_distribution_total": {
+    "Anthracnose": 867,
+    "Bacterial Canker": 300,
+    "Healthy": 1580,
+    "Scab": 617,
+    "Stem End Rot": 466,
+    "Other": 658
+  },
+  "class_distribution_train": {
+    "Anthracnose": 689,
+    "Bacterial Canker": 240,
+    "Healthy": 1248,
+    "Scab": 497,
+    "Stem End Rot": 372,
+    "Other": 522
+  },
+  "class_distribution_test": {
+    "Anthracnose": 178,
+    "Bacterial Canker": 60,
+    "Healthy": 332,
+    "Scab": 120,
+    "Stem End Rot": 94,
+    "Other": 136
+  },
+  "source_distribution_total": {
+    "MangoDHDS": 1500,
+    "MangoFruitDDS": 862,
+    "MangoFruitBD": 2126
+  },
+  "source_distribution_train": {
+    "MangoDHDS": 1201,
+    "MangoFruitDDS": 686,
+    "MangoFruitBD": 1681
+  },
+  "source_distribution_test": {
+    "MangoDHDS": 299,
+    "MangoFruitDDS": 176,
+    "MangoFruitBD": 445
+  },
+  "exclusions": {
+    "count": 838,
+    "reasons": [
+      "SenMangoFruitDDS_bgremoved (838 images) excluded to prevent identical sample leakage across splits.",
+      "Degenerate bounding boxes (<15px) filtered out during crop extraction."
+    ]
+  }
+}

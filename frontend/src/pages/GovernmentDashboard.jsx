@@ -7,7 +7,8 @@ import {
   Building2, Users, Calendar, TrendingUp, AlertTriangle, Truck,
   Package, DollarSign, MessageSquare, ShieldCheck, Activity, Brain,
   RefreshCw, CheckCircle, Search, Filter, ArrowUpRight, MapPin, Tag, Route,
-  ArrowRight, Edit2, Check, Clock, Bell, ShieldAlert, Sparkles
+  ArrowRight, Edit2, Check, Clock, Bell, ShieldAlert, Sparkles,
+  ChevronDown, ChevronUp
 } from 'lucide-react';
 import {
   getGovernmentKPIsWithState, getProcurementTrendWithState, getCropDistributionWithState,
@@ -19,7 +20,8 @@ import {
   scheduleTruckRoute, updateTruckRoute,
   getGovernmentCentreDetail,
   getGovernmentAlerts, getGovernmentInsights, getGovernmentDailyIntelligence,
-  getGovernmentPerishablePriority, resolveAlert, getCropMetadata
+  getGovernmentPerishablePriority, resolveAlert, getCropMetadata,
+  queryCopilot, getOperationalAnomalies
 } from '../services/api';
 import StatusBadge from '../components/StatusBadge';
 import { useTranslation } from '../context/LanguageContext';
@@ -32,6 +34,12 @@ export default function GovernmentDashboard({ user }) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
+
+  // Expandable Insights State (Requirement 6)
+  const [expandedGovtInsights, setExpandedGovtInsights] = useState({});
+  const toggleGovtInsight = (key) => {
+    setExpandedGovtInsights(prev => ({ ...prev, [key]: !prev[key] }));
+  };
 
   // State filter
   const [availableStates, setAvailableStates] = useState(['Nationwide']);
@@ -85,6 +93,26 @@ export default function GovernmentDashboard({ user }) {
   const [govtAlerts, setGovtAlerts] = useState([]);
   const [govtInsights, setGovtInsights] = useState(null);
   const [govtDailyIntel, setGovtDailyIntel] = useState(null);
+
+  // Copilot for Officers (Requirement 20)
+  const [copilotQuery, setCopilotQuery] = useState('');
+  const [copilotLoading, setCopilotLoading] = useState(false);
+  const [copilotResponse, setCopilotResponse] = useState(null);
+
+  const handleAskCopilot = async (queryText) => {
+    const q = queryText || copilotQuery;
+    if (!q || !q.trim()) return;
+    setCopilotLoading(true);
+    setCopilotResponse(null);
+    try {
+      const data = await queryCopilot(q.trim());
+      setCopilotResponse(data);
+    } catch (err) {
+      setCopilotResponse({ answer: 'Error querying copilot: ' + err.message });
+    } finally {
+      setCopilotLoading(false);
+    }
+  };
   const [perishablePriorityList, setPerishablePriorityList] = useState([]);
   const [cropMetadataList, setCropMetadataList] = useState([]);
   const [govtAlertFilter, setGovtAlertFilter] = useState('ALL');
@@ -144,7 +172,7 @@ export default function GovernmentDashboard({ user }) {
       setAnomaliesList(anomListData || []);
       setComplaintsList(compData || []);
       setMspPrices(Array.isArray(mspData) ? mspData : (mspData?.data || mspData?.prices || []));
-      setGovtAlerts(Array.isArray(alertsData) ? alertsData : (alertsData?.alerts || []));
+      setGovtAlerts(Array.isArray(alertsData) ? alertsData : (alertsData?.data || alertsData?.alerts || []));
       setGovtInsights(insightsData);
       setGovtDailyIntel(dailyData);
       setPerishablePriorityList(Array.isArray(perishableData) ? perishableData : (perishableData?.priority_rankings || []));
@@ -258,7 +286,11 @@ export default function GovernmentDashboard({ user }) {
     try {
       const res = await generateTruckRoutePredictions({ state: selectedState === 'Nationwide' ? null : selectedState });
       if (res.success) {
-        setRouteActionMsg({ type: 'success', text: `${res.count || 0} new route predictions generated.` });
+        const count = res.count ?? res.routes_created_count ?? (res.routes_created?.length || 0);
+        setRouteActionMsg({ 
+          type: 'success', 
+          text: res.message ? `${count} new route predictions generated. (${res.message})` : `${count} new route predictions generated.` 
+        });
         const routes = await getTruckRoutePredictions(selectedState !== 'Nationwide' ? { state: selectedState } : {});
         setTruckRoutes(Array.isArray(routes) ? routes : []);
       }
@@ -928,7 +960,7 @@ export default function GovernmentDashboard({ user }) {
                   <strong>0% – 50%: LOW</strong>
                   <span>Smooth flow; walk-in capacity available</span>
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.6rem 0.8rem', borderRadius: '4px', backgroundColor: '#e0f2fe', color: '#0369a1' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.6rem 0.8rem', borderRadius: '4px', backgroundColor: 'var(--info-bg)', color: 'var(--info-text)' }}>
                   <strong>50% – 75%: MEDIUM</strong>
                   <span>Normal queue velocity</span>
                 </div>
@@ -2453,15 +2485,123 @@ export default function GovernmentDashboard({ user }) {
               <div>
                 <h3 style={{ fontSize: '1.25rem', color: 'var(--secondary)', display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0 }}>
                   <Brain size={22} color="#6366f1" />
-                  Government Strategic Insights Engine
+                  Government Strategic Insights & Procurement Copilot
                 </h3>
                 <p style={{ fontSize: '0.85rem', color: 'var(--muted)', margin: '4px 0 0 0' }}>
-                  Aggregated cross-district intelligence from actual database metrics and ML models — never generic AI placeholders.
+                  Aggregated cross-district intelligence and interactive officer copilot grounded in real operational data.
                 </p>
               </div>
               <span className="badge" style={{ backgroundColor: 'rgba(99, 102, 241, 0.15)', color: '#6366f1', fontWeight: 700 }}>
-                SYSTEM-WIDE AGGREGATION
+                COPILOT & SYSTEM AGGREGATION
               </span>
+            </div>
+
+            {/* INTERACTIVE PROCUREMENT COPILOT FOR OFFICERS (Requirement 20) */}
+            <div style={{
+              backgroundColor: 'var(--bg-page)',
+              border: '2px solid #6366f1',
+              borderRadius: 'var(--radius-md)',
+              padding: '1.25rem',
+              marginBottom: '1.5rem',
+              boxShadow: '0 4px 12px rgba(99, 102, 241, 0.08)'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                <span style={{ fontSize: '1.4rem' }}>🤖</span>
+                <h4 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: 'var(--primary)' }}>
+                  Procurement Copilot for Officers (AI Sahayak)
+                </h4>
+                <span style={{ fontSize: '0.72rem', backgroundColor: 'var(--primary-light)', color: 'var(--primary)', padding: '2px 8px', borderRadius: '12px', fontWeight: 700 }}>
+                  Live Data Retrieval
+                </span>
+              </div>
+              <p style={{ margin: '0 0 0.85rem 0', fontSize: '0.85rem', color: 'var(--muted)' }}>
+                Ask questions about centre bottlenecks, capacity availability, or procurement metrics. Responses are generated strictly from live database records.
+              </p>
+
+              {/* Quick Query Pills */}
+              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.85rem' }}>
+                {[
+                  "Why is Centre C004 experiencing delays?",
+                  "Which centres can accept another 50 farmers today?",
+                  "What is the highest congestion centre right now?",
+                  "Summary of payments and procurement today"
+                ].map((prompt, pIdx) => (
+                  <button
+                    key={pIdx}
+                    onClick={() => { setCopilotQuery(prompt); handleAskCopilot(prompt); }}
+                    style={{
+                      padding: '0.35rem 0.75rem', borderRadius: '16px', border: '1px solid var(--border)',
+                      backgroundColor: 'var(--surface-secondary)', color: 'var(--primary)', fontSize: '0.78rem', fontWeight: 600,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    💬 {prompt}
+                  </button>
+                ))}
+              </div>
+
+              {/* Input box */}
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <input
+                  type="text"
+                  placeholder="Ask an operational question (e.g. Why is Centre C004 experiencing delays?)"
+                  value={copilotQuery}
+                  onChange={(e) => setCopilotQuery(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') handleAskCopilot(); }}
+                  style={{ flex: 1, padding: '0.7rem 1rem', borderRadius: '8px', border: '1px solid var(--border)', backgroundColor: 'var(--surface)', color: 'var(--text-primary)', fontSize: '0.9rem' }}
+                />
+                <button
+                  className="btn btn-primary"
+                  onClick={() => handleAskCopilot()}
+                  disabled={copilotLoading}
+                  style={{ padding: '0.7rem 1.25rem', fontWeight: 700, backgroundColor: 'var(--primary)', border: 'none' }}
+                >
+                  {copilotLoading ? 'Retrieving Data...' : 'Ask Copilot'}
+                </button>
+              </div>
+
+              {/* Copilot Response Card */}
+              {copilotResponse && (
+                <div style={{
+                  marginTop: '1rem', padding: '1rem 1.25rem', backgroundColor: 'var(--surface)',
+                  borderRadius: '8px', border: '1px solid var(--border)', borderLeft: '4px solid var(--primary)'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.4rem', color: 'var(--primary)', fontWeight: 800, fontSize: '0.85rem' }}>
+                    <Sparkles size={16} /> COPILOT ANSWER
+                  </div>
+                  <p style={{ margin: 0, fontSize: '0.92rem', color: 'var(--text-primary)', lineHeight: 1.5 }}>
+                    {copilotResponse.answer}
+                  </p>
+
+                  {/* Render Table Data if returned */}
+                  {copilotResponse.table_data && (
+                    <div style={{ overflowX: 'auto', marginTop: '0.75rem' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                        <thead>
+                          <tr style={{ backgroundColor: 'var(--surface-secondary)', borderBottom: '1px solid var(--border)', textAlign: 'left', color: 'var(--text-primary)' }}>
+                            <th style={{ padding: '6px 10px' }}>Centre</th>
+                            <th style={{ padding: '6px 10px' }}>District</th>
+                            <th style={{ padding: '6px 10px' }}>Available Capacity</th>
+                            <th style={{ padding: '6px 10px' }}>Current Queue</th>
+                            <th style={{ padding: '6px 10px' }}>Expected Wait</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {copilotResponse.table_data.map((row, rIdx) => (
+                            <tr key={rIdx} style={{ borderBottom: '1px solid var(--border)' }}>
+                              <td style={{ padding: '6px 10px', fontWeight: 700, color: 'var(--text-primary)' }}>{row.centre_name} ({row.centre_id})</td>
+                              <td style={{ padding: '6px 10px', color: 'var(--muted)' }}>{row.district}</td>
+                              <td style={{ padding: '6px 10px', fontWeight: 700, color: 'var(--success)' }}>{row.available_capacity}</td>
+                              <td style={{ padding: '6px 10px', color: 'var(--text-primary)' }}>{row.current_queue} farmers</td>
+                              <td style={{ padding: '6px 10px', color: 'var(--warning)' }}>{row.expected_eta_min}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.25rem' }}>
@@ -2479,37 +2619,29 @@ export default function GovernmentDashboard({ user }) {
                     `Total volume procured to date: ${kpis?.total_procured_quintals?.toLocaleString() || '18,500'} Quintals.`,
                     `Average centre capacity utilization running at 68.4% across monitored districts.`,
                     `Current payment disbursement efficiency: 94.2% of MSP payouts cleared within 48 hours.`
-                  ]).map((item, idx) => (
-                    <div key={idx} style={{ padding: '12px 14px', background: 'var(--bg-card)', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '0.82rem', color: 'var(--secondary)' }}>
-                      {typeof item === 'string' ? `• ${item}` : (
-                        <div>
-                          <div style={{ fontWeight: 700, color: 'var(--secondary)', marginBottom: '4px' }}>
-                            {item.what || item.summary || item.text}
-                          </div>
-                          {item.evidence && (
-                            <div style={{ fontSize: '0.76rem', color: 'var(--muted)', marginBottom: '3px' }}>
-                              <strong>Evidence:</strong> {item.evidence}
-                            </div>
-                          )}
-                          {item.why && (
-                            <div style={{ fontSize: '0.76rem', color: 'var(--secondary)', marginBottom: '3px' }}>
-                              <strong>Why it matters:</strong> {item.why}
-                            </div>
-                          )}
-                          {item.action && (
-                            <div style={{ fontSize: '0.76rem', color: 'var(--primary)', marginBottom: '2px', background: 'var(--success-bg)', padding: '3px 6px', borderRadius: '4px' }}>
-                              <strong>Action:</strong> {item.action}
-                            </div>
-                          )}
-                          {item.benefit && (
-                            <div style={{ fontSize: '0.74rem', color: 'var(--muted)', marginTop: '2px' }}>
-                              <strong>Benefit:</strong> {item.benefit}
-                            </div>
-                          )}
+                  ]).map((item, idx) => {
+                    const isExpanded = !!expandedGovtInsights[`g_desc_${idx}`];
+                    const title = typeof item === 'string' ? item : (item.what || item.summary || item.text);
+                    return (
+                      <div key={idx} style={{ background: 'var(--bg-card)', borderRadius: '8px', border: isExpanded ? '1px solid #3b82f6' : '1px solid var(--border)', overflow: 'hidden' }}>
+                        <div
+                          onClick={() => toggleGovtInsight(`g_desc_${idx}`)}
+                          style={{ padding: '10px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', gap: '8px', background: isExpanded ? 'rgba(59, 130, 246, 0.04)' : 'transparent' }}
+                        >
+                          <div style={{ fontWeight: 700, fontSize: '0.84rem', color: 'var(--secondary)' }}>{title}</div>
+                          <span style={{ color: 'var(--muted)', display: 'flex' }}>{isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}</span>
                         </div>
-                      )}
-                    </div>
-                  ))}
+                        {isExpanded && typeof item === 'object' && (
+                          <div style={{ padding: '10px 12px', borderTop: '1px solid var(--border)', fontSize: '0.78rem', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                            {item.evidence && <div><strong style={{ color: 'var(--muted)' }}>Supporting Evidence / Data:</strong> <span style={{ color: 'var(--secondary)' }}>{item.evidence}</span></div>}
+                            {item.why && <div><strong style={{ color: 'var(--muted)' }}>Explanation:</strong> <span style={{ color: 'var(--secondary)' }}>{item.why}</span></div>}
+                            {item.action && <div style={{ background: 'var(--success-bg)', padding: '4px 8px', borderRadius: '4px' }}><strong style={{ color: 'var(--primary-dark)' }}>Recommended Action:</strong> <span style={{ color: 'var(--primary-dark)' }}>{item.action}</span></div>}
+                            {item.benefit && <div><strong style={{ color: 'var(--muted)' }}>Expected Benefit:</strong> <span style={{ color: 'var(--muted)' }}>{item.benefit}</span></div>}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
 
@@ -2527,37 +2659,29 @@ export default function GovernmentDashboard({ user }) {
                     'Truck allocation deficit: 11 additional inter-district freight vehicles required to prevent silo overflow.',
                     'Congestion hotspot developing at Mapusa APMC centre with expected load ratio approaching 94%.',
                     'Supply deficit alert: Local pulses production tracking 18% below seasonal state consumption targets.'
-                  ]).map((item, idx) => (
-                    <div key={idx} style={{ padding: '12px 14px', background: 'var(--bg-card)', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '0.82rem', color: 'var(--secondary)' }}>
-                      {typeof item === 'string' ? `• ${item}` : (
-                        <div>
-                          <div style={{ fontWeight: 700, color: 'var(--secondary)', marginBottom: '4px' }}>
-                            {item.what || item.summary || item.text}
-                          </div>
-                          {item.evidence && (
-                            <div style={{ fontSize: '0.76rem', color: 'var(--muted)', marginBottom: '3px' }}>
-                              <strong>Evidence:</strong> {item.evidence}
-                            </div>
-                          )}
-                          {item.why && (
-                            <div style={{ fontSize: '0.76rem', color: 'var(--secondary)', marginBottom: '3px' }}>
-                              <strong>Why it matters:</strong> {item.why}
-                            </div>
-                          )}
-                          {item.action && (
-                            <div style={{ fontSize: '0.76rem', color: 'var(--primary)', marginBottom: '2px', background: 'var(--success-bg)', padding: '3px 6px', borderRadius: '4px' }}>
-                              <strong>Action:</strong> {item.action}
-                            </div>
-                          )}
-                          {item.benefit && (
-                            <div style={{ fontSize: '0.74rem', color: 'var(--muted)', marginTop: '2px' }}>
-                              <strong>Benefit:</strong> {item.benefit}
-                            </div>
-                          )}
+                  ]).map((item, idx) => {
+                    const isExpanded = !!expandedGovtInsights[`g_pred_${idx}`];
+                    const title = typeof item === 'string' ? item : (item.what || item.summary || item.text);
+                    return (
+                      <div key={idx} style={{ background: 'var(--bg-card)', borderRadius: '8px', border: isExpanded ? '1px solid #f59e0b' : '1px solid var(--border)', overflow: 'hidden' }}>
+                        <div
+                          onClick={() => toggleGovtInsight(`g_pred_${idx}`)}
+                          style={{ padding: '10px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', gap: '8px', background: isExpanded ? 'rgba(245, 158, 11, 0.04)' : 'transparent' }}
+                        >
+                          <div style={{ fontWeight: 700, fontSize: '0.84rem', color: 'var(--secondary)' }}>{title}</div>
+                          <span style={{ color: 'var(--muted)', display: 'flex' }}>{isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}</span>
                         </div>
-                      )}
-                    </div>
-                  ))}
+                        {isExpanded && typeof item === 'object' && (
+                          <div style={{ padding: '10px 12px', borderTop: '1px solid var(--border)', fontSize: '0.78rem', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                            {item.evidence && <div><strong style={{ color: 'var(--muted)' }}>Supporting Evidence / Data:</strong> <span style={{ color: 'var(--secondary)' }}>{item.evidence}</span></div>}
+                            {item.why && <div><strong style={{ color: 'var(--muted)' }}>Explanation:</strong> <span style={{ color: 'var(--secondary)' }}>{item.why}</span></div>}
+                            {item.action && <div style={{ background: 'var(--success-bg)', padding: '4px 8px', borderRadius: '4px' }}><strong style={{ color: 'var(--primary-dark)' }}>Recommended Action:</strong> <span style={{ color: 'var(--primary-dark)' }}>{item.action}</span></div>}
+                            {item.benefit && <div><strong style={{ color: 'var(--muted)' }}>Expected Benefit:</strong> <span style={{ color: 'var(--muted)' }}>{item.benefit}</span></div>}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
 
@@ -2575,37 +2699,29 @@ export default function GovernmentDashboard({ user }) {
                     'Activate automated farmer redirection from Mapusa to Bicholim APMC to balance load.',
                     'Extend operational shift hours to 07:00 AM – 07:00 PM for high-volume centres.',
                     'Order immediate physical audit for 2 centres exhibiting repeated weighbridge calibration anomalies.'
-                  ]).map((item, idx) => (
-                    <div key={idx} style={{ padding: '12px 14px', background: 'var(--bg-card)', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '0.82rem', color: 'var(--secondary)' }}>
-                      {typeof item === 'string' ? `• ${item}` : (
-                        <div>
-                          <div style={{ fontWeight: 700, color: 'var(--secondary)', marginBottom: '4px' }}>
-                            {item.what || item.summary || item.text}
-                          </div>
-                          {item.evidence && (
-                            <div style={{ fontSize: '0.76rem', color: 'var(--muted)', marginBottom: '3px' }}>
-                              <strong>Evidence:</strong> {item.evidence}
-                            </div>
-                          )}
-                          {item.why && (
-                            <div style={{ fontSize: '0.76rem', color: 'var(--secondary)', marginBottom: '3px' }}>
-                              <strong>Why it matters:</strong> {item.why}
-                            </div>
-                          )}
-                          {item.action && (
-                            <div style={{ fontSize: '0.76rem', color: 'var(--primary)', marginBottom: '2px', background: 'var(--success-bg)', padding: '3px 6px', borderRadius: '4px' }}>
-                              <strong>Action:</strong> {item.action}
-                            </div>
-                          )}
-                          {item.benefit && (
-                            <div style={{ fontSize: '0.74rem', color: 'var(--muted)', marginTop: '2px' }}>
-                              <strong>Benefit:</strong> {item.benefit}
-                            </div>
-                          )}
+                  ]).map((item, idx) => {
+                    const isExpanded = !!expandedGovtInsights[`g_pres_${idx}`];
+                    const title = typeof item === 'string' ? item : (item.what || item.summary || item.text);
+                    return (
+                      <div key={idx} style={{ background: 'var(--bg-card)', borderRadius: '8px', border: isExpanded ? '1px solid #10b981' : '1px solid var(--border)', overflow: 'hidden' }}>
+                        <div
+                          onClick={() => toggleGovtInsight(`g_pres_${idx}`)}
+                          style={{ padding: '10px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', gap: '8px', background: isExpanded ? 'rgba(16, 185, 129, 0.04)' : 'transparent' }}
+                        >
+                          <div style={{ fontWeight: 700, fontSize: '0.84rem', color: 'var(--secondary)' }}>{title}</div>
+                          <span style={{ color: 'var(--muted)', display: 'flex' }}>{isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}</span>
                         </div>
-                      )}
-                    </div>
-                  ))}
+                        {isExpanded && typeof item === 'object' && (
+                          <div style={{ padding: '10px 12px', borderTop: '1px solid var(--border)', fontSize: '0.78rem', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                            {item.evidence && <div><strong style={{ color: 'var(--muted)' }}>Supporting Evidence / Data:</strong> <span style={{ color: 'var(--secondary)' }}>{item.evidence}</span></div>}
+                            {item.why && <div><strong style={{ color: 'var(--muted)' }}>Explanation:</strong> <span style={{ color: 'var(--secondary)' }}>{item.why}</span></div>}
+                            {item.action && <div style={{ background: 'var(--success-bg)', padding: '4px 8px', borderRadius: '4px' }}><strong style={{ color: 'var(--primary-dark)' }}>Recommended Action:</strong> <span style={{ color: 'var(--primary-dark)' }}>{item.action}</span></div>}
+                            {item.benefit && <div><strong style={{ color: 'var(--muted)' }}>Expected Benefit:</strong> <span style={{ color: 'var(--muted)' }}>{item.benefit}</span></div>}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             </div>
@@ -2614,85 +2730,97 @@ export default function GovernmentDashboard({ user }) {
       )}
 
       {/* TAB 9: PERISHABLE CROP TRANSPORT PRIORITY (Requirement 3) */}
+      {/* TAB: CROP PERISHABILITY & FRESHNESS ESTIMATE */}
       {activeTab === 'perishable' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-          <div style={{ background: 'var(--bg-card)', padding: '1.5rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
+          <div style={{ background: 'var(--bg-card)', padding: '1.75rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '0.75rem', borderBottom: '1px solid var(--border)', paddingBottom: '1rem' }}>
               <div>
-                <h3 style={{ fontSize: '1.25rem', color: 'var(--secondary)', display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0 }}>
+                <h3 style={{ fontSize: '1.3rem', color: 'var(--secondary)', display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0, fontWeight: 800 }}>
                   <Sparkles size={22} color="#ec4899" />
-                  Seasonal & Perishable Crop Transport Priority Engine
+                  Crop Perishability & Freshness Watch
                 </h3>
-                <p style={{ fontSize: '0.85rem', color: 'var(--muted)', margin: '4px 0 0 0' }}>
-                  Calculated priority formula: <code>Demand + Perishability + Expected Quantity + Storage Availability + Destination Demand + Congestion</code>
+                <p style={{ fontSize: '0.88rem', color: 'var(--muted)', margin: '4px 0 0 0' }}>
+                  What crop is this, and approximately how many days does it remain fresh and usable?
                 </p>
               </div>
-              <span className="badge" style={{ backgroundColor: 'rgba(236, 72, 153, 0.15)', color: '#ec4899', fontWeight: 700 }}>
-                PERISHABLE INTELLIGENCE ACTIVE
+              <span className="badge" style={{ backgroundColor: 'rgba(236, 72, 153, 0.15)', color: '#ec4899', fontWeight: 700, padding: '6px 12px', fontSize: '0.8rem' }}>
+                {selectedState !== 'Nationwide' ? `${selectedState} Master Crops` : 'Configured State Crops'}
               </span>
             </div>
 
+            <div style={{
+              padding: '12px 16px',
+              backgroundColor: 'rgba(59, 130, 246, 0.08)',
+              border: '1px solid rgba(59, 130, 246, 0.25)',
+              borderRadius: '8px',
+              fontSize: '0.84rem',
+              color: 'var(--secondary)',
+              marginBottom: '1.5rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px'
+            }}>
+              <Sparkles size={18} color="#3b82f6" style={{ flexShrink: 0 }} />
+              <div>
+                <strong>Agricultural Note:</strong> Approximate freshness and perishability estimates are grounded in post-harvest standards. Actual durability is significantly affected by ambient temperature, relative humidity, harvest maturity, variety, packaging, and warehouse storage conditions.
+              </div>
+            </div>
+
             <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
                 <thead>
-                  <tr style={{ borderBottom: '2px solid var(--border)', textAlign: 'left', color: 'var(--muted)' }}>
-                    <th style={{ padding: '0.75rem' }}>Crop</th>
-                    <th style={{ padding: '0.75rem' }}>Season</th>
-                    <th style={{ padding: '0.75rem' }}>Perishability</th>
-                    <th style={{ padding: '0.75rem' }}>Approx Shelf-Life</th>
-                    <th style={{ padding: '0.75rem' }}>Storage Req.</th>
-                    <th style={{ padding: '0.75rem' }}>Transport Priority Score</th>
-                    <th style={{ padding: '0.75rem' }}>Fleet Allocation Action</th>
+                  <tr style={{ borderBottom: '2px solid var(--border)', textAlign: 'left', color: 'var(--muted)', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    <th style={{ padding: '0.85rem' }}>Crop</th>
+                    <th style={{ padding: '0.85rem' }}>State</th>
+                    <th style={{ padding: '0.85rem', textAlign: 'center' }}>Approx. Freshness / Usable Life</th>
+                    <th style={{ padding: '0.85rem' }}>Perishability Level</th>
+                    <th style={{ padding: '0.85rem' }}>Storage Guidance & Conditions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {(perishablePriorityList.length > 0 ? perishablePriorityList : [
-                    { crop: 'Sugarcane', season: 'Annual/Kharif', perishability: 'CRITICAL', shelf_life: '2-3 Days', storage: 'Immediate Crushing Mill Yard', score: 96.0, action: 'Green Corridor Dispatch / Mill Intake within 48 Hours' },
-                    { crop: 'Tomato', season: 'Rabi/Kharif', perishability: 'HIGH', shelf_life: '3-5 Days', storage: 'Cold Chain / Ventilated', score: 92.5, action: 'Immediate Priority Dispatch within 24 Hours' },
-                    { crop: 'Onion', season: 'Rabi/Kharif', perishability: 'MEDIUM', shelf_life: '30-45 Days', storage: 'Dry Ventilated Silo', score: 78.4, action: 'Standard Scheduled Dispatch within 48 Hours' },
-                    { crop: 'Potato', season: 'Rabi', perishability: 'MEDIUM', shelf_life: '60-90 Days', storage: 'Cold Storage (4°C)', score: 72.1, action: 'Controlled Allocation' },
-                    { crop: 'Paddy', season: 'Kharif', perishability: 'LOW', shelf_life: 'Not applicable', storage: 'Covered Warehouse / Silo', score: 55.0, action: 'Bulk Buffer Stocking' },
-                    { crop: 'Wheat', season: 'Rabi', perishability: 'LOW', shelf_life: 'Not applicable', storage: 'Standard Godown', score: 52.3, action: 'Regular Scheduled Fleet' }
+                    { crop: 'Mango', state: 'Goa', approx_freshness: '7–14 Days', perishability: 'HIGH', storage: 'Ventilated crates (13°C cool store); prevent chilling injury' },
+                    { crop: 'Banana', state: 'Goa', approx_freshness: '4–7 Days', perishability: 'HIGH', storage: 'Controlled ripening chamber (14–16°C); avoid stacking beyond 4 layers' },
+                    { crop: 'Tomato', state: 'Goa', approx_freshness: '4–7 Days', perishability: 'CRITICAL', storage: 'Ventilated shade / cold chain (10–12°C); sensitive to pressure' },
+                    { crop: 'Sugarcane', state: 'Maharashtra', approx_freshness: '2–3 Days', perishability: 'CRITICAL', storage: 'Direct mill yard delivery; rapid crushing to avoid sucrose inversion' },
+                    { crop: 'Wheat', state: 'Maharashtra', approx_freshness: '240–365+ Days', perishability: 'LOW', storage: 'Covered dry godown (Moisture <= 12%); dunnage pallets' },
+                    { crop: 'Cotton', state: 'Maharashtra', approx_freshness: '180–300+ Days', perishability: 'LOW', storage: 'Weather-sheltered dry shed (Moisture <= 8.5%); elevated battens' },
+                    { crop: 'Paddy', state: 'Karnataka', approx_freshness: '240–365+ Days', perishability: 'LOW', storage: 'Covered warehouse / aerated silo (Moisture <= 14%)' },
+                    { crop: 'Maize', state: 'Karnataka', approx_freshness: '180–240+ Days', perishability: 'LOW', storage: 'Dry aerated godown (Moisture <= 14%); aflatoxin prevention' },
+                    { crop: 'Bajra', state: 'Karnataka', approx_freshness: '90–180 Days', perishability: 'LOW', storage: 'Dry ventilated storage (Moisture <= 12%); protect from rancidity' }
                   ]).map((item, idx) => (
-                    <tr key={idx} style={{ borderBottom: '1px solid var(--border)' }}>
-                      <td style={{ padding: '0.75rem', fontWeight: 700, color: 'var(--secondary)' }}>
-                        {item.crop}
+                    <tr key={idx} style={{ borderBottom: '1px solid var(--border)', transition: 'background-color 0.15s' }}>
+                      <td style={{ padding: '0.85rem', fontWeight: 800, color: 'var(--secondary)', fontSize: '1rem' }}>
+                        {item.crop || item.crop_name}
                       </td>
-                      <td style={{ padding: '0.75rem' }}>{item.season || 'All Season'}</td>
-                      <td style={{ padding: '0.75rem' }}>
+                      <td style={{ padding: '0.85rem', color: 'var(--muted)', fontWeight: 600 }}>
+                        {item.state || selectedState || 'National'}
+                      </td>
+                      <td style={{ padding: '0.85rem', textAlign: 'center' }}>
                         <span style={{
-                          padding: '3px 8px', borderRadius: '4px', fontSize: '0.72rem', fontWeight: 800,
-                          backgroundColor: (item.perishability === 'HIGH' || item.perishability === 'CRITICAL') ? 'var(--danger-bg)' : item.perishability === 'MEDIUM' ? 'var(--warning-bg)' : 'var(--success-bg)',
-                          color: (item.perishability === 'HIGH' || item.perishability === 'CRITICAL') ? 'var(--danger-text)' : item.perishability === 'MEDIUM' ? 'var(--warning-text)' : 'var(--success-text)'
+                          padding: '6px 14px',
+                          borderRadius: '20px',
+                          fontWeight: 800,
+                          fontSize: '0.9rem',
+                          backgroundColor: (item.perishability === 'CRITICAL' || item.perishability === 'HIGH') ? 'rgba(239, 68, 68, 0.12)' : 'rgba(16, 185, 129, 0.12)',
+                          color: (item.perishability === 'CRITICAL' || item.perishability === 'HIGH') ? '#dc2626' : '#059669',
+                          display: 'inline-block'
+                        }}>
+                          {item.approx_freshness || item.shelf_life || (item.shelf_life_days ? `${item.shelf_life_days} Days` : 'N/A')}
+                        </span>
+                      </td>
+                      <td style={{ padding: '0.85rem' }}>
+                        <span style={{
+                          padding: '4px 10px', borderRadius: '6px', fontSize: '0.76rem', fontWeight: 800,
+                          backgroundColor: item.perishability === 'CRITICAL' ? 'var(--danger-bg)' : item.perishability === 'HIGH' ? '#fef3c7' : 'var(--success-bg)',
+                          color: item.perishability === 'CRITICAL' ? 'var(--danger-text)' : item.perishability === 'HIGH' ? '#b45309' : 'var(--success-text)'
                         }}>
                           {item.perishability}
                         </span>
                       </td>
-                      <td style={{ padding: '0.75rem', fontWeight: 600 }}>
-                        {item.perishability === 'LOW' || item.is_perishable === false
-                          ? 'Not applicable'
-                          : (item.crop?.toLowerCase() === 'sugarcane'
-                              ? '2-3 Days'
-                              : (item.shelf_life || (item.shelf_life_days ? `${item.shelf_life_days} days` : 'Not applicable')))}
-                      </td>
-                      <td style={{ padding: '0.75rem', fontSize: '0.8rem', color: 'var(--muted)' }}>{item.storage || item.storage_requirements || 'Standard Storage'}</td>
-                      <td style={{ padding: '0.75rem' }}>
-                        <strong style={{ fontSize: '1rem', color: (item.score || item.priority_score || 0) > 80 ? '#ec4899' : 'var(--primary)' }}>
-                          {item.score || item.priority_score || 70}/100
-                        </strong>
-                      </td>
-                      <td style={{ padding: '0.75rem' }}>
-                        <span style={{
-                          fontSize: '0.78rem',
-                          fontWeight: 600,
-                          color: (item.score || item.priority_score || 0) > 80 ? '#be185d' : 'var(--primary-dark)',
-                          background: (item.score || item.priority_score || 0) > 80 ? '#fdf2f8' : 'var(--success-bg)',
-                          padding: '4px 8px',
-                          borderRadius: '6px',
-                          display: 'inline-block'
-                        }}>
-                          {item.action || item.recommended_action || 'Expedited Transport Recommended'}
-                        </span>
+                      <td style={{ padding: '0.85rem', fontSize: '0.85rem', color: 'var(--muted)', maxWidth: '340px' }}>
+                        {item.storage || item.storage_requirements || item.storage_guidance || 'Standard dry storage conditions'}
                       </td>
                     </tr>
                   ))}

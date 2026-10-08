@@ -1,0 +1,243 @@
+{
+  "evaluation_timestamp": "2026-10-06T19:26:57",
+  "test_sample_count": 920,
+  "overall_metrics": {
+    "accuracy": 0.8109,
+    "macro_f1": 0.7745,
+    "weighted_f1": 0.8084
+  },
+  "per_class_metrics": {
+    "Anthracnose": {
+      "precision": 0.7375,
+      "recall": 0.6629213483146067,
+      "f1-score": 0.6982248520710059,
+      "support": 178.0
+    },
+    "Bacterial Canker": {
+      "precision": 0.5967741935483871,
+      "recall": 0.6166666666666667,
+      "f1-score": 0.6065573770491803,
+      "support": 60.0
+    },
+    "Healthy": {
+      "precision": 0.8707865168539326,
+      "recall": 0.9337349397590361,
+      "f1-score": 0.9011627906976745,
+      "support": 332.0
+    },
+    "Other": {
+      "precision": 0.7577639751552795,
+      "recall": 0.8970588235294118,
+      "f1-score": 0.8215488215488216,
+      "support": 136.0
+    },
+    "Scab": {
+      "precision": 0.8484848484848485,
+      "recall": 0.7,
+      "f1-score": 0.7671232876712328,
+      "support": 120.0
+    },
+    "Stem End Rot": {
+      "precision": 0.9146341463414634,
+      "recall": 0.7978723404255319,
+      "f1-score": 0.8522727272727273,
+      "support": 94.0
+    },
+    "accuracy": 0.8108695652173913,
+    "macro avg": {
+      "precision": 0.7876572800639852,
+      "recall": 0.7680423531158755,
+      "f1-score": 0.7744816427184404,
+      "support": 920.0
+    },
+    "weighted avg": {
+      "precision": 0.8119915950041372,
+      "recall": 0.8108695652173913,
+      "f1-score": 0.8084375906717846,
+      "support": 920.0
+    }
+  },
+  "confusion_matrix": {
+    "classes": [
+      "Anthracnose",
+      "Bacterial Canker",
+      "Healthy",
+      "Other",
+      "Scab",
+      "Stem End Rot"
+    ],
+    "matrix": [
+      [
+        118,
+        2,
+        32,
+        25,
+        0,
+        1
+      ],
+      [
+        5,
+        37,
+        2,
+        0,
+        15,
+        1
+      ],
+      [
+        14,
+        1,
+        310,
+        3,
+        0,
+        4
+      ],
+      [
+        11,
+        1,
+        1,
+        122,
+        0,
+        1
+      ],
+      [
+        7,
+        21,
+        8,
+        0,
+        84,
+        0
+      ],
+      [
+        5,
+        0,
+        3,
+        11,
+        0,
+        75
+      ]
+    ]
+  },
+  "failure_cases_count": 174,
+  "sample_failure_cases": [
+    {
+      "sample_id": "DHDS_Anthracnose_An172.jpg",
+      "true_class": "Anthracnose",
+      "predicted_class": "Healthy",
+      "confidence": 0.7492
+    },
+    {
+      "sample_id": "DHDS_Anthracnose_An18.jpg",
+      "true_class": "Anthracnose",
+      "predicted_class": "Bacterial Canker",
+      "confidence": 0.64
+    },
+    {
+      "sample_id": "DHDS_Anthracnose_An189.jpg",
+      "true_class": "Anthracnose",
+      "predicted_class": "Healthy",
+      "confidence": 0.6778
+    },
+    {
+      "sample_id": "DHDS_Anthracnose_An230.jpg",
+      "true_class": "Anthracnose",
+      "predicted_class": "Healthy",
+      "confidence": 0.8637
+    },
+    {
+      "sample_id": "DHDS_Anthracnose_An292.jpg",
+      "true_class": "Anthracnose",
+      "predicted_class": "Bacterial Canker",
+      "confidence": 0.64
+    },
+    {
+      "sample_id": "DHDS_Anthracnose_An78.jpg",
+      "true_class": "Anthracnose",
+      "predicted_class": "Other",
+      "confidence": 0.755
+    },
+    {
+      "sample_id": "DHDS_Anthracnose_An85.jpg",
+      "true_class": "Anthracnose",
+      "predicted_class": "Healthy",
+      "confidence": 0.6707
+    },
+    {
+      "sample_id": "DHDS_Bacterial Canker_Bc119.jpg",
+      "true_class": "Bacterial Canker",
+      "predicted_class": "Scab",
+      "confidence": 0.8262
+    },
+    {
+      "sample_id": "DHDS_Bacterial Canker_Bc130.jpg",
+      "true_class": "Bacterial Canker",
+      "predicted_class": "Scab",
+      "confidence": 0.6106
+    },
+    {
+      "sample_id": "DHDS_Bacterial Canker_Bc133.jpg",
+      "true_class": "Bacterial Canker",
+      "predicted_class": "Scab",
+      "confidence": 0.8079
+    },
+    {
+      "sample_id": "DHDS_Bacterial Canker_Bc146.jpg",
+      "true_class": "Bacterial Canker",
+      "predicted_class": "Scab",
+      "confidence": 0.6159
+    },
+    {
+      "sample_id": "DHDS_Bacterial Canker_Bc151.jpg",
+      "true_class": "Bacterial Canker",
+      "predicted_class": "Healthy",
+      "confidence": 0.374
+    },
+    {
+      "sample_id": "DHDS_Bacterial Canker_Bc154.jpg",
+      "true_class": "Bacterial Canker",
+      "predicted_class": "Healthy",
+      "confidence": 0.475
+    },
+    {
+      "sample_id": "DHDS_Bacterial Canker_Bc155.jpg",
+      "true_class": "Bacterial Canker",
+      "predicted_class": "Scab",
+      "confidence": 0.4467
+    },
+    {
+      "sample_id": "DHDS_Bacterial Canker_Bc173.jpg",
+      "true_class": "Bacterial Canker",
+      "predicted_class": "Scab",
+      "confidence": 0.7239
+    },
+    {
+      "sample_id": "DHDS_Bacterial Canker_Bc174.jpg",
+      "true_class": "Bacterial Canker",
+      "predicted_class": "Scab",
+      "confidence": 0.4568
+    },
+    {
+      "sample_id": "DHDS_Bacterial Canker_Bc180.jpg",
+      "true_class": "Bacterial Canker",
+      "predicted_class": "Scab",
+      "confidence": 0.7994
+    },
+    {
+      "sample_id": "DHDS_Bacterial Canker_Bc190.jpg",
+      "true_class": "Bacterial Canker",
+      "predicted_class": "Anthracnose",
+      "confidence": 0.5491
+    },
+    {
+      "sample_id": "DHDS_Bacterial Canker_Bc2.jpg",
+      "true_class": "Bacterial Canker",
+      "predicted_class": "Stem End Rot",
+      "confidence": 0.3418
+    },
+    {
+      "sample_id": "DHDS_Bacterial Canker_Bc205.jpg",
+      "true_class": "Bacterial Canker",
+      "predicted_class": "Scab",
+      "confidence": 0.5542
+    }
+  ]
+}

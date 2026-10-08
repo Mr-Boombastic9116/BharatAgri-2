@@ -1,0 +1,32 @@
+{
+  "report_title": "BharatAgri-2 Mango Quality Dataset Preparation & Leakage-Prevention Report",
+  "random_seed": 42,
+  "split_ratio": "80% Train / 20% Test (Group-Stratified)",
+  "leakage_prevention": {
+    "method": "Group-level splitting by parent image/fruit entity",
+    "rule": "Samples originating from the same photograph (e.g. MangoFruitBD multi-mango boxes) or fruit sequence share a group_id and never cross the train/test barrier.",
+    "duplicate_filtering": "SenMangoFruitDDS_bgremoved excluded because it contains identical background-removed duplicates of SenMangoFruitDDS_original."
+  },
+  "summary": {
+    "total_usable_samples": 0,
+    "train_samples": 0,
+    "test_samples": 0,
+    "total_unique_groups": 0,
+    "train_groups": 0,
+    "test_groups": 0,
+    "unified_classes": []
+  },
+  "class_distribution_total": {},
+  "class_distribution_train": {},
+  "class_distribution_test": {},
+  "source_distribution_total": {},
+  "source_distribution_train": {},
+  "source_distribution_test": {},
+  "exclusions": {
+    "count": 0,
+    "reasons": [
+      "SenMangoFruitDDS_bgremoved (838 images) excluded to prevent identical sample leakage across splits.",
+      "Degenerate bounding boxes (<15px) filtered out during crop extraction."
+    ]
+  }
+}

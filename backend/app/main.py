@@ -25,6 +25,7 @@ from backend.app.api.ai import router as ai_router
 from backend.app.api.government import router as government_router
 from backend.app.api.stats import router as stats_router
 from backend.app.api.price import router as price_router
+from backend.app.api.queue import router as queue_router
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("bharatagri")
@@ -95,7 +96,8 @@ async def generic_exception_handler(request: Request, exc: Exception):
             "success": False,
             "error": {
                 "code": "INTERNAL_SERVER_ERROR",
-                "message": "An internal server error occurred. Please try again later."
+                "message": f"Server error: {str(exc)}",
+                "detail": str(exc)
             }
         }
     )
@@ -133,6 +135,8 @@ app.include_router(government_router)
 app.include_router(stats_router)
 app.include_router(price_router, prefix="/api")
 app.include_router(price_router)
+app.include_router(queue_router, prefix="/api")
+app.include_router(queue_router)
 
 # Mount uploads directory for photo evidence
 import os

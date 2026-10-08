@@ -86,3 +86,26 @@ class TraceabilityLotResponse(BaseModel):
     payment_status: str
     transaction_ref: Optional[str] = None
     paid_at: Optional[datetime] = None
+
+
+class ProcessStepSubmit(BaseModel):
+    step_number: int
+    data: Dict[str, Any] = {}
+    notes: Optional[str] = None
+
+
+class ProcessStepCorrectionRequest(BaseModel):
+    step_number: int
+    field_name: str
+    new_value: str
+    correction_reason: str
+
+
+class StorageCheckRequest(BaseModel):
+    storage_employee_id: Optional[str] = None
+    storage_employee_name: Optional[str] = None
+    received_quantity_quintals: float
+    storage_condition: str = "Optimal Humidity & Temperature"
+    physical_condition: str = "Intact - No Infestation / Good Stacking"
+    remarks: Optional[str] = None
+    evidence_url: Optional[str] = None
