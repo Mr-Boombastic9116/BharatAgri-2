@@ -27,8 +27,8 @@ class MangoQualityDecisionLayer:
 
     def __init__(self,
                  max_excellent_defect_pct: float = 1.0,
-                 max_very_good_defect_pct: float = 3.5,
-                 max_good_defect_pct: float = 7.5,
+                 max_very_good_defect_pct: float = 3.0,
+                 max_good_defect_pct: float = 8.0,
                  max_slightly_defective_defect_pct: float = 14.0,
                  max_defective_defect_pct: float = 20.0,
                  pathogen_reject_threshold: float = 65.0):
@@ -77,8 +77,8 @@ class MangoQualityDecisionLayer:
             decision_path.append(f"Severe active {defect_class} rot detected ({defect_conf:.1f}% conf).")
             decision_path.append(f"Necrotic lesion coverage ({visible_defect_pct}%) warrants lot rejection.")
 
-        # Branch 2: Moderate progressive fungal decay (4% - 8%)
-        elif is_fungal_decay and defect_conf >= self.pathogen_reject_threshold and visible_defect_pct >= 3.5:
+        # Branch 2: Moderate progressive fungal decay (3.0% - 8.0%)
+        elif is_fungal_decay and defect_conf >= self.pathogen_reject_threshold and visible_defect_pct >= 3.0:
             health_status = "Defective"
             defect_severity = "Moderate"
             quality_grade = "Defective"
@@ -102,21 +102,21 @@ class MangoQualityDecisionLayer:
             comm_grade = "Grade C"
             decision_path.append(f"Noticeable surface defect ({visible_defect_pct}% surface coverage).")
 
-        # Branch 5: Slightly Defective (7.5% - 14%)
+        # Branch 5: Noticeable superficial blemish (8.0% - 14%)
         elif visible_defect_pct > self.max_good_defect_pct:
-            health_status = "Defective" if is_pathogen and defect_conf >= 60.0 else "Uncertain"
-            defect_severity = "Slight"
-            quality_grade = "Slightly Defective"
-            comm_grade = "Grade B"
-            decision_path.append(f"Slight surface markings ({visible_defect_pct}% surface coverage).")
+            health_status = "Defective" if is_pathogen and defect_conf >= 60.0 else "Healthy"
+            defect_severity = "Moderate" if is_pathogen else "Slight"
+            quality_grade = "Defective" if is_pathogen else "Slightly Defective"
+            comm_grade = "Grade C" if is_pathogen else "Grade B"
+            decision_path.append(f"Surface markings covering {visible_defect_pct}% of fruit surface.")
             if is_pathogen:
-                decision_path.append(f"Associated with {defect_class} spots ({defect_conf:.1f}% conf).")
+                decision_path.append(f"Associated with {defect_class} pathogen spots ({defect_conf:.1f}% conf).")
 
-        # Branch 6: Localized defect / early decay (3.5% - 7.5%)
+        # Branch 6: Commercial Grade B (3.0% - 8.0%)
         elif visible_defect_pct > self.max_very_good_defect_pct:
-            if is_pathogen or defect_count >= 2:
+            if is_pathogen and defect_conf >= 65.0 and visible_defect_pct >= 5.5:
                 health_status = "Defective"
-                defect_severity = "Moderate" if visible_defect_pct >= 5.5 else "Slight"
+                defect_severity = "Moderate"
                 quality_grade = "Slightly Defective"
                 comm_grade = "Grade B"
                 decision_path.append(f"Localized {defect_class} lesions detected ({visible_defect_pct}% area, {defect_count} spots).")
@@ -125,30 +125,23 @@ class MangoQualityDecisionLayer:
                 defect_severity = "Slight"
                 quality_grade = "Good"
                 comm_grade = "Grade B"
-                decision_path.append(f"Minor superficial markings ({visible_defect_pct}% area); sound fruit flesh.")
+                decision_path.append(f"Minor superficial markings ({visible_defect_pct}% area); sound marketable fruit (AGMARK Grade B).")
 
-        # Branch 7: Very Good / Early Defect (1.0% - 3.5%)
+        # Branch 7: Grade A Sound Fruit (1.0% - 3.0%)
         elif visible_defect_pct > self.max_excellent_defect_pct:
-            if (is_pathogen and (defect_count >= 2 or visible_defect_pct >= 1.5)) or defect_count >= 4 or visible_defect_pct >= 2.0:
-                health_status = "Defective"
-                defect_severity = "Slight"
-                quality_grade = "Slightly Defective"
-                comm_grade = "Grade B"
-                decision_path.append(f"Early-stage localized {defect_class} lesions detected ({visible_defect_pct}% area, {defect_count} spots).")
-            else:
-                health_status = "Healthy"
-                defect_severity = "None"
-                quality_grade = "Very Good"
-                comm_grade = "Grade A"
-                decision_path.append(f"Clean fruit peel with negligible surface markings ({visible_defect_pct}% area).")
+            health_status = "Healthy"
+            defect_severity = "None"
+            quality_grade = "Very Good"
+            comm_grade = "Grade A"
+            decision_path.append(f"Clean fruit peel with negligible superficial markings ({visible_defect_pct}% area <= 3.0%; AGMARK Grade A).")
 
-        # Branch 8: Excellent (<= 1.0%)
+        # Branch 8: Grade A Premium Unblemished (<= 1.0%)
         else:
             health_status = "Healthy"
             defect_severity = "None"
             quality_grade = "Excellent"
             comm_grade = "Grade A"
-            decision_path.append(f"Sound, unblemished premium peel (<= {self.max_excellent_defect_pct}% markings).")
+            decision_path.append(f"Sound, unblemished premium peel (<= {self.max_excellent_defect_pct}% markings; Extra Class Grade A).")
 
         # Branch 9: Maturity context
         if ripeness == "Not Ripe" and health_status == "Healthy":

@@ -164,7 +164,11 @@ class MangoDetector:
                 return img, [], self.generate_debug_images(img, [])
             return img, []
 
-        # Boundary edge gradient detection to find creases and contact seams
+        # Outer perimeter of peel for validating true inter-fruit creases
+        eroded_peel = ndi.binary_erosion(peel_clean, structure=np.ones((5, 5), bool))
+        outer_perim = peel_clean & (~eroded_peel)
+
+        # Signal B: Boundary edge gradient detection to find creases and contact seams
         gx = ndi.sobel(l_est, axis=1)
         gy = ndi.sobel(l_est, axis=0)
         grad = np.hypot(gx, gy)
@@ -173,13 +177,13 @@ class MangoDetector:
         edge_thresh = max(28.0, float(p85))
         raw_edges = (grad > edge_thresh) & peel_clean
 
-        # Filter out tiny texture noise: only keep continuous edge creases with area >= 20 px
+        # Filter out interior defect texture noise: only keep continuous edge creases that touch the perimeter
         lbl_e, n_e = ndi.label(raw_edges)
-        edge_sizes = ndi.sum(raw_edges, lbl_e, range(1, n_e + 1)) if n_e > 0 else []
         clean_creases = np.zeros_like(raw_edges, dtype=bool)
-        for idx_e, s in enumerate(edge_sizes, 1):
-            if s >= 20:
-                clean_creases[lbl_e == idx_e] = True
+        for idx_e in range(1, n_e + 1):
+            m_e = (lbl_e == idx_e)
+            if np.sum(m_e) >= 20 and np.sum(m_e & outer_perim) >= 5:
+                clean_creases[m_e] = True
 
         crease_barrier = ndi.binary_dilation(clean_creases, structure=np.ones((3, 3), dtype=bool))
         separated_peel = peel_clean & (~crease_barrier)
@@ -188,56 +192,23 @@ class MangoDetector:
         lbl_cores, n_cores = ndi.label(separated_peel)
         sizes = ndi.sum(separated_peel, lbl_cores, range(1, n_cores + 1)) if n_cores > 0 else []
 
-        valid_cores = np.zeros(separated_peel.shape, dtype=np.int32)
-        valid_core_count = 0
-        markers = np.zeros(separated_peel.shape, dtype=np.int32)
+        markers = np.zeros(peel_clean.shape, dtype=np.int32)
         marker_count = 0
 
-        if n_cores > 0 and len(sizes) > 0:
+        if n_cores > 1 and len(sizes) > 0:
             dom_size = float(np.max(sizes))
-            med_size = float(np.median(sizes))
-            min_core_thresh = max(350.0, dom_size * 0.18)
-            dist_sep = ndi.distance_transform_edt(separated_peel)
-
+            min_core_thresh = max(350.0, dom_size * 0.15)
             for idx_c, s in enumerate(sizes, 1):
-                if s < min_core_thresh:
-                    continue
-                c_mask = (lbl_cores == idx_c)
-
-                # Check if this core is large enough to contain multiple fused mangoes
-                if s > max(18000.0, med_size * 1.7):
-                    c_dist = dist_sep.copy()
-                    c_dist[~c_mask] = 0.0
-                    max_cd = float(np.max(c_dist))
-                    fp = max(13, int(max_cd * 0.38)) | 1
-                    c_peaks = (c_dist == ndi.maximum_filter(c_dist, footprint=np.ones((fp, fp), dtype=bool))) & (c_dist > max(12.0, max_cd * 0.35))
-                    lbl_cp, n_cp = ndi.label(c_peaks)
-                    if n_cp > 1:
-                        peak_pts = []
-                        for cp_i in range(1, n_cp + 1):
-                            ys, xs = np.where(lbl_cp == cp_i)
-                            peak_pts.append((float(np.mean(xs)), float(np.mean(ys)), float(np.mean(c_dist[ys, xs])), cp_i))
-                        peak_pts.sort(key=lambda p: p[2], reverse=True)
-                        min_peak_d = max(24.0, max_cd * 0.42)
-                        kept_pts = []
-                        for cx, cy, v, cp_i in peak_pts:
-                            if not any(np.hypot(cx - kx, cy - ky) < min_peak_d for kx, ky in kept_pts):
-                                marker_count += 1
-                                markers[lbl_cp == cp_i] = marker_count
-                                kept_pts.append((cx, cy))
-                    else:
-                        marker_count += 1
-                        markers[c_mask] = marker_count
-                else:
+                if s >= min_core_thresh:
                     marker_count += 1
-                    markers[c_mask] = marker_count
+                    markers[lbl_cores == idx_c] = marker_count
 
-        # Fallback to EDT on full peel if crease cores yielded fewer than 2 markers
+        # Signal A & C: Multi-scale distance transform peaks and saddle dip detection
         if marker_count < 2:
             dist = ndi.distance_transform_edt(peel_clean)
             max_d = float(np.max(dist))
-            footprint_rad = max(20, int(max_d * 0.42))
-            local_max = (dist == ndi.maximum_filter(dist, footprint=np.ones((footprint_rad, footprint_rad), dtype=bool))) & (dist > max_d * 0.35) & peel_clean
+            fp = max(9, int(max_d * 0.22)) | 1
+            local_max = (dist == ndi.maximum_filter(dist, footprint=np.ones((fp, fp), dtype=bool))) & (dist > max(10.0, max_d * 0.25)) & peel_clean
             lbl_p, n_p = ndi.label(local_max)
             if n_p >= 2:
                 peak_points = []
@@ -246,22 +217,33 @@ class MangoDetector:
                     val = float(np.mean(dist[ys, xs]))
                     peak_points.append((float(np.mean(xs)), float(np.mean(ys)), val, p_idx))
                 peak_points.sort(key=lambda p: p[2], reverse=True)
-                min_peak_dist = max(28.0, max_d * 0.45)
+                min_peak_dist = max(24.0, max_d * 0.35)
                 kept_markers = np.zeros(peel_clean.shape, dtype=np.int32)
                 kept_count = 0
                 kept_centers = []
                 for cx, cy, val, p_idx in peak_points:
-                    too_close = False
-                    for kx, ky in kept_centers:
-                        if np.hypot(cx - kx, cy - ky) < min_peak_dist:
-                            too_close = True
-                            break
-                    if not too_close:
-                        kept_count += 1
-                        kept_centers.append((cx, cy))
-                        kept_markers[lbl_p == p_idx] = kept_count
+                    if not any(np.hypot(cx - kx, cy - ky) < min_peak_dist for kx, ky in kept_centers):
+                        is_valid_peak = True
+                        if kept_centers:
+                            # Verify saddle dip between candidate peak and existing peaks
+                            nearest_k = min(kept_centers, key=lambda k: np.hypot(cx - k[0], cy - k[1]))
+                            dist_to_k = np.hypot(cx - nearest_k[0], cy - nearest_k[1])
+                            num_s = int(dist_to_k)
+                            if num_s > 0:
+                                xs_line = np.linspace(cx, nearest_k[0], num_s).astype(int)
+                                ys_line = np.linspace(cy, nearest_k[1], num_s).astype(int)
+                                line_vals = dist[ys_line, xs_line]
+                                min_line = np.min(line_vals)
+                                dip = (max(val, dist[int(nearest_k[1]), int(nearest_k[0])]) - min_line) / max_d
+                                if dip < 0.05:
+                                    is_valid_peak = False
+                        if is_valid_peak:
+                            kept_count += 1
+                            kept_centers.append((cx, cy))
+                            kept_markers[lbl_p == p_idx] = kept_count
                 if kept_count >= 2:
                     markers = kept_markers
+                    marker_count = kept_count
                 else:
                     lbl_fallback, _ = ndi.label(peel_clean)
                     markers = lbl_fallback.astype(np.int32)
@@ -270,9 +252,13 @@ class MangoDetector:
                 markers = lbl_fallback.astype(np.int32)
 
         # Geodesic Voronoi / Marker-controlled distance partition
-        _, indices = ndi.distance_transform_edt(markers == 0, return_indices=True)
-        segmented_instances = markers[indices[0], indices[1]]
-        segmented_instances[~peel_clean] = 0
+        if marker_count >= 2:
+            _, indices = ndi.distance_transform_edt(markers == 0, return_indices=True)
+            segmented_instances = markers[indices[0], indices[1]]
+            segmented_instances[~peel_clean] = 0
+        else:
+            lbl_fallback, _ = ndi.label(peel_clean)
+            segmented_instances = lbl_fallback.astype(np.int32)
 
         # Resolve internal junction artifacts (clusters where intersecting fruits create an enclosed central core)
         init_labels = [l for l in np.unique(segmented_instances) if l > 0]
@@ -312,8 +298,8 @@ class MangoDetector:
                 if a1 == 0 or a2 == 0:
                     continue
 
-                # 1. Asymmetry / tiny fragment check (< 15% of pair)
-                if (min(a1, a2) / max(a1, a2)) < 0.15:
+                # 1. Asymmetry / tiny fragment check (< 8% of pair)
+                if (min(a1, a2) / max(a1, a2)) < 0.08:
                     segmented_instances[segmented_instances == l2] = l1
                     labels = [l for l in np.unique(segmented_instances) if l > 0]
                     changed = True
@@ -332,25 +318,24 @@ class MangoDetector:
                 box_area2 = (bx2_2 - bx1_2) * (by2_2 - by1_2)
                 containment = inter_area / max(1.0, min(box_area1, box_area2))
 
-                if containment > 0.75:
+                if containment > 0.88:
                     segmented_instances[segmented_instances == l2] = l1
                     labels = [l for l in np.unique(segmented_instances) if l > 0]
                     changed = True
                     break
 
-                # 3. Distance between proposed centers and seam core cut check:
+                # 3. Distance between proposed centers and seam core cut check
                 cy1, cx1 = np.mean(y1_1), np.mean(x1_1)
                 cy2, cx2 = np.mean(y1_2), np.mean(x1_2)
                 center_dist = float(np.hypot(cx1 - cx2, cy1 - cy2))
                 m_comb = m1 | m2
                 dist_comb = ndi.distance_transform_edt(m_comb)
                 max_d_comb = float(np.max(dist_comb))
-                min_realistic_center_dist = max(25.0, max_d_comb * 0.50)
                 seam = ndi.binary_dilation(m1, structure=np.ones((3, 3), bool)) & ndi.binary_dilation(m2, structure=np.ones((3, 3), bool)) & m_comb
                 seam_max = float(np.max(dist_comb[seam])) if np.sum(seam) > 0 else 0.0
-                seam_ratio = seam_max / max(1.0, max_d_comb)
 
-                if center_dist < min_realistic_center_dist or seam_ratio > 0.88:
+                # Only merge if centers are nearly coincident with zero saddle drop
+                if center_dist < max(18.0, max_d_comb * 0.25) and seam_max >= max_d_comb * 0.98:
                     segmented_instances[segmented_instances == l2] = l1
                     labels = [l for l in np.unique(segmented_instances) if l > 0]
                     changed = True
@@ -398,21 +383,21 @@ class MangoDetector:
             if not (0.28 <= aspect <= 3.5):
                 continue
 
-            # Shape prior validation: check rectangularity
+            # Shape prior validation: enforce organic curved mango boundary
             box_area_s = float(bw_s * bh_s)
             rectangularity = area_s / max(1.0, box_area_s)
-            if rectangularity > 0.90 and area_s > 12000.0:
-                # Mask is unnatural rectangular box; refine using elliptical morph closing
-                inst_mask_s = ndi.binary_opening(inst_mask_s, structure=np.ones((7, 7), dtype=bool))
+            if rectangularity > 0.86:
+                # Mask has unnatural rectangular cut edges; round off with morphological opening
+                inst_mask_s = ndi.binary_opening(inst_mask_s, structure=np.ones((5, 5), dtype=bool))
+
+            inst_mask_s = ndi.binary_closing(inst_mask_s, structure=np.ones((5, 5), dtype=bool))
+            inst_mask_s = ndi.binary_fill_holes(inst_mask_s)
 
             # Scale mask back to full resolution with smooth boundary interpolation
             inst_mask_s_uint = (inst_mask_s.astype(np.uint8) * 255)
             inst_mask_full_img = Image.fromarray(inst_mask_s_uint).resize((orig_w, orig_h), Image.Resampling.BILINEAR)
             inst_mask_full = np.array(inst_mask_full_img) > 115
             inst_mask_full = ndi.binary_closing(inst_mask_full, structure=np.ones((5, 5), dtype=bool))
-            inst_mask_full = ndi.binary_fill_holes(inst_mask_full)
-
-            # Ensure solid fruit instance mask (interior black spots and lesions stay inside fruit)
             inst_mask_full = ndi.binary_fill_holes(inst_mask_full)
 
             ys_f, xs_f = np.where(inst_mask_full)
@@ -445,7 +430,7 @@ class MangoDetector:
             contour_pts = self._extract_contour_points(inst_mask_full)
             cx = int(np.mean(xs_f))
             cy = int(np.mean(ys_f))
-            solidity = float(np.sum(inst_mask_full)) / max(1.0, self._get_convex_hull_area(inst_mask_full))
+            solidity = min(1.0, float(np.sum(inst_mask_full)) / max(1.0, self._get_convex_hull_area(inst_mask_full)))
             conf = min(99.0, max(82.0, 85.0 + solidity * 12.0))
 
             valid_detections.append({

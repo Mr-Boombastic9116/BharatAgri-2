@@ -173,7 +173,7 @@ def test_real_anthracnose_black_spots_detected_and_no_false_split():
     import os
     scanner = get_mango_quality_scanner()
 
-    for fname in ["An1.jpg", "An5.jpg"]:
+    for fname in ["An1.jpg", "An10.jpg"]:
         sample_path = f"ml/data/mango/extracted/MangoDHDS/Anthracnose/Anthracnose/{fname}"
         if not os.path.exists(sample_path):
             continue
@@ -363,6 +363,158 @@ def test_boundary_shadow_not_flagged_as_defect():
     # Because boundary erosion excludes perimeter shadows from defect analysis
     for det in res["detections"]:
         assert det["visible_defect_pct"] <= 5.0, f"Expected low defect %, got {det['visible_defect_pct']}% from boundary shadow"
+
+
+def test_two_overlapping_mangoes_separated_curved_contours():
+    """Verify 2 overlapping mangoes are partitioned into 2 distinct instances with organic curved masks."""
+    detector = MangoDetector()
+    w, h = 450, 350
+    img = Image.new("RGB", (w, h), (240, 240, 240))
+    draw = ImageDraw.Draw(img)
+
+    # Two overlapping mangoes
+    draw.ellipse([80, 80, 240, 260], fill=(235, 185, 30))
+    draw.ellipse([190, 90, 360, 270], fill=(225, 175, 25))
+
+    _, boxes = detector.detect_mangoes(img)
+    assert len(boxes) == 2, f"Expected 2 separated mangoes, got {len(boxes)}"
+    for b in boxes:
+        assert b["area"] > 5000
+        assert len(b["contour"]) >= 4
+        # Verify shape prior ensures non-rectangular organic solidity
+        assert 0.70 <= b["solidity"] <= 1.0
+
+
+def test_external_cast_shadow_zero_defect():
+    """Section 10: Dark cast shadow beside mango on background must produce 0 defect pixels."""
+    scanner = get_mango_quality_scanner()
+    w, h = 450, 320
+    img = Image.new("RGB", (w, h), (240, 240, 240))
+    draw = ImageDraw.Draw(img)
+
+    # Ripe healthy mango
+    draw.ellipse([80, 70, 240, 230], fill=(235, 185, 30))
+    # Dark cast shadow beside mango on the background
+    draw.ellipse([230, 150, 340, 240], fill=(50, 50, 55))
+
+    res = scanner.inspect_lot_image(img)
+    assert res["mangoes_detected"] == 1
+    det = res["detections"][0]
+    dbg = det["debug_numerical"]
+    assert dbg["accepted_defect_pixels"] == 0
+    assert dbg["defect_percentage"] == 0.0
+    assert det["visible_defect_pct"] == 0.0
+    assert det["health_status"] == "Healthy"
+    assert det["commercial_grade"] == "Grade A"
+
+
+def test_internal_smooth_shadow_across_mango_zero_defect():
+    """Section 11: Smooth illumination variation across mango surface must not be counted as a defect."""
+    scanner = get_mango_quality_scanner()
+    w, h = 400, 300
+    img_arr = np.full((h, w, 3), 240, dtype=np.uint8)
+
+    yy, xx = np.ogrid[:h, :w]
+    mango_mask = ((xx - 200)**2 / (90**2) + (yy - 150)**2 / (70**2)) <= 1.0
+
+    # Base yellow peel
+    img_arr[mango_mask, 0] = 235
+    img_arr[mango_mask, 1] = 185
+    img_arr[mango_mask, 2] = 30
+
+    # Smooth illumination variation (shadow across right side)
+    grad = np.clip((xx - 180) / 100.0, 0.0, 1.0)
+    dim_factor = 1.0 - 0.28 * grad
+    for c in range(3):
+        img_arr[..., c] = np.where(mango_mask, (img_arr[..., c] * dim_factor).astype(np.uint8), img_arr[..., c])
+
+    img = Image.fromarray(img_arr)
+    res = scanner.inspect_lot_image(img)
+    assert res["mangoes_detected"] == 1
+    det = res["detections"][0]
+    dbg = det["debug_numerical"]
+    assert dbg["accepted_defect_pixels"] == 0
+    assert dbg["defect_percentage"] == 0.0
+    assert det["health_status"] == "Healthy"
+    assert det["commercial_grade"] == "Grade A"
+
+
+def test_defect_percentage_scaling_audit_intermediate_values():
+    """Section 14: Trace scaling calculation from pixel count to ratio to percentage to grade."""
+    scanner = get_mango_quality_scanner()
+    w, h = 400, 400
+
+    # Build synthetic mango with 80,000 valid pixels and 400 defect pixels (exact 0.5%)
+    crop_img = Image.new("RGB", (w, h), (240, 240, 240))
+    draw = ImageDraw.Draw(crop_img)
+
+    # Fruit radius r = sqrt(80000 / pi) approx 159.6
+    draw.ellipse([40, 40, 360, 360], fill=(235, 185, 30))
+
+    # Mask defining peel
+    yy, xx = np.ogrid[:h, :w]
+    dist_sq = (xx - 200)**2 + (yy - 200)**2
+    mask = dist_sq <= 160**2
+    peel_pixels = int(np.sum(mask))
+
+    # Place a small necrotic defect in the center of exactly ~400 pixels (radius r = 11.3 -> area ~401)
+    draw.ellipse([189, 189, 211, 211], fill=(20, 18, 15))
+
+    defect_info = scanner.analyze_fruit_defects(crop_img, crop_mask=mask)
+    valid_px = defect_info["valid_mango_pixels"]
+    accepted_px = defect_info["accepted_defect_pixels"]
+    raw_ratio = defect_info["raw_defect_ratio"]
+    defect_pct = defect_info["visible_defect_pct"]
+
+    # Verify mathematics
+    assert abs(raw_ratio - (accepted_px / valid_px)) < 1e-4
+    assert abs(defect_pct - (raw_ratio * 100.0)) < 0.05
+    # Verify no x10 or x100 scaling error: 400 px out of 80,000 px should be approx 0.5%, NEVER 5% or 50%
+    assert 0.3 <= defect_pct <= 0.7, f"Defect percentage {defect_pct}% out of range, check scaling!"
+
+    # Verify decision tree mapping for this 0.5% defect
+    eval_res = scanner.decision_layer.evaluate_mango(
+        ripeness="Ripe",
+        ripeness_conf=90.0,
+        defect_class="Healthy",
+        defect_conf=80.0,
+        visible_defect_pct=defect_pct,
+        defect_boxes=defect_info["defect_boxes"]
+    )
+    assert eval_res["commercial_grade"] == "Grade A"
+    assert eval_res["health_status"] == "Healthy"
+
+
+def test_grade_decision_table_monotonic_calibration():
+    """Section 15: Verify calibration test table across 0%, 0.1%, 0.5%, 1%, 2%, 5%, 10%, 20%, 30%, 50%."""
+    from ml.inference.quality_decision_tree import MangoQualityDecisionLayer
+    tree = MangoQualityDecisionLayer()
+
+    expected_grades = {
+        0.0: ("Healthy", "Grade A"),
+        0.1: ("Healthy", "Grade A"),
+        0.5: ("Healthy", "Grade A"),
+        1.0: ("Healthy", "Grade A"),
+        2.0: ("Healthy", "Grade A"),
+        5.0: ("Healthy", "Grade B"),
+        10.0: ("Healthy", "Grade B"),
+        20.0: ("Defective", "Reject"),
+        30.0: ("Defective", "Reject"),
+        50.0: ("Defective", "Reject"),
+    }
+
+    for pct, (exp_health, exp_comm) in expected_grades.items():
+        res = tree.evaluate_mango(
+            ripeness="Ripe",
+            ripeness_conf=90.0,
+            defect_class="Healthy",
+            defect_conf=80.0,
+            visible_defect_pct=pct,
+            defect_boxes=[[0, 0, 10, 10]] * int(max(1, pct * 2)) if pct > 0 else []
+        )
+        assert res["health_status"] == exp_health, f"At {pct}%, expected health {exp_health}, got {res['health_status']}"
+        assert res["commercial_grade"] == exp_comm, f"At {pct}%, expected commercial {exp_comm}, got {res['commercial_grade']}"
+
 
 
 

@@ -248,71 +248,114 @@ class MangoQualityScanner:
 
         # 3. Boundary erosion safety margin
         # Prevents uncertain perimeter edge pixels and contact seam shadows from being counted as defects
-        erode_rad = max(3, min(10, int(round(min(w, h) * 0.045))))
+        erode_rad = max(2, min(8, int(round(min(w, h) * 0.035))))
         inner_peel = ndi.binary_erosion(fruit_peel, structure=np.ones((erode_rad * 2 + 1, erode_rad * 2 + 1), dtype=bool))
         if np.sum(inner_peel) < 40:
             inner_peel = ndi.binary_erosion(fruit_peel, structure=np.ones((3, 3), dtype=bool))
         if np.sum(inner_peel) < 20:
             inner_peel = fruit_peel
 
+        valid_mango_pixels = int(np.sum(inner_peel & fruit_peel))
         peel_L = l_est[inner_peel]
-        median_L = float(np.median(peel_L))
+        median_L = float(np.median(peel_L)) if len(peel_L) > 0 else 128.0
 
         gx = ndi.sobel(l_est, axis=1)
         gy = ndi.sobel(l_est, axis=0)
         grad = np.hypot(gx, gy)
 
-        # Multi-signal defect detection:
-        dark_necrosis = (l_est < 75.0) & (l_est < (median_L - 15.0))
-        sunken_black = (l_est < 45.0)
-        collapsed = (l_est < 88.0) & (chroma < 20.0) & (l_est < (median_L - 25.0))
-        scab_edge = (grad > 25.0) & (l_est < 85.0) & (l_est < (median_L - 28.0))
+        # 4. Contextual local background illumination normalization
+        # Smooth background lightness to distinguish gradual lighting/shadow transitions from sharp lesions
+        sigma = max(8, min(24, int(min(w, h) * 0.12)))
+        l_bg = ndi.gaussian_filter(l_est, sigma=sigma)
+        delta_l = l_bg - l_est
 
-        # Strictly evaluate inside inner_peel & valid fruit_peel
-        raw_defects = (dark_necrosis | sunken_black | collapsed | scab_edge) & inner_peel & fruit_peel
-
-        # Reject natural healthy green peel
+        # Candidate dark regions (inside valid fruit peel only)
+        dark_drop = (delta_l >= 16.0) & (l_est < 75.0)
+        deep_pit = (l_est < 42.0) & (delta_l >= 10.0)
+        scab_pit = (grad > 26.0) & (delta_l >= 14.0) & (l_est < 85.0)
         is_healthy_green = (g > r * 1.08) & (g > b * 1.15) & (l_est > 55.0)
-        raw_defects = raw_defects & (~is_healthy_green)
 
-        # Filter noise, but strictly preserve real black spots (>= 6 pixels)
-        lbl_d, n_d = ndi.label(raw_defects)
-        sizes = ndi.sum(raw_defects, lbl_d, range(1, n_d + 1)) if n_d > 0 else []
+        raw_dark = (dark_drop | deep_pit | scab_pit) & inner_peel & fruit_peel & (~is_healthy_green)
+        candidate_dark_pixels = int(np.sum(raw_dark))
 
-        clean_mask = np.zeros_like(raw_defects, dtype=bool)
+        # Outer boundary buffer for edge artifact / antialiasing rejection
+        eroded_outer = ndi.binary_erosion(fruit_peel, structure=np.ones((3, 3), bool))
+        outer_boundary = fruit_peel & (~eroded_outer)
+
+        # 5. Connected component evaluation with surrounding ring contrast & shadow rejection
+        lbl_d, n_d = ndi.label(raw_dark)
+        sizes = ndi.sum(raw_dark, lbl_d, range(1, n_d + 1)) if n_d > 0 else []
+
+        clean_mask = np.zeros_like(raw_dark, dtype=bool)
         defect_boxes = []
         largest_region = 0
 
         for idx_d, s in enumerate(sizes, 1):
-            if s >= 6:
-                clean_mask[lbl_d == idx_d] = True
-                if s > largest_region:
-                    largest_region = int(s)
+            if s < 5:
+                continue
+            comp = (lbl_d == idx_d)
 
-                dys, dxs = np.where(lbl_d == idx_d)
-                bx1 = int(np.min(dxs))
-                by1 = int(np.min(dys))
-                bw_b = int(np.max(dxs) - bx1 + 1)
-                bh_b = int(np.max(dys) - by1 + 1)
-                defect_boxes.append([bx1, by1, bw_b, bh_b])
+            # Surrounding peel ring analysis: compare spot lightness against its immediate neighborhood
+            ring = ndi.binary_dilation(comp, structure=np.ones((7, 7), bool)) & (~comp) & fruit_peel
+            if np.sum(ring) >= 5:
+                l_ring = float(np.median(l_est[ring]))
+                l_spot = float(np.median(l_est[comp]))
+                local_contrast = l_ring - l_spot
+            else:
+                l_spot = float(np.median(l_est[comp]))
+                local_contrast = float(median_L - l_spot)
 
-        total_defect_pixels = int(np.sum(clean_mask))
-        # Defect percentage strictly calculated over valid mango pixels, NOT bounding box
-        affected_pct = round((total_defect_pixels / max(1.0, total_mango_pixels)) * 100.0, 1)
+            # Rejection Rule 1: Gradual illumination variation / smooth shadow (lacks sharp contrast drop)
+            if local_contrast < 14.0:
+                continue
+
+            # Rejection Rule 2: Dimmed peel shadow retaining healthy chroma without necrosis
+            if l_spot > 55.0 and local_contrast < 22.0 and np.mean(chroma[comp]) > 18.0:
+                continue
+
+            # Rejection Rule 3: Boundary edge artifact / perimeter contact transition
+            if np.sum(comp & outer_boundary) > 0 and local_contrast < 24.0:
+                continue
+
+            clean_mask[comp] = True
+            if s > largest_region:
+                largest_region = int(s)
+
+            dys, dxs = np.where(comp)
+            bx1 = int(np.min(dxs))
+            by1 = int(np.min(dys))
+            bw_b = int(np.max(dxs) - bx1 + 1)
+            bh_b = int(np.max(dys) - by1 + 1)
+            defect_boxes.append([bx1, by1, bw_b, bh_b])
+
+        accepted_defect_pixels = int(np.sum(clean_mask))
+        rejected_shadow_pixels = max(0, candidate_dark_pixels - accepted_defect_pixels)
+
+        # Defect percentage strictly calculated over valid mango pixels, NOT bounding box or image area
+        raw_defect_ratio = accepted_defect_pixels / max(1.0, float(total_mango_pixels))
+        affected_pct = round(raw_defect_ratio * 100.0, 2)
 
         # Sort defect boxes by size descending
         defect_boxes.sort(key=lambda b: b[2] * b[3], reverse=True)
 
-        conf = min(99.0, 75.0 + min(22.0, affected_pct * 4.0)) if total_defect_pixels > 0 else 0.0
+        conf = min(99.0, 75.0 + min(22.0, affected_pct * 4.0)) if accepted_defect_pixels > 0 else 0.0
 
         return {
             "affected_area_pct": affected_pct,
+            "visible_defect_pct": affected_pct,
             "defect_boxes": defect_boxes[:16],
             "defect_mask": clean_mask,
-            "total_defect_pixels": total_defect_pixels,
+            "total_defect_pixels": accepted_defect_pixels,
             "largest_defect_pixels": largest_region,
             "num_regions": len(defect_boxes),
-            "confidence": round(conf, 1)
+            "confidence": round(conf, 1),
+            # Developer numerical debug metrics
+            "valid_mango_pixels": int(total_mango_pixels),
+            "inner_mango_pixels": valid_mango_pixels,
+            "candidate_dark_pixels": candidate_dark_pixels,
+            "rejected_shadow_pixels": rejected_shadow_pixels,
+            "accepted_defect_pixels": accepted_defect_pixels,
+            "raw_defect_ratio": round(raw_defect_ratio, 5)
         }
 
     def inspect_lot_image(self, image_input, inspection_code: str = None) -> Dict[str, Any]:
@@ -521,7 +564,18 @@ class MangoQualityScanner:
                 "crop_mask": b.get('crop_mask'),
                 "area": area_px,
                 "contour": [[int(pt[0]), int(pt[1])] for pt in b.get('contour', [])],
-                "centroid": [int(b.get('centroid', (0, 0))[0]), int(b.get('centroid', (0, 0))[1])]
+                "centroid": [int(b.get('centroid', (0, 0))[0]), int(b.get('centroid', (0, 0))[1])],
+                # Section 19 Developer Numerical Debug Metrics
+                "debug_numerical": {
+                    "valid_mango_pixels": int(defect_info.get("valid_mango_pixels", area_px)),
+                    "candidate_dark_pixels": int(defect_info.get("candidate_dark_pixels", 0)),
+                    "rejected_shadow_pixels": int(defect_info.get("rejected_shadow_pixels", 0)),
+                    "accepted_defect_pixels": int(defect_info.get("accepted_defect_pixels", 0)),
+                    "raw_defect_ratio": float(defect_info.get("raw_defect_ratio", 0.0)),
+                    "defect_percentage": float(affected_pct),
+                    "commercial_grade": comm_grade,
+                    "health_status": health_status
+                }
             })
 
         # 3. Task 5: Lot-Level Aggregation strictly calculated from individual mango results
@@ -530,7 +584,11 @@ class MangoQualityScanner:
         defect_count = sum(1 for d in detections if d["health_status"] == "Defective")
         uncertain_count = sum(1 for d in detections if d["health_status"] == "Uncertain")
 
-        lot_defect_pct = round((defect_count / total_samples * 100.0), 1) if total_samples > 0 else 0.0
+        # True average surface defect percentage across sampled fruits (e.g. 0.5%)
+        avg_surface_defect_pct = round(float(np.mean([d["visible_defect_pct"] for d in detections])), 2) if detections else 0.0
+        # Lot-level defective fruit incidence percentage
+        lot_defective_fruit_pct = round((defect_count / total_samples * 100.0), 1) if total_samples > 0 else 0.0
+        lot_defect_pct = lot_defective_fruit_pct
         avg_confidence = round(float(np.mean(confidences)), 1) if confidences else 0.0
 
         # Grade counts across 6-tier quality distribution
@@ -593,7 +651,9 @@ class MangoQualityScanner:
             "total_samples": total_samples,
             "healthy_count": healthy_count,
             "defect_count": defect_count,
-            "lot_defect_pct": lot_defect_pct,
+            "lot_defect_pct": lot_defective_fruit_pct,
+            "lot_defective_fruit_pct": lot_defective_fruit_pct,
+            "avg_surface_defect_pct": avg_surface_defect_pct,
             "visual_grade": visual_grade,
             "lot_potential_grade": f"{visual_grade} (AI Estimate)",
         }
@@ -646,9 +706,12 @@ class MangoQualityScanner:
             "lot_quality_grade": lot_quality_grade,
             "lot_potential_grade": f"{visual_grade} (AI Estimate)",
             "ai_estimated_grade": visual_grade,
-            "lot_grading_summary": f"Lot evaluation: {visual_grade} based on {total_samples} sampled fruit instance(s) ({healthy_count} Healthy, {defect_count} Defective, {uncertain_count} Uncertain). Average defect rate: {lot_defect_pct}%.",
+            "lot_grading_summary": f"Lot evaluation: {visual_grade} based on {total_samples} sampled fruit instance(s) ({healthy_count} Healthy, {defect_count} Defective, {uncertain_count} Uncertain). Average surface defect coverage: {avg_surface_defect_pct}%. Defective fruit incidence: {lot_defective_fruit_pct}%.",
             "grading_disclaimer": "AI-estimated potential grade based on multi-factor optical analysis; transparent baseline for decision support, not an official statutory APMC certification.",
-            "affected_percentage": lot_defect_pct,
+            "affected_percentage": avg_surface_defect_pct,
+            "avg_surface_defect_pct": avg_surface_defect_pct,
+            "lot_defective_fruit_pct": lot_defective_fruit_pct,
+            "lot_defect_pct": lot_defective_fruit_pct,
             "visual_grade": visual_grade,
             "confidence": avg_confidence,
             "status": status,

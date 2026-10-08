@@ -1181,6 +1181,105 @@ export default function ProcessAppointmentPage({ user, appointmentId, navigate }
                         </div>
                       )}
 
+                      {/* Section 19: Developer Numerical Debug Panel */}
+                      {mangoScanResult.detections && mangoScanResult.detections.length > 0 && (
+                        <div style={{
+                          marginBottom: '20px',
+                          background: '#0f172a',
+                          border: '1px solid #334155',
+                          borderRadius: '10px',
+                          padding: '16px',
+                          color: '#f8fafc'
+                        }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <span style={{ fontSize: '1rem' }}>📊</span>
+                              <h4 style={{ margin: 0, fontSize: '0.88rem', fontWeight: 800, color: '#f8fafc', letterSpacing: '0.5px' }}>
+                                Developer Numerical Debug Panel (Pixel-by-Pixel Audit)
+                              </h4>
+                            </div>
+                            <span style={{ fontSize: '0.72rem', background: '#3b82f6', color: '#fff', padding: '2px 8px', borderRadius: '4px', fontWeight: 700 }}>
+                              Codex 184 / AGMARK Calibrated
+                            </span>
+                          </div>
+
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '12px' }}>
+                            {mangoScanResult.detections.map((d, i) => {
+                              const dbg = d.debug_numerical || {
+                                valid_mango_pixels: d.area || 0,
+                                candidate_dark_pixels: d.total_defect_pixels || 0,
+                                rejected_shadow_pixels: 0,
+                                accepted_defect_pixels: d.total_defect_pixels || 0,
+                                raw_defect_ratio: ((d.visible_defect_pct !== undefined ? d.visible_defect_pct : d.affected_area_pct) || 0) / 100.0,
+                                defect_percentage: (d.visible_defect_pct !== undefined ? d.visible_defect_pct : d.affected_area_pct) || 0,
+                                commercial_grade: d.commercial_grade || 'Grade A',
+                                health_status: d.health_status || 'Healthy'
+                              };
+
+                              return (
+                                <div key={i} style={{
+                                  background: '#1e293b',
+                                  border: '1px solid #475569',
+                                  borderRadius: '8px',
+                                  padding: '12px',
+                                  fontFamily: 'monospace',
+                                  fontSize: '0.76rem'
+                                }}>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #334155', paddingBottom: '6px', marginBottom: '8px' }}>
+                                    <strong style={{ color: '#38bdf8', fontSize: '0.85rem' }}>Mango #{d.sample_index || (i + 1)}</strong>
+                                    <span style={{
+                                      padding: '1px 6px',
+                                      borderRadius: '4px',
+                                      fontSize: '0.7rem',
+                                      fontWeight: 700,
+                                      background: dbg.health_status === 'Healthy' ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)',
+                                      color: dbg.health_status === 'Healthy' ? '#34d399' : '#f87171'
+                                    }}>
+                                      {dbg.commercial_grade} ({dbg.health_status})
+                                    </span>
+                                  </div>
+
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', color: '#cbd5e1' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                      <span>Valid mango pixels:</span>
+                                      <strong style={{ color: '#fff' }}>{Number(dbg.valid_mango_pixels).toLocaleString()}</strong>
+                                    </div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                      <span>Candidate dark pixels:</span>
+                                      <span style={{ color: '#fbbf24' }}>{Number(dbg.candidate_dark_pixels).toLocaleString()}</span>
+                                    </div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                      <span>Rejected background/shadow:</span>
+                                      <span style={{ color: '#94a3b8' }}>{Number(dbg.rejected_shadow_pixels).toLocaleString()}</span>
+                                    </div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                      <span>Accepted defect pixels:</span>
+                                      <strong style={{ color: dbg.accepted_defect_pixels > 0 ? '#f87171' : '#34d399' }}>
+                                        {Number(dbg.accepted_defect_pixels).toLocaleString()}
+                                      </strong>
+                                    </div>
+                                    <div style={{ borderTop: '1px dashed #334155', marginTop: '4px', paddingTop: '4px', display: 'flex', justifyContent: 'space-between' }}>
+                                      <span>Raw defect ratio:</span>
+                                      <span style={{ color: '#e2e8f0' }}>{Number(dbg.raw_defect_ratio).toFixed(5)}</span>
+                                    </div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                      <span style={{ fontWeight: 700 }}>Defect percentage:</span>
+                                      <strong style={{ fontSize: '0.85rem', color: dbg.defect_percentage > 3.0 ? '#f87171' : '#34d399' }}>
+                                        {dbg.defect_percentage}%
+                                      </strong>
+                                    </div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '2px' }}>
+                                      <span>Verified Grade:</span>
+                                      <strong style={{ color: '#38bdf8' }}>{dbg.commercial_grade}</strong>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+
                       {/* 3. Detection Information & Summary Metrics */}
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '12px', marginBottom: '20px' }}>
                         <div className="stat-card" style={{ padding: '12px', textAlign: 'center' }}>
@@ -1214,8 +1313,16 @@ export default function ProcessAppointmentPage({ user, appointmentId, navigate }
                           <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#065f46' }}>{mangoScanResult.not_ripe_count || 0}</div>
                         </div>
                         <div className="stat-card" style={{ padding: '12px', textAlign: 'center', borderLeft: '3px solid #9ca3af' }}>
-                          <div style={{ fontSize: '0.75rem', color: 'var(--muted)', fontWeight: 700 }}>Avg Defect %</div>
-                          <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--text)' }}>{mangoScanResult.affected_percentage || 0}%</div>
+                          <div style={{ fontSize: '0.75rem', color: 'var(--muted)', fontWeight: 700 }}>Avg Surface Defect %</div>
+                          <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--text)' }}>
+                            {mangoScanResult.avg_surface_defect_pct !== undefined ? mangoScanResult.avg_surface_defect_pct : (mangoScanResult.affected_percentage || 0)}%
+                          </div>
+                        </div>
+                        <div className="stat-card" style={{ padding: '12px', textAlign: 'center', borderLeft: '3px solid #6366f1' }}>
+                          <div style={{ fontSize: '0.75rem', color: '#4338ca', fontWeight: 700 }}>Lot Defective Rate</div>
+                          <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#4338ca' }}>
+                            {mangoScanResult.lot_defective_fruit_pct !== undefined ? `${mangoScanResult.lot_defective_fruit_pct}%` : `${mangoScanResult.defect_count || 0}`}
+                          </div>
                         </div>
                       </div>
 
@@ -1277,6 +1384,11 @@ export default function ProcessAppointmentPage({ user, appointmentId, navigate }
                                       <div>Visible Defect: <strong style={{ color: isDefective ? 'var(--danger)' : 'var(--text)' }}>{d.visible_defect_pct !== undefined ? d.visible_defect_pct : d.affected_area_pct}%</strong></div>
                                       <div>Est. 3D Severity: <strong>{d.estimated_total_surface_severity?.range_str || `${d.affected_area_pct}%`}</strong></div>
                                     </div>
+                                    {d.debug_numerical && (
+                                      <div style={{ fontSize: '0.70rem', color: 'var(--muted)', marginTop: '2px' }}>
+                                        Pixel Audit: <strong>{d.debug_numerical.accepted_defect_pixels} defect / {d.debug_numerical.valid_mango_pixels} peel px</strong> ({d.debug_numerical.defect_percentage}%)
+                                      </div>
+                                    )}
                                     {d.grading_factors && (
                                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px', fontSize: '0.70rem', color: 'var(--muted)', marginTop: '2px' }}>
                                         <div>Peel Uniformity: <strong>{d.grading_factors.colour_uniformity_score}/100</strong></div>
