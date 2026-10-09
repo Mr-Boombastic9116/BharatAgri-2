@@ -15,6 +15,7 @@ import ProcessAppointmentPage from './pages/ProcessAppointmentPage';
 import StoragePage from './pages/StoragePage';
 import { ThemeProvider } from './context/ThemeContext';
 import { LanguageProvider } from './context/LanguageContext';
+import ErrorBoundary from './components/ErrorBoundary';
 
 function AppContent() {
   // User state persisted in localStorage
@@ -50,6 +51,11 @@ function AppContent() {
     }
     if (page === 'government-dashboard') return r === 'government' || r === 'admin' || r === 'superadmin';
     if (page === 'book-slot' || page === 'my-booking') return r === 'farmer' || r === 'agent';
+    if (page === 'copilot') {
+      return ['government', 'admin', 'superadmin'].includes(r) || isCentreRole(currentUser?.role);
+    }
+    if (page === 'government-copilot') return ['government', 'admin', 'superadmin'].includes(r);
+    if (page === 'centre-copilot') return isCentreRole(currentUser?.role);
     return true;
   };
 
@@ -74,7 +80,11 @@ function AppContent() {
     }
 
     const savedPage = hash || localStorage.getItem('bharatagri_active_page');
-    const PROTECTED = ['farmer-dashboard', 'agent-dashboard', 'centre-dashboard', 'government-dashboard', 'centre-process', 'centre-storage', 'book-slot', 'my-booking'];
+    const PROTECTED = [
+      'farmer-dashboard', 'agent-dashboard', 'centre-dashboard', 'government-dashboard',
+      'centre-process', 'centre-storage', 'book-slot', 'my-booking',
+      'copilot', 'government-copilot', 'centre-copilot'
+    ];
 
     if (savedPage && PROTECTED.includes(savedPage)) {
       if (!u) return 'login';
@@ -105,7 +115,11 @@ function AppContent() {
       localStorage.setItem('bharatagri_process_appointment_id', options.appointmentId);
     }
 
-    const PROTECTED = ['farmer-dashboard', 'agent-dashboard', 'centre-dashboard', 'government-dashboard', 'centre-process', 'centre-storage', 'book-slot'];
+    const PROTECTED = [
+      'farmer-dashboard', 'agent-dashboard', 'centre-dashboard', 'government-dashboard',
+      'centre-process', 'centre-storage', 'book-slot', 'my-booking',
+      'copilot', 'government-copilot', 'centre-copilot'
+    ];
     let targetPage = page;
     const effectiveUser = getCurrentUser();
     if (PROTECTED.includes(page)) {
@@ -132,7 +146,11 @@ function AppContent() {
       const hashPage = window.location.hash.replace(/^#\/?/, '').trim();
       if (!hashPage) return;
 
-      const PROTECTED = ['farmer-dashboard', 'agent-dashboard', 'centre-dashboard', 'government-dashboard', 'centre-process', 'centre-storage', 'book-slot'];
+      const PROTECTED = [
+        'farmer-dashboard', 'agent-dashboard', 'centre-dashboard', 'government-dashboard',
+        'centre-process', 'centre-storage', 'book-slot', 'my-booking',
+        'copilot', 'government-copilot', 'centre-copilot'
+      ];
       if (PROTECTED.includes(hashPage)) {
         const effectiveUser = getCurrentUser();
         if (!effectiveUser) {
@@ -224,11 +242,14 @@ function AppContent() {
             />
           )}
 
-          {activePage === 'centre-dashboard' && user && isCentreRole(user.role) && (
-            <CentreDashboard
-              user={user}
-              navigate={navigate}
-            />
+          {(activePage === 'centre-dashboard' || (activePage === 'copilot' && isCentreRole(user?.role)) || activePage === 'centre-copilot') && user && isCentreRole(user.role) && (
+            <ErrorBoundary title="Centre Operations Error" message="A rendering issue occurred in Centre Dashboard. Use reload or switch tabs to resume.">
+              <CentreDashboard
+                user={user}
+                navigate={navigate}
+                initialTab={(activePage === 'copilot' || activePage === 'centre-copilot') ? 'copilot' : 'overview'}
+              />
+            </ErrorBoundary>
           )}
 
           {activePage === 'centre-process' && user && (
@@ -251,10 +272,14 @@ function AppContent() {
             />
           )}
 
-          {activePage === 'government-dashboard' && user && (user.role?.toLowerCase() === 'government' || user.role?.toLowerCase() === 'admin') && (
-            <GovernmentDashboard
-              user={user}
-            />
+          {(activePage === 'government-dashboard' || (activePage === 'copilot' && ['government', 'admin', 'superadmin'].includes(normalizeRole(user?.role))) || activePage === 'government-copilot') && user && (['government', 'admin', 'superadmin'].includes(normalizeRole(user.role))) && (
+            <ErrorBoundary title="Government Analytics Error" message="A rendering issue occurred in Government Dashboard. Use reload or switch tabs to resume.">
+              <GovernmentDashboard
+                user={user}
+                navigate={navigate}
+                initialTab={(activePage === 'copilot' || activePage === 'government-copilot') ? 'insights' : 'overview'}
+              />
+            </ErrorBoundary>
           )}
 
           {activePage === 'book-slot' && (

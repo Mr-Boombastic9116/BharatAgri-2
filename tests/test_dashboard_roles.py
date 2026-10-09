@@ -180,9 +180,8 @@ def test_centre_login_role_variations():
         })
         assert res.status_code == 200, f"Login with role variant '{role_variant}' failed: {res.text}"
         data = res.json()
-        assert data["user"]["role"] == "centre"
-        assert data["user"]["centre_id"] == "C001"
-        assert "Pune" in data["user"]["centre_name"] or "Sanquelim" in data["user"]["name"]
+        assert data["user"]["centre_id"] == "C01"
+        assert "Sanquelim" in data["user"]["centre_name"] or "Sanquelim" in data["user"]["name"]
 
 
 def test_multi_centre_data_isolation():

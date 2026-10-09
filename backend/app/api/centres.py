@@ -8,6 +8,7 @@ from sqlalchemy import func, cast, String
 
 
 from backend.app.core.database import get_db
+from backend.app.core.deps import get_current_user_optional
 from backend.app.core.helpers import resolve_centre
 from backend.app.models.centre import ProcurementCentre, DailyCapacity, NonOperationalDate, Slot, Employee
 from backend.app.models.booking import Booking
@@ -1416,19 +1417,58 @@ def delete_centre_employee(centre_id: str, employee_id: int, db: Session = Depen
 
 class CentreCopilotPayload(BaseModel):
     query: str
+    session_context: Optional[dict] = None
 
 
 @router.post("/centres/{centre_id}/copilot")
 @router.post("/centre/{centre_id}/copilot")
-def query_centre_copilot_endpoint(centre_id: str, payload: CentreCopilotPayload, db: Session = Depends(get_db)):
+def query_centre_copilot_endpoint(
+    centre_id: str,
+    payload: CentreCopilotPayload,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user_optional)
+):
     """Scoped Centre Copilot strictly isolated to the authenticated centre_id."""
+    auth_centre_id = None
+    if current_user and getattr(current_user, "role", "").lower() in ["centre", "procurement_centre"]:
+        user_cid = getattr(current_user, "centre_id", None)
+        if user_cid:
+            clean_req = centre_id.strip().upper()
+            clean_user = user_cid.strip().upper()
+            if clean_req != clean_user and clean_req.replace("0", "") != clean_user.replace("0", ""):
+                raise HTTPException(
+                    status_code=403,
+                    detail=f"Access denied. You are strictly restricted to your assigned facility '{user_cid}'."
+                )
+            auth_centre_id = user_cid
+
     c = resolve_centre(centre_id, db)
     if not c:
         raise HTTPException(status_code=404, detail="Procurement Centre not found.")
     actual_id = c.centre_id
+
+    if auth_centre_id and actual_id.lower() != auth_centre_id.lower():
+        raise HTTPException(
+            status_code=403,
+            detail=f"Access denied. You are strictly restricted to your assigned facility '{auth_centre_id}'."
+        )
+
     from backend.app.services.queue_engine import query_centre_copilot
-    res = query_centre_copilot(actual_id, payload.query.strip(), db)
-    return {"success": True, "data": res}
+    res = query_centre_copilot(
+        actual_id,
+        payload.query.strip(),
+        db,
+        session_context=payload.session_context,
+        authenticated_centre_id=auth_centre_id
+    )
+    return {
+        "success": True,
+        "data": res,
+        "answer": res.get("answer", ""),
+        "session_context": res.get("session_context"),
+        "table_data": res.get("table_data"),
+        "entities": res.get("entities")
+    }
 
 
 

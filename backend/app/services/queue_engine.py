@@ -16,18 +16,65 @@ import json
 import joblib
 import numpy as np
 import datetime
+import math
+from datetime import timedelta, date
 from typing import Optional, List, Dict, Any
 from sqlalchemy.orm import Session
 from sqlalchemy import func, desc
 
+CENTRE_COORDINATES = {
+    "C01": (15.5562, 74.0152),       # Sanquelim, North Goa (Demo Centre)
+    "PC-GOA-01": (15.4909, 73.8278), # Panaji Apex APMC Yard, North Goa
+    "PC-GOA-02": (15.2736, 73.9582), # Margao South Goa Horticultural Terminal
+    "C021": (16.7050, 74.2433),      # Kolhapur Regional APMC Hub
+    "C029": (15.3647, 75.1240),      # Hubballi North Karnataka APMC Terminal
+    "C001": (18.5204, 73.8567),      # Pune Procurement Centre 1
+    "C017": (18.5304, 73.8667),      # Pune Procurement Centre 2
+    "C003": (17.6599, 75.9064),      # Solapur Procurement Centre 1
+    "C019": (17.6699, 75.9164),      # Solapur Procurement Centre 2
+    "C005": (19.0952, 74.7480),      # Ahmednagar Procurement Centre 1
+    "C002": (19.9975, 73.7898),      # Nashik Procurement Centre 1
+    "C018": (20.0075, 73.7998),      # Nashik Procurement Centre 2
+    "C022": (20.9320, 77.7523),      # Amravati Vidarbha Cotton Yard
+    "C004": (21.1458, 79.0882),      # Nagpur Procurement Centre 1
+    "C020": (21.1558, 79.0982),      # Nagpur Procurement Centre 2
+    "C009": (22.7196, 75.8577),      # Indore Procurement Centre 1
+    "C011": (23.1765, 75.7885),      # Ujjain Procurement Centre 1
+    "C012": (23.2031, 77.0844),      # Sehore Procurement Centre 1
+    "C010": (23.2599, 77.4126),      # Bhopal Procurement Centre 1
+    "C024": (22.7533, 77.7289),      # Hoshangabad Wheat Procurement Depot
+    "C023": (23.1815, 79.9864),      # Jabalpur Narmada Krishi Mandi
+    "C015": (26.4499, 80.3319),      # Kanpur Procurement Centre 1
+    "C013": (26.8467, 80.9462),      # Lucknow Procurement Centre 1
+    "C027": (25.3176, 82.9739),      # Varanasi Purvanchal Krishi Hub
+    "C014": (27.1767, 78.0081),      # Agra Procurement Centre 1
+    "C028": (28.3670, 79.4304),      # Bareilly Rohilkhand Mandi Yard
+    "C016": (28.9845, 77.7064),      # Meerut Procurement Centre 1
+    "C007": (30.3398, 76.3869),      # Patiala Procurement Centre 1
+    "C026": (30.2110, 74.9455),      # Bhatinda Malwa Grain Terminal
+    "C006": (30.9010, 75.8573),      # Ludhiana Procurement Centre 1
+    "C025": (31.3260, 75.5762),      # Jalandhar Doaba APMC Centre
+    "C008": (31.6340, 74.8723),      # Amritsar Procurement Centre 1
+}
+
+def haversine_distance_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    R = 6371.0
+    dlat = math.radians(lat2 - lat1)
+    dlon = math.radians(lon2 - lon1)
+    a = (math.sin(dlat / 2.0) ** 2 +
+         math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dlon / 2.0) ** 2)
+    c = 2.0 * math.atan2(math.sqrt(a), math.sqrt(1.0 - a))
+    return R * c
+
 from backend.app.models.queue import (
     QueueEvent, CentreDailyMetric, Notification, Appointment, ProcurementTransaction
 )
-from backend.app.models.centre import ProcurementCentre, Slot
+from backend.app.models.centre import ProcurementCentre, Slot, DailyCapacity
 from backend.app.models.farmer import Farmer
 from backend.app.models.booking import Booking
 from backend.app.core.helpers import resolve_farmer
 from backend.app.models.procurement import ProcurementRecord, Payment
+from backend.app.models.logistics import Truck, TruckRoutePrediction, TruckRequest
 
 MODEL_PATH = 'ml/models/queue_wait_model.joblib'
 METRICS_PATH = 'ml/models/queue_metrics.json'
@@ -297,7 +344,26 @@ def track_token_or_appointment(token_or_id: str, db: Session) -> dict:
         est_wait = 21.0
 
     # Best departure time calculation
-    slot_time = appt.slot_start or datetime.datetime.now()
+    raw_slot = appt.slot_start
+    if isinstance(raw_slot, datetime.datetime):
+        slot_time = raw_slot
+    elif isinstance(raw_slot, datetime.time):
+        appt_d = appt.appointment_date.date() if isinstance(appt.appointment_date, datetime.datetime) else (appt.appointment_date or datetime.date.today())
+        slot_time = datetime.datetime.combine(appt_d, raw_slot)
+    elif isinstance(raw_slot, str) and raw_slot.strip():
+        appt_d = appt.appointment_date.date() if isinstance(appt.appointment_date, datetime.datetime) else (appt.appointment_date or datetime.date.today())
+        try:
+            t_part = datetime.datetime.strptime(raw_slot.strip(), "%I:%M %p").time()
+            slot_time = datetime.datetime.combine(appt_d, t_part)
+        except Exception:
+            try:
+                t_part = datetime.datetime.strptime(raw_slot.strip(), "%H:%M").time()
+                slot_time = datetime.datetime.combine(appt_d, t_part)
+            except Exception:
+                slot_time = datetime.datetime.now()
+    else:
+        slot_time = datetime.datetime.now()
+
     dist_km = float(appt.travel_distance_km or (farmer.distance_to_nearest_centre_km if farmer else 15.0))
     travel_time_min = round(dist_km * 1.5)
     buffer_min = 15
@@ -364,15 +430,18 @@ def recommend_best_centre(crop: str, quantity: float, farmer_id: str = None,
         q_len = l_event.queue_length if l_event else 15
         est_wait = float(l_event.estimated_wait_min) if l_event else 25.0
 
-        # Estimate distance
-        dist_km = 12.0
-        if farmer and farmer.distance_to_nearest_centre_km:
-            # Hash-based deterministic distance offset per centre
-            dist_km = round(float(farmer.distance_to_nearest_centre_km) + (abs(hash(c.centre_id)) % 20), 1)
+        # Estimate distance via Haversine if coordinates known
+        c_coords = CENTRE_COORDINATES.get(c.centre_id)
+        if c_coords:
+            ref_lat = getattr(farmer, "latitude", None) or 15.5685
+            ref_lon = getattr(farmer, "longitude", None) or 73.9965
+            dist_km = round(haversine_distance_km(ref_lat, ref_lon, c_coords[0], c_coords[1]), 2)
+        elif farmer and farmer.distance_to_nearest_centre_km:
+            dist_km = round(float(farmer.distance_to_nearest_centre_km) + (abs(hash(c.centre_id)) % 20), 2)
         elif user_district and user_district.lower() == (c.district or "").lower():
-            dist_km = 6.5 + (abs(hash(c.centre_id)) % 8)
+            dist_km = round(6.5 + (abs(hash(c.centre_id)) % 8), 2)
         else:
-            dist_km = 14.0 + (abs(hash(c.centre_id)) % 25)
+            dist_km = round(14.0 + (abs(hash(c.centre_id)) % 25), 2)
 
         # Capacity check
         daily_cap = c.daily_capacity_farmers or 120
@@ -466,7 +535,7 @@ def get_centre_congestion_forecast(centre_id: str, db: Session) -> dict:
         "peak_hours_window": "10:00 AM - 12:00 PM",
         "hourly_forecast": hourly_data,
         "high_congestion_alert": peak_q > 50,
-        "alert_message": f"⚠ High congestion predicted between 10:00 AM and 12:00 PM at {centre.centre_name}. Additional weighing stations recommended."
+        "alert_message": f"High congestion predicted between 10:00 AM and 12:00 PM at {centre.centre_name}. Additional weighing stations recommended."
     }
 
 
@@ -664,502 +733,130 @@ def get_dynamic_recommended_slots(centre_id: str, date_str: Optional[str], db: S
     }
 
 
-def query_procurement_copilot(query_text: str, db: Session) -> dict:
-    """
-    Data-Grounded Government Procurement Copilot (Parts 37 & 39).
-    Executes database aggregations first, then formats grounded explanations.
-    Answers natural questions across:
-    - Centre delays and bottlenecks (e.g. "Why is Centre 24 delayed?")
-    - Capacity and intake surplus (e.g. "Which centre can accept 50 more farmers?")
-    - Congestion leadership (e.g. "Which centre has the highest queue?")
-    - Active farmer queue totals (e.g. "How many farmers are currently waiting?")
-    - Today's procurement volume & financial value (e.g. "How much crop was procured today?")
-    - Commodity intake rankings (e.g. "Which crop has the highest procurement?")
-    - Clear honest fallback if data is unavailable.
-    """
+def extract_copilot_entities(q_lower: str, all_centres: list, session_context: Optional[dict] = None) -> dict:
     import re
-    q_lower = query_text.lower()
-    today_date = datetime.date.today()
+    centre = None
+    unresolved_code = None
+    ambiguous = False
+    state = None
+    crop = None
 
-    centres = db.query(ProcurementCentre).all()
+    # 1. Centre Resolution
+    # Look for exact centre_id match
+    for c in all_centres:
+        cid = c.centre_id.lower()
+        if re.search(r'\b' + re.escape(cid) + r'\b', q_lower):
+            centre = c
+            break
 
-    # Intent 1: Delay or performance inquiry for a specific centre
-    # (e.g. "Why is Centre 24 delayed?", "Why did Centre 12's performance fall?", "Why is C004 slow?")
-    if any(w in q_lower for w in ["delay", "fall", "slow", "bottleneck", "problem", "performance", "issue", "behind"]):
-        # Identify matched centre
-        matched_centre = None
-        for c in centres:
-            if c.centre_id.lower() in q_lower or (c.centre_name and c.centre_name.lower() in q_lower):
-                matched_centre = c
-                break
-
-        # Check numeric centre references like "centre 24", "centre 12", "c12", "c24"
-        if not matched_centre:
-            num_match = re.search(r'(?:centre|center|c)\s*(\d+)', q_lower)
-            if num_match:
-                c_num = int(num_match.group(1))
-                formatted_c_id = f"C{c_num:03d}"
-                for c in centres:
-                    if c.centre_id.lower() == formatted_c_id.lower():
-                        matched_centre = c
-                        break
-
-        if matched_centre:
-            l_event = db.query(QueueEvent).filter(QueueEvent.centre_id == matched_centre.centre_id).order_by(desc(QueueEvent.timestamp)).first()
-            cdm = db.query(CentreDailyMetric).filter(CentreDailyMetric.centre_id == matched_centre.centre_id).order_by(desc(CentreDailyMetric.date)).first()
-            wait_count = db.query(func.count(Appointment.id)).filter(
-                Appointment.centre_id == matched_centre.centre_id,
-                Appointment.status.in_(["WAITING", "CHECKED_IN", "IN_SERVICE", "ARRIVED"])
-            ).scalar() or (l_event.queue_length if l_event else 18)
-
-            downtime = cdm.equipment_downtime_min if cdm else (47 if (l_event and l_event.equipment_failure_flag) or "c004" in matched_centre.centre_id.lower() else 0)
-            wait_est = float(l_event.estimated_wait_min) if l_event else round(wait_count * 2.8, 1)
-            eq_flag = (l_event and l_event.equipment_failure_flag) or (downtime > 0)
-            machines = matched_centre.weighing_machines or 2
-            staff = matched_centre.staff_count or 10
-
-            if eq_flag or downtime > 0 or wait_count >= 25:
-                answer = (
-                    f"{matched_centre.centre_name} ({matched_centre.centre_id}) is experiencing delays "
-                    f"primarily due to weighing station calibration/maintenance ({downtime} minutes downtime recorded) "
-                    f"combined with morning peak arrival clustering. There are currently {wait_count} farmers waiting "
-                    f"with an estimated gate delay of {wait_est} minutes. Active weighing lanes: {machines}, "
-                    f"staff deployed: {staff} personnel."
-                )
-            else:
-                answer = (
-                    f"{matched_centre.centre_name} ({matched_centre.centre_id}) is currently operating within normal parameters. "
-                    f"Current queue is {wait_count} farmers with an average processing time of 15.5 minutes per transaction. "
-                    f"All {machines} weighing stations and {matched_centre.quality_stations or 2} quality lanes are fully operational."
-                )
-
-            return {
-                "query": query_text,
-                "answer": answer,
-                "centre_id": matched_centre.centre_id,
-                "data_points": {
-                    "centre_name": matched_centre.centre_name,
-                    "centre_id": matched_centre.centre_id,
-                    "current_queue": wait_count,
-                    "estimated_wait_min": wait_est,
-                    "equipment_downtime_min": downtime,
-                    "active_weighbridges": machines,
-                    "staff_count": staff,
-                    "status": "Maintenance Delay" if eq_flag else "Normal Operation"
-                }
-            }
-
-    # Intent 2: Highest queue / maximum congestion inquiry
-    # (e.g. "Which centre has the highest queue?", "Where is the largest queue?")
-    if any(phrase in q_lower for phrase in ["highest queue", "largest queue", "most congested", "biggest bottleneck", "highest wait", "longest wait"]):
-        top_event = db.query(QueueEvent).order_by(desc(QueueEvent.queue_length)).first()
-        if top_event:
-            top_centre = db.query(ProcurementCentre).filter(ProcurementCentre.centre_id == top_event.centre_id).first()
-            c_name = top_centre.centre_name if top_centre else top_event.centre_id
-            c_dist = top_centre.district if top_centre else "Mandi Yard"
-            answer = (
-                f"{c_name} ({top_event.centre_id}) in {c_dist} currently has the highest queue with "
-                f"{top_event.queue_length} farmers in waiting line and an estimated processing wait of "
-                f"{float(top_event.estimated_wait_min):.1f} minutes. Anomaly alert recommends dispatching "
-                f"traffic overflow to nearby secondary facilities."
-            )
-            return {
-                "query": query_text,
-                "answer": answer,
-                "data_points": {
-                    "centre_id": top_event.centre_id,
-                    "centre_name": c_name,
-                    "district": c_dist,
-                    "queue_length": top_event.queue_length,
-                    "estimated_wait_min": float(top_event.estimated_wait_min)
-                }
-            }
-
-    # Intent 3: Available capacity inquiry
-    # (e.g. "Which centre can accept 50 more farmers?", "Centres with available capacity")
-    if any(w in q_lower for w in ["accept", "capacity", "another", "more farmers", "spare"]):
-        # Extract requested number of farmers
-        num_m = re.search(r'\b(\d+)\b', q_lower)
-        target_farmers = int(num_m.group(1)) if num_m else 50
-
-        centres_with_cap = []
-        for c in centres:
-            l_event = db.query(QueueEvent).filter(QueueEvent.centre_id == c.centre_id).order_by(desc(QueueEvent.timestamp)).first()
-            q_len = l_event.queue_length if l_event else 12
-            daily_cap = c.daily_capacity_farmers or 120
-            avail_cap = max(0, daily_cap - q_len)
-            if avail_cap >= target_farmers:
-                centres_with_cap.append({
-                    "centre_id": c.centre_id,
-                    "centre_name": c.centre_name,
-                    "district": c.district,
-                    "state": c.state,
-                    "available_capacity": f"{avail_cap} farmers",
-                    "current_queue": q_len,
-                    "expected_eta_min": f"{round(q_len * 2.8, 1)} min"
-                })
-
-        if centres_with_cap:
-            answer = (
-                f"Found {len(centres_with_cap)} procurement centres capable of accepting {target_farmers}+ additional farmers today without exceeding throughput limits:"
-            )
-        else:
-            # Fallback to top centres with largest spare capacity
-            centres_with_cap = sorted([
-                {
-                    "centre_id": c.centre_id,
-                    "centre_name": c.centre_name,
-                    "district": c.district,
-                    "state": c.state,
-                    "available_capacity": f"{max(5, (c.daily_capacity_farmers or 120) - 15)} farmers",
-                    "current_queue": 15,
-                    "expected_eta_min": "22.5 min"
-                } for c in centres[:6]
-            ], key=lambda x: int(x["available_capacity"].split()[0]), reverse=True)
-            answer = f"Here are the top centres currently with available capacity to accept additional farmers:"
-
-        return {
-            "query": query_text,
-            "answer": answer,
-            "target_farmers": target_farmers,
-            "table_data": centres_with_cap[:6]
-        }
-
-    # Intent 4: Total waiting farmers in the active queue
-    # (e.g. "How many farmers are currently waiting?", "Total waiting queue")
-    if any(phrase in q_lower for phrase in ["how many farmers", "farmers are currently waiting", "waiting right now", "total queue"]):
-        active_waiting = db.query(func.count(Appointment.id)).filter(
-            Appointment.status.in_(["WAITING", "CHECKED_IN", "IN_SERVICE", "ARRIVED"])
-        ).scalar() or 0
-        event_sum = int(db.query(func.coalesce(func.sum(QueueEvent.queue_length), 0)).scalar() or 0)
-        total_waiting = max(active_waiting, event_sum if event_sum > 0 else 328)
-
-        answer = (
-            f"Across all operational procurement centres, there are currently {total_waiting:,} farmers waiting "
-            f"in active queues for weighment and quality testing. Real-time dynamic routing is balancing traffic "
-            f"across 22 Mandi yards."
-        )
-        return {
-            "query": query_text,
-            "answer": answer,
-            "data_points": {
-                "total_farmers_waiting": total_waiting,
-                "operational_centres": len(centres)
-            }
-        }
-
-    # Intent 5: Today's procurement quantity and value
-    # (e.g. "How much crop was procured today?", "Today's procurement total")
-    if any(phrase in q_lower for phrase in ["procured today", "procurement today", "how much crop was procured", "today's procurement"]):
-        today_qty = db.query(func.coalesce(func.sum(ProcurementTransaction.quantity_quintals), 0)).filter(
-            func.date(ProcurementTransaction.procurement_timestamp) == today_date
-        ).scalar() or 0.0
-        today_val = db.query(func.coalesce(func.sum(ProcurementTransaction.gross_amount_rs), 0)).filter(
-            func.date(ProcurementTransaction.procurement_timestamp) == today_date
-        ).scalar() or 0.0
-
-        total_qty = db.query(func.coalesce(func.sum(ProcurementTransaction.quantity_quintals), 0)).scalar() or 0.0
-        total_val = db.query(func.coalesce(func.sum(ProcurementTransaction.gross_amount_rs), 0)).scalar() or 0.0
-
-        answer = (
-            f"Today's recorded intake across all centres stands at {float(today_qty):,.1f} Quintals valued at "
-            f"₹{float(today_val):,.2f} in MSP settlement credits. Total cumulative season procurement across all "
-            f"registered crops is {float(total_qty):,.1f} Quintals (₹{float(total_val):,.2f} disbursed via DBT)."
-        )
-        return {
-            "query": query_text,
-            "answer": answer,
-            "data_points": {
-                "today_procured_quintals": float(today_qty),
-                "today_disbursed_rs": float(today_val),
-                "cumulative_procured_quintals": float(total_qty),
-                "cumulative_disbursed_rs": float(total_val)
-            }
-        }
-
-    # Intent 6: Top / highest procured crop ranking
-    # (e.g. "Which crop has the highest procurement?", "Top procured crop")
-    if any(phrase in q_lower for phrase in ["which crop has the highest", "top crop", "highest procurement crop", "most procured"]):
-        top_crops = db.query(
-            ProcurementTransaction.crop,
-            func.sum(ProcurementTransaction.quantity_quintals).label("total_q"),
-            func.sum(ProcurementTransaction.gross_amount_rs).label("total_val")
-        ).group_by(ProcurementTransaction.crop).order_by(desc("total_q")).all()
-
-        if top_crops:
-            top_1 = top_crops[0]
-            top_2 = top_crops[1] if len(top_crops) > 1 else None
-            answer = (
-                f"The commodity with the highest procurement volume is {top_1[0]} with {float(top_1[1]):,.1f} Quintals "
-                f"procured (total value ₹{float(top_1[2]):,.2f} in government MSP payouts)."
-            )
-            if top_2:
-                answer += f" Second highest is {top_2[0]} with {float(top_2[1]):,.1f} Quintals."
-
-            table_rows = [
-                {"crop": row[0], "quantity_quintals": f"{float(row[1]):,.1f} Q", "total_payout_rs": f"₹{float(row[2]):,.2f}"}
-                for row in top_crops[:5]
-            ]
-            return {
-                "query": query_text,
-                "answer": answer,
-                "top_crop": top_1[0],
-                "top_quantity_quintals": float(top_1[1]),
-                "table_data": table_rows
-            }
-
-    # Check 7: Fallback for unanswerable or ambiguous questions
-    if len(q_lower.split()) <= 2 and not any(w in q_lower for w in ["summary", "overview", "stat", "total", "help"]):
-        return {
-            "query": query_text,
-            "answer": "I don't have enough current operational data in the database to answer that reliably. Please specify a procurement centre name/ID or ask about wait times, capacity, or crop procurement totals.",
-            "data_points": None
-        }
-
-    # Default Overview Summary
-    total_farmers = db.query(func.count(Farmer.id)).scalar() or 5000
-    total_appts = db.query(func.count(Appointment.id)).scalar() or 18000
-    total_trans = db.query(func.count(ProcurementTransaction.id)).scalar() or 9000
-    total_payout = db.query(func.sum(ProcurementTransaction.gross_amount_rs)).scalar() or 450000000
-
-    return {
-        "query": query_text,
-        "answer": (
-            f"Operational Summary: Across {len(centres)} procurement centres, {total_farmers:,} registered farmers are supported. "
-            f"There are {total_appts:,} appointments scheduled and {total_trans:,} transactions executed "
-            f"totaling ₹{float(total_payout):,.2f} in verified MSP settlements."
-        ),
-        "data_points": {
-            "total_centres": len(centres),
-            "total_farmers": total_farmers,
-            "total_appointments": total_appts,
-            "total_transactions": total_trans,
-            "total_payout_rs": float(total_payout)
-        }
-    }
-
-
-def query_centre_copilot(centre_id: str, query_text: str, db: Session) -> dict:
-    """
-    Scoped Centre Copilot for Mandi Operators & Gate Officers (Part 38).
-    Strictly isolated to the authenticated centre_id.
-    Never exposes or reveals information from any other centre.
-    Answers:
-    - Why is my queue increasing? / Why is today's wait high?
-    - How many farmers are waiting?
-    - How many appointments do I have today?
-    - How much have we procured today?
-    - How much capacity remains?
-    - Which equipment is causing the delay?
-    - How many farmers are coming in the next hour?
-    - What is my current processing rate?
-    """
-    import re
-    q_lower = query_text.lower()
-    today_date = datetime.date.today()
-
-    centre = db.query(ProcurementCentre).filter(
-        (ProcurementCentre.centre_id == centre_id) | (ProcurementCentre.centre_name == centre_id)
-    ).first()
-
+    # Look for patterns like "c01", "c1", "c-01", "centre 1", "center 24", "c001"
     if not centre:
-        return {
-            "centre_id": centre_id,
-            "query": query_text,
-            "answer": f"Procurement centre '{centre_id}' was not found in the verified registry.",
-            "data_points": None
-        }
+        c_code_m = re.search(r'\b(?:centre|center|c)\s*-?\s*0*(\d+)\b', q_lower)
+        if c_code_m:
+            c_num = int(c_code_m.group(1))
+            c_variations = [f"c{c_num:03d}", f"c{c_num:02d}", f"c{c_num}"]
+            for c in all_centres:
+                if c.centre_id.lower() in c_variations:
+                    centre = c
+                    break
+            if not centre:
+                unresolved_code = f"C{c_num:02d}"
 
-    actual_centre_id = centre.centre_id
-    c_name = centre.centre_name
+    # Look for centre name match (e.g. Sanquelim, Pune, Satara, Ratnagiri)
+    if not centre and not unresolved_code:
+        for c in all_centres:
+            if c.centre_name and len(c.centre_name) > 3:
+                c_name_part = c.centre_name.lower().replace("procurement centre", "").replace("centre", "").strip()
+                if c_name_part and c_name_part in q_lower:
+                    centre = c
+                    break
 
-    # Pre-calculate centre-specific operational metrics
-    latest_qe = db.query(QueueEvent).filter(
-        QueueEvent.centre_id == actual_centre_id
-    ).order_by(desc(QueueEvent.timestamp)).first()
+    # Check for follow-up pronoun or contextual reference to previous centre
+    if not centre and not unresolved_code and session_context:
+        follow_up_tokens = ["its", "it", "this centre", "the centre", "there", "same centre", "that centre"]
+        if any(tok in q_lower for tok in follow_up_tokens) or q_lower.startswith("what about") or q_lower.startswith("how about"):
+            last_cid = session_context.get("last_centre_id")
+            if last_cid:
+                centre = next((c for c in all_centres if c.centre_id.lower() == last_cid.lower()), None)
 
-    waiting_count = db.query(func.count(Appointment.id)).filter(
-        Appointment.centre_id == actual_centre_id,
-        Appointment.status.in_(["WAITING", "CHECKED_IN", "IN_SERVICE", "ARRIVED"])
-    ).scalar() or (latest_qe.queue_length if latest_qe else 6)
+    # Check for ambiguous standalone "the centre" or "this centre" with no context
+    if not centre and not unresolved_code:
+        if re.search(r'\b(?:the|this)\s+(?:centre|center)\b', q_lower) and not any(w in q_lower for w in ["highest", "largest", "all", "which"]):
+            ambiguous = True
 
-    today_appts_count = db.query(func.count(Appointment.id)).filter(
-        Appointment.centre_id == actual_centre_id,
-        Appointment.appointment_date == today_date
-    ).scalar() or 24
+    # 2. State Resolution
+    known_states = ["goa", "maharashtra", "karnataka", "punjab", "haryana", "madhya pradesh", "gujarat", "uttar pradesh", "rajasthan"]
+    for st in known_states:
+        if re.search(r'\b' + re.escape(st) + r'\b', q_lower):
+            state = st.title()
+            break
 
-    today_proc_q = db.query(func.coalesce(func.sum(ProcurementTransaction.quantity_quintals), 0)).filter(
-        ProcurementTransaction.centre_id == actual_centre_id,
-        func.date(ProcurementTransaction.procurement_timestamp) == today_date
-    ).scalar() or 0.0
+    # 3. Crop Resolution
+    known_crops = ["mango", "paddy", "wheat", "tomato", "banana", "rice", "cotton", "maize", "soybean", "sugarcane", "gram", "tur"]
+    for cr in known_crops:
+        if re.search(r'\b' + re.escape(cr) + r'\b', q_lower):
+            crop = cr.title()
+            break
 
-    today_proc_rs = db.query(func.coalesce(func.sum(ProcurementTransaction.gross_amount_rs), 0)).filter(
-        ProcurementTransaction.centre_id == actual_centre_id,
-        func.date(ProcurementTransaction.procurement_timestamp) == today_date
-    ).scalar() or 0.0
-
-    cap_row = db.query(DailyCapacity).filter(
-        DailyCapacity.centre_id == actual_centre_id,
-        DailyCapacity.date == today_date
-    ).first()
-    max_cap_q = float(cap_row.max_quintals_per_day) if cap_row else float(centre.max_daily_capacity_quintals or 800.0)
-    rem_capacity_q = max(0.0, max_cap_q - float(today_proc_q))
-
-    machines = centre.weighing_machines or 2
-    staff = centre.staff_count or 10
-    proc_rate = float(latest_qe.processing_rate_farmers_per_hour) if latest_qe else 3.8
-    wait_est = float(latest_qe.estimated_wait_min) if latest_qe else round(waiting_count * 2.8, 1)
-
-    # Intent 1: Queue increasing or high wait delay
-    if any(phrase in q_lower for phrase in ["queue increasing", "wait high", "why is my queue", "delay", "slow"]):
-        answer = (
-            f"Your queue at {c_name} is currently {waiting_count} farmers with an estimated wait of {wait_est:.1f} mins. "
-            f"Primary factor: Morning arrival clustering against your current throughput rate of {proc_rate:.1f} farmers/hour. "
-            f"Active weighbridge lanes: {machines}, staff available: {staff} personnel."
-        )
-        return {
-            "centre_id": actual_centre_id,
-            "query": query_text,
-            "answer": answer,
-            "data_points": {
-                "waiting_farmers": waiting_count,
-                "estimated_wait_min": wait_est,
-                "processing_rate_farmers_per_hr": proc_rate,
-                "active_weighbridges": machines
-            }
-        }
-
-    # Intent 2: How many farmers waiting
-    if any(phrase in q_lower for phrase in ["how many farmers", "waiting", "waiting right now", "current queue"]):
-        answer = (
-            f"There are currently {waiting_count} farmers waiting in your centre queue with an average waiting time of {wait_est:.1f} minutes."
-        )
-        return {
-            "centre_id": actual_centre_id,
-            "query": query_text,
-            "answer": answer,
-            "data_points": {
-                "waiting_farmers": waiting_count,
-                "estimated_wait_min": wait_est
-            }
-        }
-
-    # Intent 3: Today's appointments count
-    if any(phrase in q_lower for phrase in ["appointments", "scheduled today", "how many appointments"]):
-        answer = (
-            f"You have {today_appts_count} appointments scheduled for today ({today_date.strftime('%d %B %Y')}) at {c_name}."
-        )
-        return {
-            "centre_id": actual_centre_id,
-            "query": query_text,
-            "answer": answer,
-            "data_points": {
-                "today_appointments": today_appts_count,
-                "centre_id": actual_centre_id
-            }
-        }
-
-    # Intent 4: Today's procurement volume
-    if any(phrase in q_lower for phrase in ["procured today", "how much have we procured", "intake today"]):
-        answer = (
-            f"Your centre has procured {float(today_proc_q):,.1f} Quintals today ({c_name}) valued at ₹{float(today_proc_rs):,.2f} in verified MSP settlements."
-        )
-        return {
-            "centre_id": actual_centre_id,
-            "query": query_text,
-            "answer": answer,
-            "data_points": {
-                "procured_today_quintals": float(today_proc_q),
-                "gross_disbursement_rs": float(today_proc_rs)
-            }
-        }
-
-    # Intent 5: Remaining capacity
-    if any(phrase in q_lower for phrase in ["capacity remains", "remaining capacity", "how much capacity", "available capacity"]):
-        answer = (
-            f"{c_name} has {rem_capacity_q:,.1f} Quintals of daily intake capacity remaining today (Max daily limit: {max_cap_q:,.1f} Q, Booked/Procured: {float(today_proc_q):,.1f} Q)."
-        )
-        return {
-            "centre_id": actual_centre_id,
-            "query": query_text,
-            "answer": answer,
-            "data_points": {
-                "remaining_capacity_quintals": rem_capacity_q,
-                "max_daily_capacity_quintals": max_cap_q
-            }
-        }
-
-    # Intent 6: Equipment status / downtime
-    if any(phrase in q_lower for phrase in ["equipment", "machine", "weighbridge", "analyzer"]):
-        eq_downtime = 47 if "c004" in actual_centre_id.lower() else 0
-        if eq_downtime > 0:
-            answer = (
-                f"Weighbridge #2 is currently undergoing scheduled sensor recalibration (approx {eq_downtime} mins downtime). "
-                f"Weighbridge #1 and moisture testing equipment are fully operational."
-            )
-        else:
-            answer = (
-                f"All {machines} weighing stations and {centre.quality_stations or 2} quality inspection stations are operating normally with zero active downtime."
-            )
-        return {
-            "centre_id": actual_centre_id,
-            "query": query_text,
-            "answer": answer,
-            "data_points": {
-                "active_weighbridges": machines,
-                "equipment_downtime_min": eq_downtime,
-                "quality_stations": centre.quality_stations or 2
-            }
-        }
-
-    # Intent 7: Arrivals in the next hour
-    if any(phrase in q_lower for phrase in ["next hour", "coming in the next", "upcoming arrivals"]):
-        upcoming_count = max(3, min(12, int(round(today_appts_count * 0.15))))
-        answer = (
-            f"Approximately {upcoming_count} farmers are scheduled to arrive in your next hourly time slot window."
-        )
-        return {
-            "centre_id": actual_centre_id,
-            "query": query_text,
-            "answer": answer,
-            "data_points": {
-                "expected_arrivals_next_hour": upcoming_count
-            }
-        }
-
-    # Intent 8: Processing throughput rate
-    if any(phrase in q_lower for phrase in ["processing rate", "throughput", "farmers per hour"]):
-        answer = (
-            f"Your current processing throughput is {proc_rate:.1f} farmers per hour ({float(proc_rate * 16.5):.1f} Quintals/hour) across {machines} active stations."
-        )
-        return {
-            "centre_id": actual_centre_id,
-            "query": query_text,
-            "answer": answer,
-            "data_points": {
-                "processing_rate_farmers_per_hr": proc_rate,
-                "active_stations": machines
-            }
-        }
-
-    # General Centre Overview Fallback
-    answer = (
-        f"{c_name} Overview: {today_appts_count} appointments scheduled today, {waiting_count} farmers currently waiting, "
-        f"{float(today_proc_q):,.1f} Quintals procured today with {rem_capacity_q:,.1f} Quintals capacity remaining."
-    )
     return {
-        "centre_id": actual_centre_id,
-        "query": query_text,
-        "answer": answer,
-        "data_points": {
-            "centre_name": c_name,
-            "centre_id": actual_centre_id,
-            "appointments_today": today_appts_count,
-            "waiting_farmers": waiting_count,
-            "procured_today_quintals": float(today_proc_q),
-            "remaining_capacity_quintals": rem_capacity_q
-        }
+        "centre": centre,
+        "unresolved_code": unresolved_code,
+        "ambiguous": ambiguous,
+        "state": state,
+        "crop": crop
     }
+
+
+def extract_copilot_time_window(q_lower: str, session_context: Optional[dict] = None) -> tuple:
+    today = datetime.date.today()
+    yesterday = today - datetime.timedelta(days=1)
+
+    if any(w in q_lower for w in ["yesterday", "previous day"]):
+        return "yesterday", yesterday, yesterday
+    if any(w in q_lower for w in ["this week", "past week", "current week"]):
+        start_w = today - datetime.timedelta(days=today.weekday())
+        return "this_week", start_w, today
+    if any(w in q_lower for w in ["last 7 days", "past 7 days", "7 days"]):
+        return "last_7_days", today - datetime.timedelta(days=7), today
+    if any(w in q_lower for w in ["this month", "last 30 days", "past 30 days"]):
+        return "last_30_days", today - datetime.timedelta(days=30), today
+    if any(w in q_lower for w in ["today", "currently", "right now", "today morning", "this afternoon", "present"]):
+        return "today", today, today
+
+    # Check follow-up context
+    if session_context and session_context.get("last_time"):
+        t_label = session_context["last_time"]
+        if t_label == "yesterday":
+            return "yesterday", yesterday, yesterday
+        if t_label in ["this_week", "last_7_days"]:
+            return t_label, today - datetime.timedelta(days=7), today
+
+    return "today", today, today
+
+
+def query_procurement_copilot(query_text: str, db: Session, session_context: Optional[dict] = None) -> dict:
+    """
+    True Question-Aware, Entity-Aware, Time-Aware and Data-Grounded Government Copilot.
+    Separates SQL retrieval & factual calculations from explanation generation.
+    Supports arbitrary N conditions simultaneously without dropping filters.
+    """
+    from backend.app.services.copilot_engine import parse_structured_copilot_query, execute_structured_copilot_plan
+    all_centres = db.query(ProcurementCentre).all()
+    plan = parse_structured_copilot_query(query_text, all_centres, session_context=session_context)
+    return execute_structured_copilot_plan(plan, db, session_context=session_context)
+
+
+def query_centre_copilot(centre_id: str, query_text: str, db: Session, session_context: Optional[dict] = None, authenticated_centre_id: Optional[str] = None) -> dict:
+    """
+    Scoped Centre Copilot strictly isolated to the authenticated centre.
+    Uses the exact same query planning and relational execution engine,
+    enforcing backend role access security and never exposing external centre data.
+    """
+    from backend.app.services.copilot_engine import parse_structured_copilot_query, execute_structured_copilot_plan
+    effective_centre_id = authenticated_centre_id if authenticated_centre_id else centre_id
+    all_centres = db.query(ProcurementCentre).all()
+    plan = parse_structured_copilot_query(query_text, all_centres, session_context=session_context, enforced_centre_id=effective_centre_id)
+    return execute_structured_copilot_plan(plan, db, session_context=session_context, enforced_centre_id=effective_centre_id)
 
 
 def detect_operational_anomalies(db: Session) -> list:

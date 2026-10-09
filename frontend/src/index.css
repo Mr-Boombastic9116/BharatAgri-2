@@ -35,6 +35,15 @@
   --chart-text: #475569;
   --chart-grid: #e2e8f0;
 
+  /* Standard Semantic Tokens */
+  --foreground: var(--text-primary);
+  --card: var(--surface);
+  --card-foreground: var(--text-primary);
+  --muted-foreground: var(--text-muted);
+  --primary-foreground: #ffffff;
+  --accent: #6366f1;
+  --accent-foreground: #ffffff;
+
   /* Aliases for backwards compatibility */
   --text-main: var(--text-primary);
   --secondary: var(--text-primary);
@@ -94,6 +103,15 @@ body.dark-mode {
   --overlay: rgba(0, 0, 0, 0.75);
   --chart-text: #cbd5e1;
   --chart-grid: #243049;
+
+  /* Standard Semantic Tokens */
+  --foreground: var(--text-primary);
+  --card: var(--surface);
+  --card-foreground: var(--text-primary);
+  --muted-foreground: var(--text-muted);
+  --primary-foreground: #0b1120;
+  --accent: #818cf8;
+  --accent-foreground: #ffffff;
 
   /* Aliases for backwards compatibility */
   --text-main: var(--text-primary);
@@ -1106,5 +1124,432 @@ body.dark-mode input[type="file"]::file-selector-button:hover {
   padding: 20px;
   margin-bottom: 1.5rem;
 }
+
+/* =========================================================
+   Unified Semantic Theme Components (WCAG AA Compliant)
+   ========================================================= */
+
+/* Farmer Tab Selection Buttons */
+.farmer-tab-btn {
+  padding: 0.55rem 1.15rem;
+  border-radius: 9999px;
+  font-size: 0.875rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  background-color: var(--bg-card);
+  color: var(--secondary);
+  border: 1.5px solid var(--border);
+  outline: none;
+  user-select: none;
+}
+
+.farmer-tab-btn:hover {
+  background-color: var(--surface-secondary);
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.farmer-tab-btn:focus-visible {
+  box-shadow: 0 0 0 3px var(--focus);
+}
+
+.farmer-tab-btn.active {
+  background-color: var(--primary);
+  color: #ffffff;
+  border-color: var(--primary);
+  box-shadow: var(--shadow-sm);
+}
+
+.farmer-tab-btn.active:hover {
+  background-color: var(--primary-hover);
+  color: #ffffff;
+}
+
+.farmer-tab-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Daily Intelligence Briefing Cards (Govt & Centre) */
+.briefing-card {
+  padding: 20px 24px;
+  border-radius: var(--radius-lg);
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  color: var(--secondary);
+  box-shadow: var(--shadow-md);
+  margin-bottom: 1.5rem;
+  transition: background-color 0.2s, border-color 0.2s;
+}
+
+.briefing-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 14px;
+  margin-bottom: 16px;
+}
+
+.briefing-stat-card {
+  background: var(--surface-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+  transition: background-color 0.2s, border-color 0.2s;
+}
+
+.briefing-stat-label {
+  font-size: 0.72rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  font-weight: 700;
+  display: block;
+}
+
+.briefing-stat-value {
+  font-size: 1.4rem;
+  font-weight: 800;
+  color: var(--secondary);
+  margin-top: 2px;
+}
+
+/* Centre Live Queue & Congestion Forecast */
+.congestion-card {
+  padding: 20px 24px;
+  border-radius: var(--radius-lg);
+  background: var(--bg-card);
+  border: 1.5px solid var(--primary);
+  color: var(--secondary);
+  box-shadow: var(--shadow-md);
+  margin-bottom: 1.5rem;
+}
+
+.congestion-hour-cell {
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  text-align: center;
+  background: var(--surface-secondary);
+  border: 1px solid var(--border);
+  transition: all 0.2s;
+}
+
+.congestion-hour-cell.critical {
+  background: var(--danger-bg);
+  border-color: var(--danger);
+  color: var(--danger-text);
+}
+
+.congestion-hour-cell.high {
+  background: var(--warning-bg);
+  border-color: var(--warning);
+  color: var(--warning-text);
+}
+
+.congestion-hour-cell.normal {
+  background: var(--surface-secondary);
+  border-color: var(--border);
+  color: var(--secondary);
+}
+
+/* ====================================================================
+   Developer Debug Panels & Visual Inspection Stages (Pixel-by-Pixel Audit & 10 Stages)
+   ==================================================================== */
+.dev-debug-panel {
+  background: var(--surface-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  color: var(--text-primary);
+  margin-bottom: 20px;
+  box-shadow: var(--shadow-sm);
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+.dev-debug-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.dev-debug-panel-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 800;
+  color: var(--text-primary);
+  letter-spacing: 0.3px;
+}
+
+.dev-debug-chip {
+  font-size: 0.72rem;
+  background: var(--info-bg);
+  color: var(--info-text);
+  border: 1px solid var(--info);
+  padding: 3px 10px;
+  border-radius: 4px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+/* Tabs for Debug Panel Sub-views */
+.dev-debug-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 8px;
+}
+
+.dev-debug-tab {
+  background: var(--surface);
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+  padding: 5px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.dev-debug-tab:hover {
+  color: var(--text-primary);
+  border-color: var(--primary);
+}
+
+.dev-debug-tab.active {
+  background: var(--primary);
+  color: #ffffff;
+  border-color: var(--primary);
+  font-weight: 700;
+}
+
+.dev-debug-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 12px;
+}
+
+.dev-debug-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 14px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 0.76rem;
+  color: var(--text-secondary);
+  box-shadow: var(--shadow-sm);
+  transition: all 0.2s ease;
+}
+
+.dev-debug-card:hover {
+  border-color: var(--primary-border, var(--border));
+}
+
+.dev-debug-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 8px;
+  margin-bottom: 10px;
+}
+
+.dev-debug-card-title {
+  color: var(--info);
+  font-size: 0.86rem;
+  font-weight: 800;
+}
+
+.dev-debug-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 3px 0;
+  color: var(--text-secondary);
+}
+
+.dev-debug-row-divider {
+  border-top: 1px dashed var(--border);
+  margin-top: 6px;
+  padding-top: 6px;
+}
+
+.dev-debug-val-strong {
+  color: var(--text-primary);
+  font-weight: 700;
+}
+
+.dev-debug-val-warning {
+  color: var(--warning);
+  font-weight: 700;
+}
+
+.dev-debug-val-muted {
+  color: var(--text-muted);
+}
+
+.dev-debug-val-danger {
+  color: var(--danger);
+  font-weight: 800;
+}
+
+.dev-debug-val-success {
+  color: var(--success);
+  font-weight: 800;
+}
+
+/* Developer Debug Data Table */
+.dev-debug-table-container {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow-x: auto;
+  margin-top: 10px;
+}
+
+.dev-debug-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 0.74rem;
+  color: var(--text-primary);
+}
+
+.dev-debug-table th {
+  background: var(--surface-secondary);
+  color: var(--text-secondary);
+  padding: 8px 10px;
+  text-align: left;
+  font-weight: 700;
+  border-bottom: 1px solid var(--border);
+}
+
+.dev-debug-table td {
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-primary);
+}
+
+.dev-debug-table tr:hover td {
+  background: var(--surface-secondary);
+}
+
+.dev-debug-badge {
+  display: inline-block;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+
+.dev-debug-badge-coord {
+  background: var(--surface-secondary);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+}
+
+.dev-debug-badge-color {
+  background: var(--info-bg);
+  color: var(--info-text);
+  border: 1px solid var(--info);
+}
+
+.dev-debug-badge-thresh {
+  background: var(--warning-bg);
+  color: var(--warning-text);
+  border: 1px solid var(--warning);
+}
+
+/* 10-Stage Pipeline Visual Audit Stages */
+.dev-stages-container {
+  background: var(--surface-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  margin-bottom: 20px;
+  color: var(--text-primary);
+  box-shadow: var(--shadow-sm);
+}
+
+.dev-stages-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.dev-stage-card {
+  text-align: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px;
+  overflow: hidden;
+  transition: border-color 0.2s ease, transform 0.15s ease, background-color 0.2s ease;
+}
+
+.dev-stage-card:hover {
+  border-color: var(--primary);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm);
+}
+
+.dev-stage-title {
+  font-size: 0.72rem;
+  color: var(--text-primary);
+  font-weight: 700;
+  margin-bottom: 3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dev-stage-desc {
+  font-size: 0.64rem;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+  line-height: 1.25;
+  height: 2.5em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.dev-stage-img-box {
+  width: 100%;
+  max-height: 130px;
+  background: var(--background);
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.dev-stage-img {
+  width: 100%;
+  max-height: 130px;
+  object-fit: contain;
+  display: block;
+}
+
 
 

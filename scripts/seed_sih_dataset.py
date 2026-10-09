@@ -430,9 +430,9 @@ def seed_sih():
 
         msg = f"KisanFlow Notification: {n_type.replace('_', ' ').title()} - Please check your token status."
         if n_type == 'COME_NOW':
-            msg = "🔔 Your turn is approaching. Only 5 farmers ahead of you. Please proceed to the procurement counter."
+            msg = "Your turn is approaching. Only 5 farmers ahead of you. Please proceed to the procurement counter."
         elif n_type == 'DELAY_ALERT':
-            msg = "⚠ Operational Update: Processing is delayed by approx 20 minutes due to heavy arrivals."
+            msg = "Operational Update: Processing is delayed by approx 20 minutes due to heavy arrivals."
 
         notif_tuples.append((
             n_id, f_id, n_type, ch, msg, s_at, d_stat, resp

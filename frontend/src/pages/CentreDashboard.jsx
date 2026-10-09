@@ -79,16 +79,27 @@ import {
   Route,
   Sparkles,
   MessageSquare,
-  Bot
+  Bot,
+  CheckCircle,
+  XCircle,
+  BarChart3,
+  Code
 } from 'lucide-react';
 import { formatDateDisplay } from '../utils/dateUtils';
 import DateInput from '../components/DateInput';
+import ErrorBoundary from '../components/ErrorBoundary';
 
 const WEEKDAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
-export default function CentreDashboard({ user, navigate }) {
+export default function CentreDashboard({ user, navigate, initialTab = 'overview' }) {
   // Navigation tab state: 'overview' | 'appointments' | 'slots' | 'config'
-  const [activeTab, setActiveTab] = useState('overview');
+  const [activeTab, setActiveTab] = useState(initialTab || 'overview');
+
+  useEffect(() => {
+    if (initialTab && initialTab !== activeTab) {
+      setActiveTab(initialTab);
+    }
+  }, [initialTab]);
 
   // Resolve the correct centre identifier from the token
   // The token stores centre_id when the logged-in user is a centre manager
@@ -174,17 +185,36 @@ export default function CentreDashboard({ user, navigate }) {
   const [centreCopilotQuery, setCentreCopilotQuery] = useState('');
   const [centreCopilotLoading, setCentreCopilotLoading] = useState(false);
   const [centreCopilotResponse, setCentreCopilotResponse] = useState(null);
+  const [centreCopilotContext, setCentreCopilotContext] = useState(null);
+  const [showCentreCopilotDebug, setShowCentreCopilotDebug] = useState(false);
+  const [centreCopilotError, setCentreCopilotError] = useState(null);
+  const [centreCopilotLastQuery, setCentreCopilotLastQuery] = useState('');
 
   const handleAskCentreCopilot = async (customPrompt) => {
     const q = customPrompt || centreCopilotQuery;
     if (!q || !q.trim()) return;
+    const queryStr = q.trim();
+    setCentreCopilotLastQuery(queryStr);
     setCentreCopilotLoading(true);
+    setCentreCopilotError(null);
     setCentreCopilotResponse(null);
     try {
-      const res = await queryCentreCopilot(resolvedCentreId || centreId, q.trim());
-      setCentreCopilotResponse(res);
+      const res = await queryCentreCopilot(resolvedCentreId || centreId, queryStr, centreCopilotContext);
+      if (!res) {
+        throw new Error('Received empty response from Centre Copilot service.');
+      }
+      setCentreCopilotResponse({
+        ...res,
+        answer: res.answer || 'No records found matching your centre query criteria.'
+      });
+      if (res && res.session_context) {
+        setCentreCopilotContext(res.session_context);
+      }
     } catch (err) {
-      setCentreCopilotResponse({ answer: 'Error querying centre copilot: ' + (err.message || 'Network error') });
+      console.error('[Centre Copilot Error]:', err);
+      const errMsg = err?.response?.data?.detail || err.message || 'Failed to communicate with Centre Copilot service.';
+      setCentreCopilotError(errMsg);
+      setCentreCopilotResponse({ answer: 'Centre Copilot query failed: ' + errMsg });
     } finally {
       setCentreCopilotLoading(false);
     }
@@ -989,7 +1019,7 @@ export default function CentreDashboard({ user, navigate }) {
       setVerificationResult({
         success: false,
         code: 'ERROR',
-        error: 'INVALID QR CODE ✕',
+        error: 'INVALID QR CODE',
         message: err.message || 'Invalid or unverified QR code.'
       });
       setScannerState('result');
@@ -1295,13 +1325,13 @@ export default function CentreDashboard({ user, navigate }) {
 
         {/* Status messages */}
         {status.error && (
-          <div style={{ marginTop: '0.4rem', fontSize: '0.75rem', color: 'var(--danger-text)' }}>
-            ⚠ {status.error}
+          <div style={{ marginTop: '0.4rem', fontSize: '0.75rem', color: 'var(--danger-text)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <AlertTriangle size={13} /> {status.error}
           </div>
         )}
         {status.success && (
-          <div style={{ marginTop: '0.4rem', fontSize: '0.75rem', color: 'var(--success-text)' }}>
-            ✓ {status.success}
+          <div style={{ marginTop: '0.4rem', fontSize: '0.75rem', color: 'var(--success-text)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <CheckCircle size={13} /> {status.success}
           </div>
         )}
       </div>
@@ -1319,13 +1349,25 @@ export default function CentreDashboard({ user, navigate }) {
           <p style={{ fontSize: '0.95rem', color: 'var(--muted)' }}>Procurement Centre Management & Date-based Portal</p>
         </div>
 
-        <button 
-          className="btn btn-primary btn-lg"
-          onClick={openQrModal}
-          style={{ boxShadow: 'var(--shadow-md)', display: 'flex', alignItems: 'center', gap: '8px' }}
-        >
-          <QrCode size={20} /> QR VERIFICATION
-        </button>
+        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
+          <button 
+            className="btn btn-primary btn-lg"
+            onClick={openQrModal}
+            style={{ boxShadow: 'var(--shadow-md)', display: 'flex', alignItems: 'center', gap: '8px' }}
+          >
+            <QrCode size={20} /> QR VERIFICATION
+          </button>
+          <button 
+            className="btn btn-outline btn-lg"
+            onClick={() => {
+              setActiveTab('copilot');
+              window.location.hash = 'copilot';
+            }}
+            style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 700 }}
+          >
+            <Sparkles size={18} color="var(--primary)" /> Ask Copilot
+          </button>
+        </div>
       </div>
 
       {error && (
@@ -1514,22 +1556,17 @@ export default function CentreDashboard({ user, navigate }) {
       {activeTab === 'overview' && (
         <>
           {/* SIH DYNAMIC AI LIVE QUEUE & HOURLY CONGESTION FORECAST (Requirements 8, 15, 16) */}
-          <div className="card shadow-sm mb-4" style={{
-            padding: '20px 24px',
-            borderRadius: '14px',
-            background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
-            border: '2px solid #10b981',
-            color: '#f8fafc',
-            boxShadow: '0 8px 24px rgba(16, 185, 129, 0.15)'
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', borderBottom: '1px solid rgba(255, 255, 255, 0.1)', paddingBottom: '12px', marginBottom: '14px' }}>
+          <div className="congestion-card">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', borderBottom: '1px solid var(--border)', paddingBottom: '12px', marginBottom: '14px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <span style={{ fontSize: '1.75rem' }}>🔴</span>
+                <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '28px', height: '28px', borderRadius: '50%', background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444' }}>
+                  <Activity size={18} />
+                </span>
                 <div>
-                  <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, color: '#f8fafc' }}>
+                  <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, color: 'var(--secondary)' }}>
                     Live Queue Operations & Hourly Congestion Forecast
                   </h3>
-                  <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>
+                  <span style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>
                     {sihLiveQueue?.centre_name || resolvedCentreId} • Last updated {sihLiveQueue?.last_updated || 'Live'}
                   </span>
                 </div>
@@ -1537,17 +1574,20 @@ export default function CentreDashboard({ user, navigate }) {
               <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                 <span style={{
                   padding: '4px 12px', borderRadius: '999px', fontSize: '0.78rem', fontWeight: 800,
-                  backgroundColor: sihLiveQueue?.status_color === 'warning' ? 'rgba(245, 158, 11, 0.25)' : 'rgba(16, 185, 129, 0.25)',
-                  color: sihLiveQueue?.status_color === 'warning' ? '#fcd34d' : '#6ee7b7',
-                  border: '1px solid currentColor'
+                  backgroundColor: sihLiveQueue?.status_color === 'warning' ? 'var(--warning-bg)' : 'var(--success-bg)',
+                  color: sihLiveQueue?.status_color === 'warning' ? 'var(--warning-text)' : 'var(--success-text)',
+                  border: '1px solid currentColor',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '5px'
                 }}>
-                  {sihLiveQueue?.status_label || '🟢 Centre operating normally'}
+                  <CheckCircle size={12} /> {sihLiveQueue?.status_label?.replace(/^[^a-zA-Z0-9]+/, '') || 'Centre operating normally'}
                 </span>
                 <button
                   onClick={fetchSihQueueData}
                   disabled={loadingSihQueue}
                   className="btn btn-outline"
-                  style={{ padding: '4px 10px', fontSize: '0.75rem', color: '#fff', borderColor: 'rgba(255,255,255,0.3)' }}
+                  style={{ padding: '4px 10px', fontSize: '0.75rem', color: 'var(--secondary)', borderColor: 'var(--border)' }}
                 >
                   <RefreshCw size={12} className={loadingSihQueue ? 'animate-spin' : ''} /> Refresh
                 </button>
@@ -1556,104 +1596,100 @@ export default function CentreDashboard({ user, navigate }) {
 
             {/* 5 Real KPI Numbers from SIH Queue Events */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '12px', marginBottom: '16px' }}>
-              <div style={{ background: 'rgba(255, 255, 255, 0.05)', padding: '12px 14px', borderRadius: '10px', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
-                <span style={{ fontSize: '0.72rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 700, display: 'block' }}>Farmers Waiting</span>
-                <div style={{ fontSize: '1.8rem', fontWeight: 900, color: '#f8fafc', marginTop: '2px' }}>
+              <div className="briefing-stat-card">
+                <span className="briefing-stat-label">Farmers Waiting</span>
+                <div className="briefing-stat-value" style={{ color: 'var(--secondary)' }}>
                   {sihLiveQueue?.queue_length ?? 0}
                 </div>
-                <span style={{ fontSize: '0.7rem', color: '#38bdf8' }}>In Mandi Yard</span>
+                <span style={{ fontSize: '0.7rem', color: '#0284c7', fontWeight: 600 }}>In Mandi Yard</span>
               </div>
 
-              <div style={{ background: 'rgba(255, 255, 255, 0.05)', padding: '12px 14px', borderRadius: '10px', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
-                <span style={{ fontSize: '0.72rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 700, display: 'block' }}>Serving Token</span>
-                <div style={{ fontSize: '1.8rem', fontWeight: 900, color: '#fde047', marginTop: '2px' }}>
+              <div className="briefing-stat-card">
+                <span className="briefing-stat-label">Serving Token</span>
+                <div className="briefing-stat-value" style={{ color: '#d97706' }}>
                   {sihLiveQueue?.current_serving_token ?? '--'}
                 </div>
-                <span style={{ fontSize: '0.7rem', color: '#fde047' }}>At Weighbridge WB-01</span>
+                <span style={{ fontSize: '0.7rem', color: '#d97706', fontWeight: 600 }}>At Weighbridge WB-01</span>
               </div>
 
-              <div style={{ background: 'rgba(255, 255, 255, 0.05)', padding: '12px 14px', borderRadius: '10px', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
-                <span style={{ fontSize: '0.72rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 700, display: 'block' }}>ML Predicted Wait</span>
-                <div style={{ fontSize: '1.8rem', fontWeight: 900, color: '#fca5a5', marginTop: '2px' }}>
+              <div className="briefing-stat-card">
+                <span className="briefing-stat-label">ML Predicted Wait</span>
+                <div className="briefing-stat-value" style={{ color: 'var(--danger-text)' }}>
                   {sihLiveQueue?.estimated_wait_min ?? 0} <span style={{ fontSize: '0.9rem' }}>min</span>
                 </div>
-                <span style={{ fontSize: '0.7rem', color: '#94a3b8' }}>Baseline: {sihLiveQueue?.baseline_wait_min ?? 0} min</span>
+                <span style={{ fontSize: '0.7rem', color: 'var(--muted)' }}>Baseline: {sihLiveQueue?.baseline_wait_min ?? 0} min</span>
               </div>
 
-              <div style={{ background: 'rgba(255, 255, 255, 0.05)', padding: '12px 14px', borderRadius: '10px', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
-                <span style={{ fontSize: '0.72rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 700, display: 'block' }}>Active Weigh Stations</span>
-                <div style={{ fontSize: '1.8rem', fontWeight: 900, color: '#86efac', marginTop: '2px' }}>
+              <div className="briefing-stat-card">
+                <span className="briefing-stat-label">Active Weigh Stations</span>
+                <div className="briefing-stat-value" style={{ color: 'var(--success-text)' }}>
                   {sihLiveQueue?.active_stations ?? opIntelligence?.infrastructure?.weighbridges_active ?? 0} / {opIntelligence?.infrastructure?.weighbridges_total ?? 3}
                 </div>
-                <span style={{ fontSize: '0.7rem', color: '#86efac' }}>Operational</span>
+                <span style={{ fontSize: '0.7rem', color: 'var(--success-text)', fontWeight: 600 }}>Operational</span>
               </div>
 
-              <div style={{ background: 'rgba(255, 255, 255, 0.05)', padding: '12px 14px', borderRadius: '10px', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
-                <span style={{ fontSize: '0.72rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 700, display: 'block' }}>Processing Rate</span>
-                <div style={{ fontSize: '1.8rem', fontWeight: 900, color: '#cbd5e1', marginTop: '2px' }}>
-                  {sihLiveQueue?.processing_rate_farmers_per_hour ?? 0} <span style={{ fontSize: '0.8rem' }}>/hr</span>
+              <div className="briefing-stat-card">
+                <span className="briefing-stat-label">Processing Rate</span>
+                <div className="briefing-stat-value" style={{ color: 'var(--secondary)' }}>
+                  {sihLiveQueue?.processing_rate_farmers_per_hour ?? 0} <span style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>/hr</span>
                 </div>
-                <span style={{ fontSize: '0.7rem', color: '#94a3b8' }}>Avg {sihLiveQueue?.avg_processing_time_min ?? 0} min/farmer</span>
+                <span style={{ fontSize: '0.7rem', color: 'var(--muted)' }}>Avg {sihLiveQueue?.avg_processing_time_min ?? 0} min/farmer</span>
               </div>
             </div>
 
             {/* HOURLY CONGESTION FORECAST (Requirement 15) */}
             {sihCongestion?.hourly_forecast && (
-              <div style={{ borderTop: '1px solid rgba(255, 255, 255, 0.1)', paddingTop: '12px' }}>
+              <div style={{ borderTop: '1px solid var(--border)', paddingTop: '12px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                  <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#e2e8f0' }}>
-                    📊 Hourly Congestion Forecast (Today 8 AM – 5 PM)
+                  <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--secondary)', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                    <BarChart3 size={15} /> Hourly Congestion Forecast (Today 8 AM – 5 PM)
                   </span>
                   {sihCongestion.high_congestion_alert && (
-                    <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#fca5a5', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--danger-text)', display: 'flex', alignItems: 'center', gap: '4px' }}>
                       <AlertTriangle size={12} /> Peak congestion window: {sihCongestion.peak_hours_window}
                     </span>
                   )}
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(85px, 1fr))', gap: '8px' }}>
-                  {sihCongestion.hourly_forecast.map((h, i) => (
-                    <div key={i} style={{
-                      padding: '8px 10px', borderRadius: '8px', textAlign: 'center',
-                      background: h.congestion_level === 'CRITICAL' ? 'rgba(239, 68, 68, 0.25)' : (h.congestion_level === 'HIGH' ? 'rgba(245, 158, 11, 0.25)' : 'rgba(255, 255, 255, 0.05)'),
-                      border: `1px solid ${h.congestion_level === 'CRITICAL' ? '#ef4444' : (h.congestion_level === 'HIGH' ? '#f59e0b' : 'rgba(255,255,255,0.1)')}`
-                    }}>
-                      <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>{h.display_time}</div>
-                      <div style={{ fontSize: '1.1rem', fontWeight: 900, color: h.congestion_level === 'CRITICAL' ? '#fca5a5' : '#f8fafc', margin: '2px 0' }}>
-                        {h.predicted_arrivals}
+                  {sihCongestion.hourly_forecast.map((h, i) => {
+                    const isCritical = h.congestion_level === 'CRITICAL';
+                    const isHigh = h.congestion_level === 'HIGH';
+                    return (
+                      <div
+                        key={i}
+                        className={`congestion-hour-cell ${isCritical ? 'critical' : isHigh ? 'high' : 'normal'}`}
+                      >
+                        <div style={{ fontSize: '0.75rem', color: 'var(--muted)' }}>{h.display_time}</div>
+                        <div style={{ fontSize: '1.1rem', fontWeight: 900, color: isCritical ? 'var(--danger-text)' : isHigh ? 'var(--warning-text)' : 'var(--secondary)', margin: '2px 0' }}>
+                          {h.predicted_arrivals}
+                        </div>
+                        <span style={{
+                          fontSize: '0.65rem', fontWeight: 700, textTransform: 'uppercase',
+                          color: isCritical ? 'var(--danger-text)' : isHigh ? 'var(--warning-text)' : 'var(--success-text)'
+                        }}>
+                          {h.congestion_level}
+                        </span>
                       </div>
-                      <span style={{
-                        fontSize: '0.65rem', fontWeight: 700, textTransform: 'uppercase',
-                        color: h.congestion_level === 'CRITICAL' ? '#fca5a5' : (h.congestion_level === 'HIGH' ? '#fde047' : '#86efac')
-                      }}>
-                        {h.congestion_level}
-                      </span>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             )}
           </div>
           {/* DAILY INTELLIGENCE EXECUTIVE SUMMARY (Requirement 11) */}
           {centreDailyIntel?.daily_intelligence && (
-            <div className="card shadow-sm mb-4" style={{
-              padding: '20px 24px',
-              borderRadius: '14px',
-              background: 'linear-gradient(135deg, rgba(30, 41, 59, 0.95), rgba(15, 23, 42, 0.95))',
-              border: '1px solid rgba(99, 102, 241, 0.3)',
-              color: '#f8fafc',
-              boxShadow: '0 8px 24px rgba(0, 0, 0, 0.25)'
-            }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', borderBottom: '1px solid rgba(255, 255, 255, 0.1)', paddingBottom: '12px', marginBottom: '14px' }}>
+            <div className="briefing-card">
+              <div className="briefing-card-header">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'rgba(99, 102, 241, 0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#818cf8' }}>
+                  <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'rgba(99, 102, 241, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#6366f1' }}>
                     <Activity size={20} />
                   </div>
                   <div>
-                    <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, color: '#f8fafc' }}>
+                    <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, color: 'var(--secondary)' }}>
                       Centre Daily Intelligence Briefing
                     </h3>
-                    <span style={{ fontSize: '0.78rem', color: '#94a3b8' }}>
+                    <span style={{ fontSize: '0.78rem', color: 'var(--muted)' }}>
                       Operational forecasts for {centreDailyIntel.centre_name || 'Procurement Centre'} • {formatDateDisplay(selectedDate)}
                     </span>
                   </div>
@@ -1664,8 +1700,8 @@ export default function CentreDashboard({ user, navigate }) {
                     borderRadius: '999px',
                     fontSize: '0.72rem',
                     fontWeight: 700,
-                    background: centreDailyIntel.daily_intelligence.capacity_forecast?.capacity_status === 'CRITICAL' ? 'rgba(239, 68, 68, 0.25)' : 'rgba(34, 197, 94, 0.25)',
-                    color: centreDailyIntel.daily_intelligence.capacity_forecast?.capacity_status === 'CRITICAL' ? '#fca5a5' : '#86efac',
+                    background: centreDailyIntel.daily_intelligence.capacity_forecast?.capacity_status === 'CRITICAL' ? 'var(--danger-bg)' : 'var(--success-bg)',
+                    color: centreDailyIntel.daily_intelligence.capacity_forecast?.capacity_status === 'CRITICAL' ? 'var(--danger-text)' : 'var(--success-text)',
                     border: '1px solid currentColor'
                   }}>
                     Capacity: {centreDailyIntel.daily_intelligence.capacity_forecast?.capacity_status || 'NORMAL'}
@@ -1678,7 +1714,7 @@ export default function CentreDashboard({ user, navigate }) {
                         borderRadius: '999px',
                         fontSize: '0.72rem',
                         fontWeight: 700,
-                        background: '#ef4444',
+                        background: 'var(--danger)',
                         color: '#fff',
                         border: 'none',
                         cursor: 'pointer',
@@ -1695,40 +1731,40 @@ export default function CentreDashboard({ user, navigate }) {
 
               {/* 4 Key Intelligence Metrics */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
-                <div style={{ background: 'rgba(255, 255, 255, 0.05)', padding: '12px 14px', borderRadius: '10px', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
-                  <span style={{ fontSize: '0.72rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 600, display: 'block' }}>Expected Arrivals Today</span>
-                  <div style={{ fontSize: '1.35rem', fontWeight: 800, color: '#f8fafc', marginTop: '2px' }}>
-                    {centreDailyIntel.daily_intelligence.expected_arrivals_today_quintals || 0} <span style={{ fontSize: '0.85rem', color: '#94a3b8' }}>Quintals</span>
+                <div className="briefing-stat-card">
+                  <span className="briefing-stat-label">Expected Arrivals Today</span>
+                  <div className="briefing-stat-value">
+                    {centreDailyIntel.daily_intelligence.expected_arrivals_today_quintals || 0} <span style={{ fontSize: '0.85rem', color: 'var(--muted)' }}>Quintals</span>
                   </div>
-                  <span style={{ fontSize: '0.7rem', color: '#38bdf8' }}>[Model Forecast]</span>
+                  <span style={{ fontSize: '0.7rem', color: '#0284c7', fontWeight: 600 }}>[Model Forecast]</span>
                 </div>
 
-                <div style={{ background: 'rgba(255, 255, 255, 0.05)', padding: '12px 14px', borderRadius: '10px', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
-                  <span style={{ fontSize: '0.72rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 600, display: 'block' }}>Capacity Forecast</span>
-                  <div style={{ fontSize: '1.35rem', fontWeight: 800, color: '#f8fafc', marginTop: '2px' }}>
+                <div className="briefing-stat-card">
+                  <span className="briefing-stat-label">Capacity Forecast</span>
+                  <div className="briefing-stat-value">
                     {centreDailyIntel.daily_intelligence.capacity_forecast?.projected_utilization_percent || 0}%
                   </div>
-                  <span style={{ fontSize: '0.7rem', color: (centreDailyIntel.daily_intelligence.capacity_forecast?.projected_utilization_percent || 0) > 85 ? '#f87171' : '#4ade80' }}>
+                  <span style={{ fontSize: '0.7rem', fontWeight: 600, color: (centreDailyIntel.daily_intelligence.capacity_forecast?.projected_utilization_percent || 0) > 85 ? 'var(--danger-text)' : 'var(--success-text)' }}>
                     {centreDailyIntel.daily_intelligence.capacity_forecast?.projected_procurement_quintals || 0} / {centreDailyIntel.daily_intelligence.capacity_forecast?.max_daily_capacity_quintals || 0} Q
                   </span>
                 </div>
 
-                <div style={{ background: 'rgba(255, 255, 255, 0.05)', padding: '12px 14px', borderRadius: '10px', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
-                  <span style={{ fontSize: '0.72rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 600, display: 'block' }}>Storage Forecast</span>
-                  <div style={{ fontSize: '1.35rem', fontWeight: 800, color: '#f8fafc', marginTop: '2px' }}>
+                <div className="briefing-stat-card">
+                  <span className="briefing-stat-label">Storage Forecast</span>
+                  <div className="briefing-stat-value">
                     {centreDailyIntel.daily_intelligence.storage_forecast?.projected_utilization_percent || 0}%
                   </div>
-                  <span style={{ fontSize: '0.7rem', color: '#fbbf24' }}>
+                  <span style={{ fontSize: '0.7rem', color: '#d97706', fontWeight: 600 }}>
                     {centreDailyIntel.daily_intelligence.storage_forecast?.current_storage_quintals?.toLocaleString() || 0} / {centreDailyIntel.daily_intelligence.storage_forecast?.total_storage_quintals?.toLocaleString() || 0} Q
                   </span>
                 </div>
 
-                <div style={{ background: 'rgba(255, 255, 255, 0.05)', padding: '12px 14px', borderRadius: '10px', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
-                  <span style={{ fontSize: '0.72rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 600, display: 'block' }}>Truck Requirement</span>
-                  <div style={{ fontSize: '1.35rem', fontWeight: 800, color: '#f8fafc', marginTop: '2px' }}>
-                    {centreDailyIntel.daily_intelligence.truck_fleet?.required || 0} <span style={{ fontSize: '0.85rem', color: '#94a3b8' }}>Trucks</span>
+                <div className="briefing-stat-card">
+                  <span className="briefing-stat-label">Truck Requirement</span>
+                  <div className="briefing-stat-value">
+                    {centreDailyIntel.daily_intelligence.truck_fleet?.required || 0} <span style={{ fontSize: '0.85rem', color: 'var(--muted)' }}>Trucks</span>
                   </div>
-                  <span style={{ fontSize: '0.7rem', color: (centreDailyIntel.daily_intelligence.truck_fleet?.shortfall || 0) > 0 ? '#f87171' : '#4ade80' }}>
+                  <span style={{ fontSize: '0.7rem', fontWeight: 600, color: (centreDailyIntel.daily_intelligence.truck_fleet?.shortfall || 0) > 0 ? 'var(--danger-text)' : 'var(--success-text)' }}>
                     Avail: {centreDailyIntel.daily_intelligence.truck_fleet?.available || 0} • Shortfall: {centreDailyIntel.daily_intelligence.truck_fleet?.shortfall || 0}
                   </span>
                 </div>
@@ -1736,14 +1772,14 @@ export default function CentreDashboard({ user, navigate }) {
 
               {/* High priority perishable crops row if present */}
               {centreDailyIntel.daily_intelligence.high_priority_crops && centreDailyIntel.daily_intelligence.high_priority_crops.length > 0 && (
-                <div style={{ marginTop: '12px', padding: '10px 14px', borderRadius: '8px', background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.3)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
+                <div style={{ marginTop: '12px', padding: '10px 14px', borderRadius: '8px', background: 'var(--danger-bg)', border: '1px solid var(--danger)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <AlertCircle size={16} color="#fca5a5" />
-                    <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#fca5a5' }}>
+                    <AlertCircle size={16} color="var(--danger-text)" />
+                    <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--danger-text)' }}>
                       Perishable Priority: {centreDailyIntel.daily_intelligence.high_priority_crops.map(c => `${c.crop} (${c.perishability} Perishability, Score: ${c.priority_score})`).join(', ')}
                     </span>
                   </div>
-                  <span style={{ fontSize: '0.75rem', color: '#cbd5e1' }}>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--secondary)' }}>
                     {centreDailyIntel.daily_intelligence.high_priority_crops[0]?.action}
                   </span>
                 </div>
@@ -2395,7 +2431,9 @@ export default function CentreDashboard({ user, navigate }) {
                                 <td><StatusBadge status={b.status} /></td>
                                 <td>
                                   {b.status === 'VERIFIED' ? (
-                                    <span style={{ color: 'var(--success)', fontWeight: 800, fontSize: '0.85rem' }}>VERIFIED ✓</span>
+                                    <span style={{ color: 'var(--success)', fontWeight: 800, fontSize: '0.85rem', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                      VERIFIED <CheckCircle size={14} />
+                                    </span>
                                   ) : (
                                     <span style={{ color: 'var(--muted)', fontWeight: 600, fontSize: '0.85rem' }}>NOT VERIFIED</span>
                                   )}
@@ -2773,14 +2811,14 @@ export default function CentreDashboard({ user, navigate }) {
           </div>
 
           {empError && (
-            <div className="alert alert-danger" style={{ marginBottom: '16px', padding: '10px 14px', fontSize: '0.85rem' }}>
-              ⚠ {empError}
+            <div className="alert alert-danger" style={{ marginBottom: '16px', padding: '10px 14px', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <AlertTriangle size={15} /> {empError}
             </div>
           )}
 
           {empSuccess && (
-            <div className="alert alert-success" style={{ marginBottom: '16px', padding: '10px 14px', fontSize: '0.85rem' }}>
-              ✓ {empSuccess}
+            <div className="alert alert-success" style={{ marginBottom: '16px', padding: '10px 14px', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <CheckCircle size={15} /> {empSuccess}
             </div>
           )}
 
@@ -3287,12 +3325,15 @@ export default function CentreDashboard({ user, navigate }) {
                     fontSize: '0.8rem',
                     fontWeight: 600,
                     cursor: 'pointer',
-                    transition: 'all 0.15s ease'
+                    transition: 'all 0.15s ease',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px'
                   }}
                   onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--primary)'; e.currentTarget.style.color = 'var(--primary)'; }}
                   onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-primary)'; }}
                 >
-                  💬 {chip}
+                  <MessageSquare size={13} /> {chip}
                 </button>
               ))}
             </div>
@@ -3333,53 +3374,136 @@ export default function CentreDashboard({ user, navigate }) {
               </button>
             </div>
 
-            {/* Copilot Response Card */}
-            {centreCopilotResponse && (
+            {/* Copilot Loading State */}
+            {centreCopilotLoading && (
               <div style={{
-                padding: '20px',
-                borderRadius: '12px',
-                backgroundColor: 'var(--surface-secondary)',
-                border: '1px solid var(--border)',
-                borderLeft: '4px solid var(--primary)',
-                animation: 'fadeIn 0.2s ease-in-out'
+                marginTop: '16px', padding: '16px 20px', backgroundColor: 'var(--surface)',
+                borderRadius: '8px', border: '1px solid var(--border)', display: 'flex', alignItems: 'center',
+                gap: '10px', color: 'var(--primary)'
               }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px', color: 'var(--primary)', fontWeight: 800, fontSize: '0.9rem' }}>
-                  <Sparkles size={18} />
-                  CENTRE COPILOT VERIFIED ANSWER
-                </div>
-
-                <p style={{ fontSize: '1rem', color: 'var(--text-primary)', lineHeight: 1.6, margin: '0 0 14px 0', fontWeight: 500 }}>
-                  {centreCopilotResponse.answer}
-                </p>
-
-                {/* Key Data Point Cards */}
-                {centreCopilotResponse.data_points && (
-                  <div style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-                    gap: '12px',
-                    marginTop: '14px',
-                    paddingTop: '14px',
-                    borderTop: '1px solid var(--border)'
-                  }}>
-                    {Object.entries(centreCopilotResponse.data_points).map(([key, val]) => (
-                      <div key={key} style={{
-                        background: 'var(--surface)',
-                        padding: '10px 14px',
-                        borderRadius: '8px',
-                        border: '1px solid var(--border)'
-                      }}>
-                        <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', textTransform: 'uppercase', fontWeight: 700, display: 'block' }}>
-                          {key.replace(/_/g, ' ')}
-                        </span>
-                        <div style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--text-primary)', marginTop: '2px' }}>
-                          {typeof val === 'number' ? (Number.isInteger(val) ? val.toLocaleString() : val.toFixed(1)) : String(val)}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                <RefreshCw size={18} className="animate-spin" />
+                <span style={{ fontSize: '0.92rem', fontWeight: 600 }}>
+                  Querying centre database and verifying queue & procurement metrics...
+                </span>
               </div>
+            )}
+
+            {/* Copilot Actionable Error State with Retry Button */}
+            {centreCopilotError && !centreCopilotLoading && (
+              <div style={{
+                marginTop: '16px', padding: '16px 20px', backgroundColor: 'var(--danger-bg)',
+                borderRadius: '8px', border: '1px solid var(--danger-border)', color: 'var(--danger-text)',
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <AlertCircle size={20} />
+                  <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>{centreCopilotError}</span>
+                </div>
+                <button
+                  onClick={() => handleAskCentreCopilot(centreCopilotLastQuery)}
+                  className="btn btn-outline"
+                  style={{
+                    borderColor: 'currentColor', color: 'inherit',
+                    padding: '6px 14px', fontSize: '0.82rem', fontWeight: 700,
+                    display: 'inline-flex', alignItems: 'center', gap: '6px', cursor: 'pointer'
+                  }}
+                >
+                  <RefreshCw size={13} /> Retry Query
+                </button>
+              </div>
+            )}
+
+            {/* Copilot Response Card */}
+            {centreCopilotResponse && !centreCopilotLoading && (
+              <ErrorBoundary title="Centre Copilot Output Error" message="Could not render Centre Copilot response safely.">
+                <div style={{
+                  padding: '20px',
+                  borderRadius: '12px',
+                  backgroundColor: 'var(--surface-secondary)',
+                  border: '1px solid var(--border)',
+                  borderLeft: '4px solid var(--primary)',
+                  animation: 'fadeIn 0.2s ease-in-out',
+                  marginTop: '16px'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px', color: 'var(--primary)', fontWeight: 800, fontSize: '0.9rem' }}>
+                    <Sparkles size={18} />
+                    CENTRE COPILOT VERIFIED ANSWER
+                  </div>
+
+                  <p style={{ fontSize: '1rem', color: 'var(--text-primary)', lineHeight: 1.6, margin: '0 0 14px 0', fontWeight: 500 }}>
+                    {centreCopilotResponse.answer || 'No records found matching your centre query criteria.'}
+                  </p>
+
+                  {/* Key Data Point Cards */}
+                  {centreCopilotResponse.data_points && (
+                    <div style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+                      gap: '12px',
+                      marginTop: '14px',
+                      paddingTop: '14px',
+                      borderTop: '1px solid var(--border)'
+                    }}>
+                      {Object.entries(centreCopilotResponse.data_points).map(([key, val]) => (
+                        <div key={key} style={{
+                          background: 'var(--surface)',
+                          padding: '10px 14px',
+                          borderRadius: '8px',
+                          border: '1px solid var(--border)'
+                        }}>
+                          <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', textTransform: 'uppercase', fontWeight: 700, display: 'block' }}>
+                            {key.replace(/_/g, ' ')}
+                          </span>
+                          <div style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--text-primary)', marginTop: '2px' }}>
+                            {typeof val === 'number' ? (Number.isInteger(val) ? val.toLocaleString() : val.toFixed(1)) : String(val)}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {/* Developer Query Plan & Structured Retrieval Debug Representation (Requirement 16) */}
+                  {centreCopilotResponse.debug_info && (
+                    <div style={{ marginTop: '16px', paddingTop: '14px', borderTop: '1px solid var(--border)' }}>
+                      <button
+                        onClick={() => setShowCentreCopilotDebug(!showCentreCopilotDebug)}
+                        style={{
+                          background: 'none', border: 'none', color: 'var(--text-secondary)',
+                          fontSize: '0.78rem', fontWeight: 700, cursor: 'pointer',
+                          display: 'flex', alignItems: 'center', gap: '6px', padding: 0
+                        }}
+                      >
+                        <Code size={14} color="var(--primary)" />
+                        {showCentreCopilotDebug ? 'Hide Developer Query Plan & Retrieval Debug' : 'View Developer Query Plan & Retrieval Debug'}
+                      </button>
+
+                      {showCentreCopilotDebug && (
+                        <div className="dev-debug-panel" style={{ marginTop: '10px', maxHeight: '300px', overflowY: 'auto' }}>
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px', marginBottom: '8px' }}>
+                            <div>
+                              <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', fontWeight: 700, textTransform: 'uppercase' }}>Scope & Constraints</span>
+                              <div style={{ fontSize: '0.78rem', color: 'var(--text-primary)', marginTop: '2px' }}>
+                                Centre: <strong>{centreCopilotResponse.debug_info.detected_entities?.centre || resolvedCentreId || 'C01'}</strong> | Crop: <strong>{centreCopilotResponse.debug_info.detected_entities?.crop || 'All'}</strong>
+                              </div>
+                            </div>
+                            <div>
+                              <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', fontWeight: 700, textTransform: 'uppercase' }}>Time Horizon</span>
+                              <div style={{ fontSize: '0.78rem', color: 'var(--text-primary)', marginTop: '2px' }}>
+                                Period: <strong>{centreCopilotResponse.debug_info.detected_time?.label || 'Today'}</strong> ({centreCopilotResponse.debug_info.detected_time?.from} to {centreCopilotResponse.debug_info.detected_time?.to})
+                              </div>
+                            </div>
+                          </div>
+                          <div>
+                            <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', fontWeight: 700, textTransform: 'uppercase' }}>Structured Query Plan</span>
+                            <pre style={{ margin: '4px 0 0 0', fontSize: '0.74rem', background: 'var(--surface)', padding: '8px', borderRadius: '4px', border: '1px solid var(--border)', color: 'var(--text-primary)', overflowX: 'auto' }}>
+                              {JSON.stringify(centreCopilotResponse.debug_info, null, 2)}
+                            </pre>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </ErrorBoundary>
             )}
           </div>
         </div>
@@ -3688,8 +3812,12 @@ export default function CentreDashboard({ user, navigate }) {
               {rangeSummary && (
                 <div style={{ background: 'var(--success-bg)', border: '1px solid var(--primary-border)', padding: '12px', borderRadius: '8px', marginBottom: '1rem', fontSize: '0.85rem', color: '#166534' }}>
                   <strong>Schedule Generator Summary:</strong>
-                  <div>✓ Configured: <strong>{rangeSummary.created_dates_count} operating dates</strong></div>
-                  <div>✕ Skipped: <strong>{rangeSummary.skipped_dates_count} closed/holiday dates</strong></div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginTop: '4px' }}>
+                    <CheckCircle size={13} /> Configured: <strong>{rangeSummary.created_dates_count} operating dates</strong>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginTop: '2px' }}>
+                    <XCircle size={13} /> Skipped: <strong>{rangeSummary.skipped_dates_count} closed/holiday dates</strong>
+                  </div>
                 </div>
               )}
 
@@ -3835,8 +3963,12 @@ export default function CentreDashboard({ user, navigate }) {
                 color: verificationResult.success ? 'var(--success-text)' : 'var(--danger-text)'
               }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-                  <h3 style={{ fontSize: '1.2rem', fontWeight: 800, margin: 0 }}>
-                    {verificationResult.success ? 'VERIFIED ✓' : (verificationResult.error || 'INVALID QR CODE ✕')}
+                  <h3 style={{ fontSize: '1.2rem', fontWeight: 800, margin: 0, display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                    {verificationResult.success ? (
+                      <>VERIFIED <CheckCircle size={20} color="var(--success-text)" /></>
+                    ) : (
+                      <>{verificationResult.error || 'INVALID QR CODE'} <XCircle size={20} color="var(--danger-text)" /></>
+                    )}
                   </h3>
                   <span className={`badge ${verificationResult.success ? 'badge-confirmed' : 'badge-rejected'}`}>
                     {verificationResult.success ? 'VERIFIED' : 'INVALID'}

@@ -858,7 +858,7 @@ app.get('/api/bookings/centre/:centre_id', async (req, res) => {
       end_time: b.end_time,
       time_slot: `${b.start_time} - ${b.end_time}`,
       status: b.status,
-      verification_status: b.status === 'VERIFIED' ? 'VERIFIED ✓' : 'NOT VERIFIED',
+      verification_status: b.status === 'VERIFIED' ? 'VERIFIED' : 'NOT VERIFIED',
       qr_token: b.qr_token || `BA-QR-${b.appointment_id}`,
       verified_at: b.verified_at,
       created_at: b.created_at
@@ -918,7 +918,7 @@ app.post('/api/appointments/verify', async (req, res) => {
       return res.status(400).json({
         success: false,
         code: 'INVALID_REQUEST',
-        error: 'INVALID APPOINTMENT ✕',
+        error: 'INVALID APPOINTMENT',
         message: 'Entry Not Accepted'
       });
     }
@@ -939,7 +939,7 @@ app.post('/api/appointments/verify', async (req, res) => {
       return res.status(400).json({
         success: false,
         code: 'INVALID_QR',
-        error: 'INVALID APPOINTMENT ✕',
+        error: 'INVALID APPOINTMENT',
         message: 'Entry Not Accepted. Unrecognized QR code.'
       });
     }
@@ -948,7 +948,7 @@ app.post('/api/appointments/verify', async (req, res) => {
       return res.status(400).json({
         success: false,
         code: 'WRONG_CENTRE',
-        error: 'WRONG PROCUREMENT CENTRE ✕',
+        error: 'WRONG PROCUREMENT CENTRE',
         message: 'Appointment does not belong to this centre.'
       });
     }
@@ -976,7 +976,7 @@ app.post('/api/appointments/verify', async (req, res) => {
       return res.status(400).json({
         success: false,
         code: 'REJECTED',
-        error: 'APPOINTMENT REJECTED ✕',
+        error: 'APPOINTMENT REJECTED',
         message: 'This appointment has been rejected by the centre.'
       });
     }
@@ -1008,7 +1008,7 @@ app.post('/api/appointments/verify', async (req, res) => {
     res.json({
       success: true,
       code: 'SUCCESS',
-      title: 'APPOINTMENT FOUND ✓',
+      title: 'APPOINTMENT FOUND',
       message: 'Appointment verified successfully.',
       appointment: updatedBooking
     });
@@ -1017,7 +1017,7 @@ app.post('/api/appointments/verify', async (req, res) => {
     res.status(500).json({
       success: false,
       code: 'SERVER_ERROR',
-      error: 'INVALID APPOINTMENT ✕',
+      error: 'INVALID APPOINTMENT',
       message: 'Server error during QR verification.'
     });
   }

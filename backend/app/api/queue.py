@@ -6,6 +6,7 @@ import os
 import datetime
 
 from backend.app.core.database import get_db
+from backend.app.core.deps import get_current_user_optional
 from backend.app.models.queue import Notification, ProcurementTransaction, Appointment
 from backend.app.models.farmer import Farmer
 from backend.app.models.booking import Booking
@@ -149,20 +150,57 @@ def get_farmer_notifications(farmer_id: str, db: Session = Depends(get_db)):
 def copilot_query(payload: Dict[str, Any] = Body(...), db: Session = Depends(get_db)):
     """Officer Procurement Copilot answering operational queries with actual database state."""
     q_text = payload.get("query", "").strip()
+    session_ctx = payload.get("session_context")
     if not q_text:
         raise HTTPException(status_code=400, detail="Query cannot be empty.")
-    res = query_procurement_copilot(q_text, db)
-    return {"success": True, "data": res}
+    res = query_procurement_copilot(q_text, db, session_context=session_ctx)
+    return {
+        "success": True,
+        "data": res,
+        "answer": res.get("answer", ""),
+        "session_context": res.get("session_context"),
+        "table_data": res.get("table_data"),
+        "entities": res.get("entities"),
+        "debug_info": res.get("debug_info")
+    }
 
 
 @router.post("/centre-copilot/{centre_id}")
-def centre_copilot_query(centre_id: str, payload: Dict[str, Any] = Body(...), db: Session = Depends(get_db)):
+def centre_copilot_query(
+    centre_id: str,
+    payload: Dict[str, Any] = Body(...),
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user_optional)
+):
     """Scoped Centre Copilot strictly isolated to the authenticated centre_id."""
     q_text = payload.get("query", "").strip()
+    session_ctx = payload.get("session_context")
     if not q_text:
         raise HTTPException(status_code=400, detail="Query cannot be empty.")
-    res = query_centre_copilot(centre_id, q_text, db)
-    return {"success": True, "data": res}
+
+    auth_centre_id = None
+    if current_user and getattr(current_user, "role", "").lower() in ["centre", "procurement_centre"]:
+        user_cid = getattr(current_user, "centre_id", None)
+        if user_cid:
+            clean_req = centre_id.strip().upper()
+            clean_user = user_cid.strip().upper()
+            if clean_req != clean_user and clean_req.replace("0", "") != clean_user.replace("0", ""):
+                raise HTTPException(
+                    status_code=403,
+                    detail=f"Access denied. You are strictly restricted to your assigned facility '{user_cid}'."
+                )
+            auth_centre_id = user_cid
+
+    res = query_centre_copilot(centre_id, q_text, db, session_context=session_ctx, authenticated_centre_id=auth_centre_id)
+    return {
+        "success": True,
+        "data": res,
+        "answer": res.get("answer", ""),
+        "session_context": res.get("session_context"),
+        "table_data": res.get("table_data"),
+        "entities": res.get("entities"),
+        "debug_info": res.get("debug_info")
+    }
 
 
 @router.get("/anomalies")

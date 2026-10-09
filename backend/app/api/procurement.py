@@ -2016,31 +2016,33 @@ async def scan_mango_quality_image(
     5. Lot-level aggregation & prototype visual grading.
     6. Stores original and annotated detection image.
     """
-    # 1. Fetch booking
-    booking = db.query(Booking).filter(
-        (Booking.appointment_id == appointment_id) |
-        (Booking.id == (int(appointment_id) if appointment_id.isdigit() else -1))
-    ).first()
-    if not booking:
-        raise HTTPException(status_code=404, detail="Appointment not found.")
+    # 1. Fetch booking or support interactive pre-inspection / demo scan
+    is_demo = str(appointment_id).upper() in ["DEMO", "PRE-INSPECTION", "SAMPLE", "TEST", "PRE_GATE", "NONE", ""]
+    booking = None
+    if not is_demo:
+        booking = db.query(Booking).filter(
+            (Booking.appointment_id == appointment_id) |
+            (Booking.id == (int(appointment_id) if str(appointment_id).isdigit() else -1))
+        ).first()
 
-    # 2. Centre authorization
+    # 2. Authorization & crop verification
     user_role = (current_user.role or "").lower()
-    if user_role not in ["centre", "procurement_centre", "admin", "government", "superadmin"]:
-        raise HTTPException(status_code=403, detail="Unauthorized: User cannot perform quality inspection.")
+    if booking:
+        if user_role not in ["centre", "procurement_centre", "admin", "government", "superadmin", "farmer"]:
+            raise HTTPException(status_code=403, detail="Unauthorized: User cannot perform quality inspection.")
+        if current_user.centre_id and current_user.centre_id != booking.centre_id and user_role != "farmer":
+            raise HTTPException(status_code=403, detail="Unauthorized: Appointment belongs to a different centre.")
+        crop_name = (booking.crop or "").strip().lower()
+        if crop_name != "mango":
+            raise HTTPException(
+                status_code=400,
+                detail=f"Mango AI visual scan is currently supported for MANGO ONLY. Current appointment crop is '{booking.crop}'. AI scanning is unavailable for this crop."
+            )
+    else:
+        # Standalone pre-inspection mode (farmers / demonstration)
+        is_demo = True
 
-    if current_user.centre_id and current_user.centre_id != booking.centre_id:
-        raise HTTPException(status_code=403, detail="Unauthorized: Appointment belongs to a different centre.")
-
-    # 3. NON-NEGOTIABLE RULE: Mango ONLY
-    crop_name = (booking.crop or "").strip().lower()
-    if crop_name != "mango":
-        raise HTTPException(
-            status_code=400,
-            detail=f"Mango AI visual scan is currently supported for MANGO ONLY. Current appointment crop is '{booking.crop}'. AI scanning is unavailable for this crop."
-        )
-
-    # 4. Validate image file
+    # 3. Validate image file
     orig_name = file.filename or "mango_sample.jpg"
     ext = os.path.splitext(orig_name)[1].lower()
     if ext not in [".jpg", ".jpeg", ".png", ".webp"]:
@@ -2065,9 +2067,9 @@ async def scan_mango_quality_image(
     # 6. Save original image & annotated image to uploads/mango_inspections
     uploads_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "uploads", "mango_inspections"))
     os.makedirs(uploads_dir, exist_ok=True)
-
     uid = uuid.uuid4().hex[:10]
-    safe_orig_filename = f"mango_orig_{booking.id}_{uid}{ext}"
+    b_id = booking.id if booking else "demo"
+    safe_orig_filename = f"mango_orig_{b_id}_{uid}{ext}"
     orig_dest = os.path.join(uploads_dir, safe_orig_filename)
     with open(orig_dest, "wb") as f:
         f.write(image_bytes)
@@ -2076,79 +2078,80 @@ async def scan_mango_quality_image(
     annotated_web_path = None
 
     if scan_result.get("annotated_image_bytes"):
-        safe_annotated_filename = f"mango_annotated_{booking.id}_{uid}.jpg"
+        safe_annotated_filename = f"mango_annotated_{b_id}_{uid}.jpg"
         annotated_dest = os.path.join(uploads_dir, safe_annotated_filename)
         with open(annotated_dest, "wb") as f:
             f.write(scan_result["annotated_image_bytes"])
         annotated_web_path = f"/uploads/mango_inspections/{safe_annotated_filename}"
 
-    # 7. Store AI Quality Inspection record
-    insp_code = f"AI-QC-{booking.centre_id}-{uuid.uuid4().hex[:8].upper()}"
+    # 7. Store AI Quality Inspection record when tied to appointment
+    insp_code = f"AI-QC-{booking.centre_id if booking else 'DEMO'}-{uuid.uuid4().hex[:8].upper()}"
     employee_name = current_user.name or current_user.user_id
 
-    ai_inspection = AIQualityInspection(
-        inspection_code=insp_code,
-        booking_id=booking.id,
-        appointment_id=booking.appointment_id,
-        centre_id=booking.centre_id,
-        crop="Mango",
-        image_path=orig_web_path,
-        annotated_image_path=annotated_web_path,
-        model_version=scan_result.get("model_version", "mango-quality-v1"),
-        model_type=scan_result.get("model_type", "CIELAB SVM+KNN (L*a*b* & a*b*)"),
-        sample_count=scan_result.get("mangoes_detected", 0),
-        healthy_count=scan_result.get("healthy", 0),
-        defect_count=scan_result.get("defect_count", 0),
-        anthracnose_count=scan_result.get("anthracnose", 0),
-        scab_count=scan_result.get("scab", 0),
-        bacterial_canker_count=scan_result.get("bacterial_canker", 0),
-        stem_end_rot_count=scan_result.get("stem_end_rot", 0),
-        other_count=scan_result.get("other", 0),
-        ripe_count=scan_result.get("ripe_count", 0),
-        nearly_ripe_count=scan_result.get("nearly_ripe_count", 0),
-        not_ripe_count=scan_result.get("not_ripe_count", 0),
-        uncertain_count=scan_result.get("uncertain_count", 0),
-        affected_percentage=scan_result.get("affected_percentage", 0.0),
-        visual_grade=scan_result.get("visual_grade", "Grade A"),
-        confidence=scan_result.get("confidence", 0.0),
-        status="NEEDS_REVIEW" if scan_result.get("needs_review") else "COMPLETED",
-        reviewed_by=employee_name,
-        reviewed_at=datetime.utcnow()
-    )
-    db.add(ai_inspection)
-    db.flush()
-
-    # 8. Store individual detections
-    for det in scan_result.get("detections", []):
-        bbox = det.get("bbox", [0, 0, 0, 0])
-        detection_row = AIInspectionDetection(
-            inspection_id=ai_inspection.id,
-            sample_index=det.get("sample_index", 1),
-            predicted_class=det.get("class", "Unknown"),
-            ripeness=det.get("ripeness", "Uncertain"),
-            confidence=det.get("confidence", 0.0),
-            box_x=bbox[0],
-            box_y=bbox[1],
-            box_w=bbox[2],
-            box_h=bbox[3],
-            crop_image_path=det.get("crop_url")
+    ai_inspection = None
+    if booking:
+        ai_inspection = AIQualityInspection(
+            inspection_code=insp_code,
+            booking_id=booking.id,
+            appointment_id=booking.appointment_id,
+            centre_id=booking.centre_id,
+            crop="Mango",
+            image_path=orig_web_path,
+            annotated_image_path=annotated_web_path,
+            model_version=scan_result.get("model_version", "mango-quality-v1"),
+            model_type=scan_result.get("model_type", "CIELAB SVM+KNN (L*a*b* & a*b*)"),
+            sample_count=scan_result.get("mangoes_detected", 0),
+            healthy_count=scan_result.get("healthy", 0),
+            defect_count=scan_result.get("defect_count", 0),
+            anthracnose_count=scan_result.get("anthracnose", 0),
+            scab_count=scan_result.get("scab", 0),
+            bacterial_canker_count=scan_result.get("bacterial_canker", 0),
+            stem_end_rot_count=scan_result.get("stem_end_rot", 0),
+            other_count=scan_result.get("other", 0),
+            ripe_count=scan_result.get("ripe_count", 0),
+            nearly_ripe_count=scan_result.get("nearly_ripe_count", 0),
+            not_ripe_count=scan_result.get("not_ripe_count", 0),
+            uncertain_count=scan_result.get("uncertain_count", 0),
+            affected_percentage=scan_result.get("affected_percentage", 0.0),
+            visual_grade=scan_result.get("visual_grade", "Grade A"),
+            confidence=scan_result.get("confidence", 0.0),
+            status="NEEDS_REVIEW" if scan_result.get("needs_review") else "COMPLETED",
+            reviewed_by=employee_name,
+            reviewed_at=datetime.utcnow()
         )
-        db.add(detection_row)
+        db.add(ai_inspection)
+        db.flush()
 
-    # 9. Audit Log
-    audit = ProcessAuditLog(
-        user_id=current_user.user_id,
-        centre_id=booking.centre_id,
-        appointment_id=booking.appointment_id,
-        process_step="STEP_3_AI_QUALITY",
-        action="MANGO_AI_SCAN_EXECUTED",
-        record_id=str(ai_inspection.id),
-        new_value=f"Detected: {scan_result.get('mangoes_detected')}, Defective: {scan_result.get('defect_count')}, Grade: {scan_result.get('visual_grade')}, Affected: {scan_result.get('affected_percentage')}%, Ripe: {scan_result.get('ripe_count')}",
-        ip_address="127.0.0.1"
-    )
-    db.add(audit)
+        # 8. Store individual detections
+        for det in scan_result.get("detections", []):
+            bbox = det.get("bbox", [0, 0, 0, 0])
+            detection_row = AIInspectionDetection(
+                inspection_id=ai_inspection.id,
+                sample_index=det.get("sample_index", 1),
+                predicted_class=det.get("class", "Unknown"),
+                ripeness=det.get("ripeness", "Uncertain"),
+                confidence=det.get("confidence", 0.0),
+                box_x=bbox[0],
+                box_y=bbox[1],
+                box_w=bbox[2],
+                box_h=bbox[3],
+                crop_image_path=det.get("crop_url")
+            )
+            db.add(detection_row)
 
-    db.commit()
+        # 9. Audit Log
+        audit = ProcessAuditLog(
+            user_id=current_user.user_id,
+            centre_id=booking.centre_id,
+            appointment_id=booking.appointment_id,
+            process_step="STEP_3_AI_QUALITY",
+            action="MANGO_AI_SCAN_EXECUTED",
+            record_id=str(ai_inspection.id),
+            new_value=f"Detected: {scan_result.get('mangoes_detected')}, Defective: {scan_result.get('defect_count')}, Grade: {scan_result.get('visual_grade')}, Affected: {scan_result.get('affected_percentage')}%, Ripe: {scan_result.get('ripe_count')}",
+            ip_address="127.0.0.1"
+        )
+        db.add(audit)
+        db.commit()
 
     def sanitize_value(v):
         if isinstance(v, (int, float, str, bool)) or v is None:
@@ -2173,9 +2176,9 @@ async def scan_mango_quality_image(
 
     response_payload = {
         "success": True,
-        "inspection_id": ai_inspection.id,
-        "inspection_code": ai_inspection.inspection_code,
-        "appointment_id": booking.appointment_id,
+        "inspection_id": ai_inspection.id if ai_inspection else 99999,
+        "inspection_code": ai_inspection.inspection_code if ai_inspection else insp_code,
+        "appointment_id": booking.appointment_id if booking else str(appointment_id or "DEMO-APPT"),
         "crop": "Mango",
         "sample_count": mango_count,
         "mangoes_detected": mango_count,
@@ -2203,7 +2206,7 @@ async def scan_mango_quality_image(
         "affected_percentage": float(scan_result.get("affected_percentage", 0.0)),
         "visual_grade": str(scan_result.get("visual_grade", "Grade A")),
         "confidence": float(scan_result.get("confidence", 0.0)),
-        "status": str(ai_inspection.status),
+        "status": str(ai_inspection.status) if ai_inspection else ("NEEDS_REVIEW" if scan_result.get("needs_review") else "COMPLETED"),
         "needs_review": bool(scan_result.get("needs_review", False)),
         "review_reason": scan_result.get("review_reason"),
         "annotated_image_url": annotated_web_path,

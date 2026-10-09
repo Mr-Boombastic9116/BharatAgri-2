@@ -4,6 +4,7 @@ Classification: Optimization Engine (Mathematical Constraint Programming).
 Do not label as Machine Learning.
 """
 
+import math
 from typing import List, Dict, Any
 from ortools.linear_solver import pywraplp
 
@@ -211,7 +212,9 @@ class TruckOptimizer:
         pairs = []
         for i, src in enumerate(surplus_sources):
             for j, dst in enumerate(deficit_sinks):
-                if src["centre_id"] != dst["centre_id"]:
+                src_crop = (src.get("crop") or "").strip().lower()
+                dst_crop = (dst.get("crop") or "").strip().lower()
+                if src["centre_id"] != dst["centre_id"] and src_crop and dst_crop and src_crop == dst_crop:
                     # Distance calculation (intra-district, intra-state, or inter-state)
                     if src.get("district") and dst.get("district") and src["district"] == dst["district"]:
                         dist = 35.0 + (abs(hash(src["centre_id"] + dst["centre_id"])) % 25)
@@ -307,7 +310,7 @@ class TruckOptimizer:
             routes = []
             for (i, j, dist) in pairs:
                 qty_val = X[i, j].solution_value()
-                trucks_val = int(round(T[i, j].solution_value()))
+                trucks_val = max(1, math.ceil(qty_val / max(truck_capacity_quintals, 1.0)))
                 if qty_val >= truck_capacity_quintals and trucks_val >= 1:
                     src = surplus_sources[i]
                     dst = deficit_sinks[j]

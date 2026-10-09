@@ -1,0 +1,3137 @@
+{
+  "experiment_name": "BASELINE_EXTERNAL_UNSEEN_TEST_RUN",
+  "total_test_images": 62,
+  "total_execution_time_seconds": 99.18,
+  "successful_process_images": 62,
+  "failed_process_images": 0,
+  "images_with_detections": 59,
+  "images_zero_detections": 3,
+  "total_detected_mangoes": 160,
+  "average_mangoes_per_detected_image": 2.71,
+  "grade_distribution": {
+    "Grade C": 21,
+    "Grade A": 67,
+    "Grade B": 22,
+    "Reject": 50
+  },
+  "average_defect_pct": 9.51,
+  "median_defect_pct": 4.25,
+  "max_defect_pct": 63.29,
+  "results": [
+    {
+      "filename": "04bacterial-black-spot-mango-1024x1024.jpg",
+      "status": "success",
+      "detected_count": 1,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            0,
+            0,
+            1024,
+            1024
+          ],
+          "area": 897591,
+          "defect_percentage": 4.16,
+          "defect_type": "Anthracnose",
+          "health_status": "Defective",
+          "ripeness": "Ripe",
+          "grade": "Grade C",
+          "confidence": 98.5
+        }
+      ],
+      "error": null,
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_baseline\\visual_overlays\\04bacterial-black-spot-mango-1024x1024_overlay.jpg"
+    },
+    {
+      "filename": "20220423_182120.jpg",
+      "status": "success",
+      "detected_count": 1,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            0,
+            0,
+            960,
+            1280
+          ],
+          "area": 1131220,
+          "defect_percentage": 0.08,
+          "defect_type": "None",
+          "health_status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 85.4
+        }
+      ],
+      "error": null,
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_baseline\\visual_overlays\\20220423_182120_overlay.jpg"
+    },
+    {
+      "filename": "20220423_182138.jpg",
+      "status": "success",
+      "detected_count": 1,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            0,
+            0,
+            960,
+            1280
+          ],
+          "area": 986684,
+          "defect_percentage": 0.06,
+          "defect_type": "None",
+          "health_status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 72.5
+        }
+      ],
+      "error": null,
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_baseline\\visual_overlays\\20220423_182138_overlay.jpg"
+    },
+    {
+      "filename": "20220423_183537.jpg",
+      "status": "success",
+      "detected_count": 5,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            0,
+            0,
+            319,
+            393
+          ],
+          "area": 46716,
+          "defect_percentage": 11.31,
+          "defect_type": "None",
+          "health_status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade B",
+          "confidence": 95.4
+        },
+        {
+          "mango_index": 2,
+          "bbox": [
+            102,
+            0,
+            721,
+            308
+          ],
+          "area": 50624,
+          "defect_percentage": 3.55,
+          "defect_type": "None",
+          "health_status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade B",
+          "confidence": 99.3
+        },
+        {
+          "mango_index": 3,
+          "bbox": [
+            138,
+            265,
+            705,
+            537
+          ],
+          "area": 124280,
+          "defect_percentage": 4.04,
+          "defect_type": "Anthracnose",
+          "health_status": "Defective",
+          "ripeness": "Not Ripe",
+          "grade": "Grade C",
+          "confidence": 99.1
+        },
+        {
+          "mango_index": 4,
+          "bbox": [
+            541,
+            515,
+            419,
+            765
+          ],
+          "area": 94796,
+          "defect_percentage": 0.29,
+          "defect_type": "None",
+          "health_status": "Healthy",
+          "ripeness": "Not Ripe",
+          "grade": "Grade A",
+          "confidence": 96.6
+        },
+        {
+          "mango_index": 5,
+          "bbox": [
+            172,
+            621,
+            455,
+            659
+          ],
+          "area": 112272,
+          "defect_percentage": 0.29,
+          "defect_type": "None",
+          "health_status": "Healthy",
+          "ripeness": "Not Ripe",
+          "grade": "Grade A",
+          "confidence": 33.9
+        }
+      ],
+      "error": null,
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_baseline\\visual_overlays\\20220423_183537_overlay.jpg"
+    },
+    {
+      "filename": "20250531_135911.jpg",
+      "status": "success",
+      "detected_count": 3,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            0,
+            0,
+            720,
+            531
+          ],
+          "area": 299904,
+          "defect_percentage": 12.24,
+          "defect_type": "None",
+          "health_status": "Healthy",
+          "ripeness": "Not Ripe",
+          "grade": "Grade B",
+          "confidence": 99.1
+        },
+        {
+          "mango_index": 2,
+          "bbox": [
+            0,
+            416,
+            720,
+            333
+          ],
+          "area": 137320,
+          "defect_percentage": 20.95,
+          "defect_type": "Other",
+          "health_status": "Defective",
+          "ripeness": "Not Ripe",
+          "grade": "Reject",
+          "confidence": 95.4
+        },
+        {
+          "mango_index": 3,
+          "bbox": [
+            0,
+            590,
+            720,
+            690
+          ],
+          "area": 421820,
+          "defect_percentage": 11.0,
+          "defect_type": "None",
+          "health_status": "Healthy",
+          "ripeness": "Not Ripe",
+          "grade": "Grade B",
+          "confidence": 97.8
+        }
+      ],
+      "error": null,
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_baseline\\visual_overlays\\20250531_135911_overlay.jpg"
+    },
+    {
+      "filename": "20250531_135953.jpg",
+      "status": "success",
+      "detected_count": 1,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            0,
+            0,
+            720,
+            1280
+          ],
+          "area": 897332,
+          "defect_percentage": 9.38,
+          "defect_type": "None",
+          "health_status": "Healthy",
+          "ripeness": "Not Ripe",
+          "grade": "Grade B",
+          "confidence": 97.0
+        }
+      ],
+      "error": null,
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_baseline\\visual_overlays\\20250531_135953_overlay.jpg"
+    },
+    {
+      "filename": "20250531_141419.jpg",
+      "status": "success",
+      "detected_count": 2,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            128,
+            0,
+            592,
+            516
+          ],
+          "area": 139552,
+          "defect_percentage": 4.56,
+          "defect_type": "None",
+          "health_status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade B",
+          "confidence": 77.9
+        },
+        {
+          "mango_index": 2,
+          "bbox": [
+            0,
+            139,
+            662,
+            1141
+          ],
+          "area": 439288,
+          "defect_percentage": 4.92,
+          "defect_type": "None",
+          "health_status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade B",
+          "confidence": 92.5
+        }
+      ],
+      "error": null,
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_baseline\\visual_overlays\\20250531_141419_overlay.jpg"
+    },
+    {
+      "filename": "20260506_185630.jpg",
+      "status": "success",
+      "detected_count": 2,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            0,
+            0,
+            720,
+            826
+          ],
+          "area": 407164,
+          "defect_percentage": 13.59,
+          "defect_type": "Stem End Rot",
+          "health_status": "Defective",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 99.6
+        },
+        {
+          "mango_index": 2,
+          "bbox": [
+            0,
+            586,
+            720,
+            694
+          ],
+          "area": 266264,
+          "defect_percentage": 14.36,
+          "defect_type": "Other",
+          "health_status": "Defective",
+          "ripeness": "Ripe",
+          "grade": "Grade C",
+          "confidence": 99.9
+        }
+      ],
+      "error": null,
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_baseline\\visual_overlays\\20260506_185630_overlay.jpg"
+    },
+    {
+      "filename": "20260506_185633.jpg",
+      "status": "success",
+      "detected_count": 6,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            0,
+            0,
+            487,
+            433
+          ],
+          "area": 106700,
+          "defect_percentage": 25.1,
+          "defect_type": "Stem End Rot",
+          "health_status": "Defective",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 99.6
+        },
+        {
+          "mango_index": 2,
+          "bbox": [
+            290,
+            0,
+            430,
+            770
+          ],
+          "area": 181124,
+          "defect_percentage": 13.41,
+          "defect_type": "Stem End Rot",
+          "health_status": "Defective",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 99.7
+        },
+        {
+          "mango_index": 3,
+          "bbox": [
+            0,
+            337,
+            364,
+            407
+          ],
+          "area": 74572,
+          "defect_percentage": 21.31,
+          "defect_type": "Other",
+          "health_status": "Defective",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 99.6
+        },
+        {
+          "mango_index": 4,
+          "bbox": [
+            2,
+            526,
+            547,
+            395
+          ],
+          "area": 93360,
+          "defect_percentage": 18.13,
+          "defect_type": "Other",
+          "health_status": "Defective",
+          "ripeness": "Ripe",
+          "grade": "Grade C",
+          "confidence": 99.7
+        },
+        {
+          "mango_index": 5,
+          "bbox": [
+            161,
+            605,
+            559,
+            675
+          ],
+          "area": 223204,
+          "defect_percentage": 22.39,
+          "defect_type": "Other",
+          "health_status": "Defective",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 95.9
+        },
+        {
+          "mango_index": 6,
+          "bbox": [
+            0,
+            713,
+            337,
+            567
+          ],
+          "area": 90920,
+          "defect_percentage": 15.56,
+          "defect_type": "Other",
+          "health_status": "Defective",
+          "ripeness": "Ripe",
+          "grade": "Grade C",
+          "confidence": 99.2
+        }
+      ],
+      "error": null,
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_baseline\\visual_overlays\\20260506_185633_overlay.jpg"
+    },
+    {
+      "filename": "He2.jpg",
+      "status": "success",
+      "detected_count": 1,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            34,
+            0,
+            200,
+            256
+          ],
+          "area": 38054,
+          "defect_percentage": 0.0,
+          "defect_type": "None",
+          "health_status": "Healthy",
+          "ripeness": "Nearly Ripe",
+          "grade": "Grade A",
+          "confidence": 71.0
+        }
+      ],
+      "error": null,
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_baseline\\visual_overlays\\He2_overlay.jpg"
+    },
+    {
+      "filename": "IMG-20140418-WA0002.jpg",
+      "status": "success",
+      "detected_count": 2,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            309,
+            40,
+            123,
+            116
+          ],
+          "area": 8360,
+          "defect_percentage": 14.45,
+          "defect_type": "Anthracnose",
+          "health_status": "Defective",
+          "ripeness": "Not Ripe",
+          "grade": "Reject",
+          "confidence": 98.6
+        },
+        {
+          "mango_index": 2,
+          "bbox": [
+            0,
+            126,
+            389,
+            474
+          ],
+          "area": 125039,
+          "defect_percentage": 0.03,
+          "defect_type": "None",
+          "health_status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 96.7
+        }
+      ],
+      "error": null,
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_baseline\\visual_overlays\\IMG-20140418-WA0002_overlay.jpg"
+    },
+    {
+      "filename": "IMG-20220423-WA0039.jpg",
+      "status": "success",
+      "detected_count": 4,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            0,
+            0,
+            558,
+            535
+          ],
+          "area": 93240,
+          "defect_percentage": 2.07,
+          "defect_type": "None",
+          "health_status": "Healthy",
+          "ripeness": "Not Ripe",
+          "grade": "Grade A",
+          "confidence": 99.1
+        },
+        {
+          "mango_index": 2,
+          "bbox": [
+            446,
+            0,
+            274,
+            599
+          ],
+          "area": 49584,
+          "defect_percentage": 0.0,
+          "defect_type": "None",
+          "health_status": "Healthy",
+          "ripeness": "Not Ripe",
+          "grade": "Grade A",
+          "confidence": 98.8
+        },
+        {
+          "mango_index": 3,
+          "bbox": [
+            0,
+            139,
+            618,
+            955
+          ],
+          "area": 182340,
+          "defect_percentage": 4.32,
+          "defect_type": "Anthracnose",
+          "health_status": "Defective",
+          "ripeness": "Not Ripe",
+          "grade": "Grade C",
+          "confidence": 98.8
+        },
+        {
+          "mango_index": 4,
+          "bbox": [
+            0,
+            790,
+            637,
+            490
+          ],
+          "area": 129476,
+          "defect_percentage": 0.14,
+          "defect_type": "None",
+          "health_status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 87.7
+        }
+      ],
+      "error": null,
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_baseline\\visual_overlays\\IMG-20220423-WA0039_overlay.jpg"
+    },
+    {
+      "filename": "PHOTO-2026-10-08-10-23-13(1).jpg",
+      "status": "success",
+      "detected_count": 2,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            19,
+            74,
+            645,
+            546
+          ],
+          "area": 247866,
+          "defect_percentage": 3.22,
+          "defect_type": "None",
+          "health_status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade B",
+          "confidence": 84.1
+        },
+        {
+          "mango_index": 2,
+          "bbox": [
+            581,
+            166,
+            683,
+            456
+          ],
+          "area": 190256,
+          "defect_percentage": 19.51,
+          "defect_type": "Anthracnose",
+          "health_status": "Defective",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 98.3
+        }
+      ],
+      "error": null,
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_baseline\\visual_overlays\\PHOTO-2026-10-08-10-23-13(1)_overlay.jpg"
+    },
+    {
+      "filename": "PHOTO-2026-10-08-10-23-13(2).jpg",
+      "status": "success",
+      "detected_count": 3,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            430,
+            100,
+            401,
+            449
+          ],
+          "area": 119248,
+          "defect_percentage": 10.79,
+          "defect_type": "Anthracnose",
+          "health_status": "Defective",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 80.6
+        },
+        {
+          "mango_index": 2,
+          "bbox": [
+            41,
+            246,
+            446,
+            474
+          ],
+          "area": 139926,
+          "defect_percentage": 9.66,
+          "defect_type": "Anthracnose",
+          "health_status": "Defective",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 98.7
+        },
+        {
+          "mango_index": 3,
+          "bbox": [
+            339,
+            481,
+            605,
+            396
+          ],
+          "area": 137409,
+          "defect_percentage": 8.99,
+          "defect_type": "Anthracnose",
+          "health_status": "Defective",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 93.2
+        }
+      ],
+      "error": null,
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_baseline\\visual_overlays\\PHOTO-2026-10-08-10-23-13(2)_overlay.jpg"
+    },
+    {
+      "filename": "PHOTO-2026-10-08-10-23-13.jpg",
+      "status": "success",
+      "detected_count": 3,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            60,
+            63,
+            203,
+            257
+          ],
+          "area": 29283,
+          "defect_percentage": 19.17,
+          "defect_type": "Anthracnose",
+          "health_status": "Defective",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 100.0
+        },
+        {
+          "mango_index": 2,
+          "bbox": [
+            212,
+            73,
+            181,
+            240
+          ],
+          "area": 18624,
+          "defect_percentage": 4.07,
+          "defect_type": "Anthracnose",
+          "health_status": "Defective",
+          "ripeness": "Ripe",
+          "grade": "Grade C",
+          "confidence": 99.8
+        },
+        {
+          "mango_index": 3,
+          "bbox": [
+            203,
+            112,
+            337,
+            266
+          ],
+          "area": 44957,
+          "defect_percentage": 5.69,
+          "defect_type": "Anthracnose",
+          "health_status": "Defective",
+          "ripeness": "Ripe",
+          "grade": "Grade C",
+          "confidence": 99.2
+        }
+      ],
+      "error": null,
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_baseline\\visual_overlays\\PHOTO-2026-10-08-10-23-13_overlay.jpg"
+    },
+    {
+      "filename": "PHOTO-2026-10-08-10-24-09.jpg",
+      "status": "success",
+      "detected_count": 3,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            20,
+            257,
+            167,
+            255
+          ],
+          "area": 25344,
+          "defect_percentage": 0.0,
+          "defect_type": "None",
+          "health_status": "Healthy",
+          "ripeness": "Nearly Ripe",
+          "grade": "Grade A",
+          "confidence": 96.0
+        },
+        {
+          "mango_index": 2,
+          "bbox": [
+            520,
+            260,
+            123,
+            237
+          ],
+          "area": 21172,
+          "defect_percentage": 3.25,
+          "defect_type": "None",
+          "health_status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade B",
+          "confidence": 98.6
+        },
+        {
+          "mango_index": 3,
+          "bbox": [
+            1121,
+            252,
+            141,
+            271
+          ],
+          "area": 20768,
+          "defect_percentage": 37.33,
+          "defect_type": "Stem End Rot",
+          "health_status": "Defective",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 93.3
+        }
+      ],
+      "error": null,
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_baseline\\visual_overlays\\PHOTO-2026-10-08-10-24-09_overlay.jpg"
+    },
+    {
+      "filename": "PHOTO-2026-10-08-10-27-21(1).jpg",
+      "status": "success",
+      "detected_count": 2,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            276,
+            0,
+            1004,
+            639
+          ],
+          "area": 449833,
+          "defect_percentage": 2.68,
+          "defect_type": "None",
+          "health_status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 99.9
+        },
+        {
+          "mango_index": 2,
+          "bbox": [
+            0,
+            189,
+            709,
+            684
+          ],
+          "area": 278820,
+          "defect_percentage": 7.12,
+          "defect_type": "Anthracnose",
+          "health_status": "Defective",
+          "ripeness": "Ripe",
+          "grade": "Grade C",
+          "confidence": 100.0
+        }
+      ],
+      "error": null,
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_baseline\\visual_overlays\\PHOTO-2026-10-08-10-27-21(1)_overlay.jpg"
+    },
+    {
+      "filename": "PHOTO-2026-10-08-10-27-21(2).jpg",
+      "status": "success",
+      "detected_count": 1,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            61,
+            54,
+            713,
+            480
+          ],
+          "area": 221042,
+          "defect_percentage": 25.78,
+          "defect_type": "Anthracnose",
+          "health_status": "Defective",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 98.5
+        }
+      ],
+      "error": null,
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_baseline\\visual_overlays\\PHOTO-2026-10-08-10-27-21(2)_overlay.jpg"
+    },
+    {
+      "filename": "PHOTO-2026-10-08-10-27-21(3).jpg",
+      "status": "success",
+      "detected_count": 2,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            19,
+            74,
+            645,
+            546
+          ],
+          "area": 247866,
+          "defect_percentage": 3.22,
+          "defect_type": "None",
+          "health_status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade B",
+          "confidence": 84.1
+        },
+        {
+          "mango_index": 2,
+          "bbox": [
+            581,
+            166,
+            683,
+            456
+          ],
+          "area": 190256,
+          "defect_percentage": 19.51,
+          "defect_type": "Anthracnose",
+          "health_status": "Defective",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 98.3
+        }
+      ],
+      "error": null,
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_baseline\\visual_overlays\\PHOTO-2026-10-08-10-27-21(3)_overlay.jpg"
+    },
+    {
+      "filename": "PHOTO-2026-10-08-10-27-21(4).jpg",
+      "status": "success",
+      "detected_count": 2,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            276,
+            0,
+            1004,
+            639
+          ],
+          "area": 449833,
+          "defect_percentage": 2.68,
+          "defect_type": "None",
+          "health_status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 99.9
+        },
+        {
+          "mango_index": 2,
+          "bbox": [
+            0,
+            189,
+            709,
+            684
+          ],
+          "area": 278820,
+          "defect_percentage": 7.12,
+          "defect_type": "Anthracnose",
+          "health_status": "Defective",
+          "ripeness": "Ripe",
+          "grade": "Grade C",
+          "confidence": 100.0
+        }
+      ],
+      "error": null,
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_baseline\\visual_overlays\\PHOTO-2026-10-08-10-27-21(4)_overlay.jpg"
+    },
+    {
+      "filename": "PHOTO-2026-10-08-10-27-21.jpg",
+      "status": "success",
+      "detected_count": 1,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            113,
+            29,
+            200,
+            212
+          ],
+          "area": 26536,
+          "defect_percentage": 16.61,
+          "defect_type": "Anthracnose",
+          "health_status": "Defective",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 99.9
+        }
+      ],
+      "error": null,
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_baseline\\visual_overlays\\PHOTO-2026-10-08-10-27-21_overlay.jpg"
+    },
+    {
+      "filename": "PHOTO-2026-10-08-10-28-11(1).jpg",
+      "status": "success",
+      "detected_count": 2,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            27,
+            94,
+            152,
+            124
+          ],
+          "area": 13406,
+          "defect_percentage": 3.12,
+          "defect_type": "Anthracnose",
+          "health_status": "Defective",
+          "ripeness": "Ripe",
+          "grade": "Grade C",
+          "confidence": 99.9
+        },
+        {
+          "mango_index": 2,
+          "bbox": [
+            170,
+            94,
+            201,
+            121
+          ],
+          "area": 14803,
+          "defect_percentage": 4.18,
+          "defect_type": "Anthracnose",
+          "health_status": "Defective",
+          "ripeness": "Ripe",
+          "grade": "Grade C",
+          "confidence": 100.0
+        }
+      ],
+      "error": null,
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_baseline\\visual_overlays\\PHOTO-2026-10-08-10-28-11(1)_overlay.jpg"
+    },
+    {
+      "filename": "PHOTO-2026-10-08-10-28-11(2).jpg",
+      "status": "success",
+      "detected_count": 2,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            14,
+            9,
+            222,
+            254
+          ],
+          "area": 30210,
+          "defect_percentage": 2.31,
+          "defect_type": "None",
+          "health_status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 48.1
+        },
+        {
+          "mango_index": 2,
+          "bbox": [
+            225,
+            89,
+            128,
+            154
+          ],
+          "area": 11483,
+          "defect_percentage": 13.06,
+          "defect_type": "Anthracnose",
+          "health_status": "Defective",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 99.1
+        }
+      ],
+      "error": null,
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_baseline\\visual_overlays\\PHOTO-2026-10-08-10-28-11(2)_overlay.jpg"
+    },
+    {
+      "filename": "PHOTO-2026-10-08-10-28-11(3).jpg",
+      "status": "success",
+      "detected_count": 1,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            81,
+            48,
+            653,
+            462
+          ],
+          "area": 153789,
+          "defect_percentage": 21.09,
+          "defect_type": "Anthracnose",
+          "health_status": "Defective",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 99.1
+        }
+      ],
+      "error": null,
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_baseline\\visual_overlays\\PHOTO-2026-10-08-10-28-11(3)_overlay.jpg"
+    },
+    {
+      "filename": "PHOTO-2026-10-08-10-28-11(4).jpg",
+      "status": "success",
+      "detected_count": 2,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            41,
+            68,
+            120,
+            147
+          ],
+          "area": 8944,
+          "defect_percentage": 52.56,
+          "defect_type": "Other",
+          "health_status": "Defective",
+          "ripeness": "Overripe",
+          "grade": "Reject",
+          "confidence": 99.8
+        },
+        {
+          "mango_index": 2,
+          "bbox": [
+            66,
+            38,
+            357,
+            219
+          ],
+          "area": 45494,
+          "defect_percentage": 21.98,
+          "defect_type": "Anthracnose",
+          "health_status": "Defective",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 99.4
+        }
+      ],
+      "error": null,
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_baseline\\visual_overlays\\PHOTO-2026-10-08-10-28-11(4)_overlay.jpg"
+    },
+    {
+      "filename": "PHOTO-2026-10-08-10-28-11.jpg",
+      "status": "success",
+      "detected_count": 2,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            14,
+            9,
+            222,
+            254
+          ],
+          "area": 30210,
+          "defect_percentage": 2.31,
+          "defect_type": "None",
+          "health_status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 48.1
+        },
+        {
+          "mango_index": 2,
+          "bbox": [
+            225,
+            89,
+            128,
+            154
+          ],
+          "area": 11483,
+          "defect_percentage": 13.06,
+          "defect_type": "Anthracnose",
+          "health_status": "Defective",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 99.1
+        }
+      ],
+      "error": null,
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_baseline\\visual_overlays\\PHOTO-2026-10-08-10-28-11_overlay.jpg"
+    },
+    {
+      "filename": "PHOTO-2026-10-08-10-30-57(1).jpg",
+      "status": "success",
+      "detected_count": 0,
+      "mangoes": [],
+      "error": null,
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_baseline\\visual_overlays\\PHOTO-2026-10-08-10-30-57(1)_overlay.jpg"
+    },
+    {
+      "filename": "PHOTO-2026-10-08-10-30-57.jpg",
+      "status": "success",
+      "detected_count": 10,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            100,
+            28,
+            167,
+            177
+          ],
+          "area": 18584,
+          "defect_percentage": 0.0,
+          "defect_type": "None",
+          "health_status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 53.1
+        },
+        {
+          "mango_index": 2,
+          "bbox": [
+            336,
+            199,
+            169,
+            203
+          ],
+          "area": 19316,
+          "defect_percentage": 0.0,
+          "defect_type": "None",
+          "health_status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 87.4
+        },
+        {
+          "mango_index": 3,
+          "bbox": [
+            564,
+            197,
+            165,
+            205
+          ],
+          "area": 19332,
+          "defect_percentage": 0.08,
+          "defect_type": "None",
+          "health_status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 77.4
+        },
+        {
+          "mango_index": 4,
+          "bbox": [
+            100,
+            211,
+            167,
+            197
+          ],
+          "area": 19912,
+          "defect_percentage": 0.12,
+          "defect_type": "None",
+          "health_status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 79.0
+        },
+        {
+          "mango_index": 5,
+          "bbox": [
+            1016,
+            201,
+            165,
+            191
+          ],
+          "area": 18620,
+          "defect_percentage": 0.17,
+          "defect_type": "None",
+          "health_status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 79.9
+        },
+        {
+          "mango_index": 6,
+          "bbox": [
+            104,
+            375,
+            167,
+            197
+          ],
+          "area": 19532,
+          "defect_percentage": 0.14,
+          "defect_type": "None",
+          "health_status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 76.1
+        },
+        {
+          "mango_index": 7,
+          "bbox": [
+            334,
+            375,
+            167,
+            203
+          ],
+          "area": 19104,
+          "defect_percentage": 0.07,
+          "defect_type": "None",
+          "health_status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 69.4
+        },
+        {
+          "mango_index": 8,
+          "bbox": [
+            571,
+            369,
+            153,
+            209
+          ],
+          "area": 19172,
+          "defect_percentage": 0.0,
+          "defect_type": "None",
+          "health_status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 78.5
+        },
+        {
+          "mango_index": 9,
+          "bbox": [
+            803,
+            365,
+            149,
+            211
+          ],
+          "area": 18948,
+          "defect_percentage": 0.03,
+          "defect_type": "None",
+          "health_status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 84.7
+        },
+        {
+          "mango_index": 10,
+          "bbox": [
+            1014,
+            367,
+            171,
+            203
+          ],
+          "area": 19628,
+          "defect_percentage": 0.11,
+          "defect_type": "None",
+          "health_status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 73.4
+        }
+      ],
+      "error": null,
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_baseline\\visual_overlays\\PHOTO-2026-10-08-10-30-57_overlay.jpg"
+    },
+    {
+      "filename": "PHOTO-2026-10-08-10-30-58(1).jpg",
+      "status": "success",
+      "detected_count": 9,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            98,
+            26,
+            169,
+            173
+          ],
+          "area": 18304,
+          "defect_percentage": 3.82,
+          "defect_type": "None",
+          "health_status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade B",
+          "confidence": 95.5
+        },
+        {
+          "mango_index": 2,
+          "bbox": [
+            100,
+            213,
+            171,
+            193
+          ],
+          "area": 19096,
+          "defect_percentage": 5.95,
+          "defect_type": "None",
+          "health_status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade B",
+          "confidence": 98.7
+        },
+        {
+          "mango_index": 3,
+          "bbox": [
+            336,
+            203,
+            169,
+            199
+          ],
+          "area": 18548,
+          "defect_percentage": 0.29,
+          "defect_type": "None",
+          "health_status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 94.3
+        },
+        {
+          "mango_index": 4,
+          "bbox": [
+            564,
+            203,
+            167,
+            195
+          ],
+          "area": 18636,
+          "defect_percentage": 0.55,
+          "defect_type": "None",
+          "health_status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 75.8
+        },
+        {
+          "mango_index": 5,
+          "bbox": [
+            104,
+            375,
+            167,
+            197
+          ],
+          "area": 19116,
+          "defect_percentage": 1.32,
+          "defect_type": "None",
+          "health_status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 90.1
+        },
+        {
+          "mango_index": 6,
+          "bbox": [
+            336,
+            375,
+            165,
+            207
+          ],
+          "area": 18744,
+          "defect_percentage": 3.23,
+          "defect_type": "None",
+          "health_status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade B",
+          "confidence": 98.7
+        },
+        {
+          "mango_index": 7,
+          "bbox": [
+            571,
+            371,
+            153,
+            209
+          ],
+          "area": 19140,
+          "defect_percentage": 1.89,
+          "defect_type": "None",
+          "health_status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 83.3
+        },
+        {
+          "mango_index": 8,
+          "bbox": [
+            801,
+            371,
+            151,
+            207
+          ],
+          "area": 18536,
+          "defect_percentage": 3.7,
+          "defect_type": "None",
+          "health_status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade B",
+          "confidence": 90.2
+        },
+        {
+          "mango_index": 9,
+          "bbox": [
+            1014,
+            371,
+            173,
+            201
+          ],
+          "area": 19116,
+          "defect_percentage": 1.88,
+          "defect_type": "None",
+          "health_status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 96.1
+        }
+      ],
+      "error": null,
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_baseline\\visual_overlays\\PHOTO-2026-10-08-10-30-58(1)_overlay.jpg"
+    },
+    {
+      "filename": "PHOTO-2026-10-08-10-30-58.jpg",
+      "status": "success",
+      "detected_count": 0,
+      "mangoes": [],
+      "error": null,
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_baseline\\visual_overlays\\PHOTO-2026-10-08-10-30-58_overlay.jpg"
+    },
+    {
+      "filename": "PHOTO-2026-10-08-10-34-47.jpg",
+      "status": "success",
+      "detected_count": 7,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            74,
+            39,
+            217,
+            149
+          ],
+          "area": 20828,
+          "defect_percentage": 0.0,
+          "defect_type": "None",
+          "health_status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 57.5
+        },
+        {
+          "mango_index": 2,
+          "bbox": [
+            781,
+            37,
+            191,
+            147
+          ],
+          "area": 19776,
+          "defect_percentage": 0.0,
+          "defect_type": "None",
+          "health_status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 75.2
+        },
+        {
+          "mango_index": 3,
+          "bbox": [
+            317,
+            213,
+            189,
+            147
+          ],
+          "area": 18468,
+          "defect_percentage": 7.99,
+          "defect_type": "None",
+          "health_status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade B",
+          "confidence": 98.9
+        },
+        {
+          "mango_index": 4,
+          "bbox": [
+            547,
+            209,
+            201,
+            143
+          ],
+          "area": 20156,
+          "defect_percentage": 0.0,
+          "defect_type": "None",
+          "health_status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 66.1
+        },
+        {
+          "mango_index": 5,
+          "bbox": [
+            83,
+            379,
+            209,
+            155
+          ],
+          "area": 19592,
+          "defect_percentage": 40.34,
+          "defect_type": "Stem End Rot",
+          "health_status": "Defective",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 99.9
+        },
+        {
+          "mango_index": 6,
+          "bbox": [
+            279,
+            377,
+            249,
+            147
+          ],
+          "area": 20924,
+          "defect_percentage": 0.0,
+          "defect_type": "None",
+          "health_status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 49.4
+        },
+        {
+          "mango_index": 7,
+          "bbox": [
+            984,
+            375,
+            223,
+            149
+          ],
+          "area": 20936,
+          "defect_percentage": 0.41,
+          "defect_type": "None",
+          "health_status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 41.4
+        }
+      ],
+      "error": null,
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_baseline\\visual_overlays\\PHOTO-2026-10-08-10-34-47_overlay.jpg"
+    },
+    {
+      "filename": "PHOTO-2026-10-08-10-34-51.jpg",
+      "status": "success",
+      "detected_count": 0,
+      "mangoes": [],
+      "error": null,
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_baseline\\visual_overlays\\PHOTO-2026-10-08-10-34-51_overlay.jpg"
+    },
+    {
+      "filename": "PHOTO-2026-10-08-10-35-20(1).jpg",
+      "status": "success",
+      "detected_count": 2,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            0,
+            0,
+            319,
+            391
+          ],
+          "area": 114893,
+          "defect_percentage": 6.89,
+          "defect_type": "None",
+          "health_status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade B",
+          "confidence": 99.4
+        },
+        {
+          "mango_index": 2,
+          "bbox": [
+            289,
+            0,
+            311,
+            391
+          ],
+          "area": 111842,
+          "defect_percentage": 12.52,
+          "defect_type": "None",
+          "health_status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade B",
+          "confidence": 99.8
+        }
+      ],
+      "error": null,
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_baseline\\visual_overlays\\PHOTO-2026-10-08-10-35-20(1)_overlay.jpg"
+    },
+    {
+      "filename": "PHOTO-2026-10-08-10-35-20(2).jpg",
+      "status": "success",
+      "detected_count": 2,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            58,
+            0,
+            571,
+            381
+          ],
+          "area": 149093,
+          "defect_percentage": 0.38,
+          "defect_type": "None",
+          "health_status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 87.5
+        },
+        {
+          "mango_index": 2,
+          "bbox": [
+            0,
+            139,
+            455,
+            302
+          ],
+          "area": 33578,
+          "defect_percentage": 0.0,
+          "defect_type": "None",
+          "health_status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 97.6
+        }
+      ],
+      "error": null,
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_baseline\\visual_overlays\\PHOTO-2026-10-08-10-35-20(2)_overlay.jpg"
+    },
+    {
+      "filename": "PHOTO-2026-10-08-10-35-20(3).jpg",
+      "status": "success",
+      "detected_count": 3,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            77,
+            173,
+            247,
+            144
+          ],
+          "area": 19408,
+          "defect_percentage": 1.17,
+          "defect_type": "None",
+          "health_status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 92.5
+        },
+        {
+          "mango_index": 2,
+          "bbox": [
+            220,
+            184,
+            305,
+            169
+          ],
+          "area": 30399,
+          "defect_percentage": 1.45,
+          "defect_type": "None",
+          "health_status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 95.7
+        },
+        {
+          "mango_index": 3,
+          "bbox": [
+            559,
+            215,
+            155,
+            163
+          ],
+          "area": 12230,
+          "defect_percentage": 2.87,
+          "defect_type": "None",
+          "health_status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 99.8
+        }
+      ],
+      "error": null,
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_baseline\\visual_overlays\\PHOTO-2026-10-08-10-35-20(3)_overlay.jpg"
+    },
+    {
+      "filename": "PHOTO-2026-10-08-10-35-20(4).jpg",
+      "status": "success",
+      "detected_count": 5,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            112,
+            185,
+            219,
+            168
+          ],
+          "area": 20946,
+          "defect_percentage": 15.45,
+          "defect_type": "Other",
+          "health_status": "Defective",
+          "ripeness": "Ripe",
+          "grade": "Grade C",
+          "confidence": 99.9
+        },
+        {
+          "mango_index": 2,
+          "bbox": [
+            282,
+            157,
+            197,
+            189
+          ],
+          "area": 20360,
+          "defect_percentage": 2.41,
+          "defect_type": "None",
+          "health_status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 99.0
+        },
+        {
+          "mango_index": 3,
+          "bbox": [
+            408,
+            167,
+            392,
+            190
+          ],
+          "area": 36864,
+          "defect_percentage": 11.64,
+          "defect_type": "None",
+          "health_status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade B",
+          "confidence": 99.7
+        },
+        {
+          "mango_index": 4,
+          "bbox": [
+            29,
+            230,
+            140,
+            132
+          ],
+          "area": 12070,
+          "defect_percentage": 24.56,
+          "defect_type": "Anthracnose",
+          "health_status": "Defective",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 97.4
+        },
+        {
+          "mango_index": 5,
+          "bbox": [
+            613,
+            284,
+            187,
+            135
+          ],
+          "area": 17872,
+          "defect_percentage": 14.13,
+          "defect_type": "Other",
+          "health_status": "Defective",
+          "ripeness": "Ripe",
+          "grade": "Grade C",
+          "confidence": 97.7
+        }
+      ],
+      "error": null,
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_baseline\\visual_overlays\\PHOTO-2026-10-08-10-35-20(4)_overlay.jpg"
+    },
+    {
+      "filename": "PHOTO-2026-10-08-10-35-20(5).jpg",
+      "status": "success",
+      "detected_count": 2,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            60,
+            49,
+            148,
+            195
+          ],
+          "area": 17120,
+          "defect_percentage": 0.0,
+          "defect_type": "None",
+          "health_status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 69.4
+        },
+        {
+          "mango_index": 2,
+          "bbox": [
+            220,
+            45,
+            156,
+            193
+          ],
+          "area": 18198,
+          "defect_percentage": 2.82,
+          "defect_type": "None",
+          "health_status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 99.1
+        }
+      ],
+      "error": null,
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_baseline\\visual_overlays\\PHOTO-2026-10-08-10-35-20(5)_overlay.jpg"
+    },
+    {
+      "filename": "PHOTO-2026-10-08-10-35-20(6).jpg",
+      "status": "success",
+      "detected_count": 3,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            109,
+            190,
+            140,
+            135
+          ],
+          "area": 12698,
+          "defect_percentage": 45.62,
+          "defect_type": "Stem End Rot",
+          "health_status": "Defective",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 99.2
+        },
+        {
+          "mango_index": 2,
+          "bbox": [
+            271,
+            137,
+            132,
+            195
+          ],
+          "area": 16945,
+          "defect_percentage": 0.82,
+          "defect_type": "None",
+          "health_status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 87.2
+        },
+        {
+          "mango_index": 3,
+          "bbox": [
+            415,
+            130,
+            152,
+            191
+          ],
+          "area": 18705,
+          "defect_percentage": 0.24,
+          "defect_type": "None",
+          "health_status": "Healthy",
+          "ripeness": "Not Ripe",
+          "grade": "Grade A",
+          "confidence": 60.6
+        }
+      ],
+      "error": null,
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_baseline\\visual_overlays\\PHOTO-2026-10-08-10-35-20(6)_overlay.jpg"
+    },
+    {
+      "filename": "PHOTO-2026-10-08-10-35-20(7).jpg",
+      "status": "success",
+      "detected_count": 1,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            15,
+            0,
+            585,
+            399
+          ],
+          "area": 125798,
+          "defect_percentage": 10.42,
+          "defect_type": "Anthracnose",
+          "health_status": "Defective",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 99.8
+        }
+      ],
+      "error": null,
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_baseline\\visual_overlays\\PHOTO-2026-10-08-10-35-20(7)_overlay.jpg"
+    },
+    {
+      "filename": "PHOTO-2026-10-08-10-35-20(8).jpg",
+      "status": "success",
+      "detected_count": 3,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            150,
+            75,
+            176,
+            171
+          ],
+          "area": 19007,
+          "defect_percentage": 2.21,
+          "defect_type": "None",
+          "health_status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 97.8
+        },
+        {
+          "mango_index": 2,
+          "bbox": [
+            135,
+            269,
+            155,
+            209
+          ],
+          "area": 22722,
+          "defect_percentage": 3.46,
+          "defect_type": "None",
+          "health_status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade B",
+          "confidence": 64.6
+        },
+        {
+          "mango_index": 3,
+          "bbox": [
+            106,
+            479,
+            184,
+            206
+          ],
+          "area": 23985,
+          "defect_percentage": 0.65,
+          "defect_type": "None",
+          "health_status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 80.5
+        }
+      ],
+      "error": null,
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_baseline\\visual_overlays\\PHOTO-2026-10-08-10-35-20(8)_overlay.jpg"
+    },
+    {
+      "filename": "PHOTO-2026-10-08-10-35-20.jpg",
+      "status": "success",
+      "detected_count": 4,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            98,
+            55,
+            328,
+            326
+          ],
+          "area": 44014,
+          "defect_percentage": 12.22,
+          "defect_type": "Anthracnose",
+          "health_status": "Defective",
+          "ripeness": "Ripe",
+          "grade": "Grade C",
+          "confidence": 62.9
+        },
+        {
+          "mango_index": 2,
+          "bbox": [
+            324,
+            69,
+            364,
+            342
+          ],
+          "area": 77397,
+          "defect_percentage": 6.9,
+          "defect_type": "Anthracnose",
+          "health_status": "Defective",
+          "ripeness": "Ripe",
+          "grade": "Grade C",
+          "confidence": 70.7
+        },
+        {
+          "mango_index": 3,
+          "bbox": [
+            92,
+            231,
+            252,
+            199
+          ],
+          "area": 23517,
+          "defect_percentage": 63.29,
+          "defect_type": "Other",
+          "health_status": "Defective",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 99.1
+        },
+        {
+          "mango_index": 4,
+          "bbox": [
+            176,
+            269,
+            541,
+            259
+          ],
+          "area": 54858,
+          "defect_percentage": 0.05,
+          "defect_type": "None",
+          "health_status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 86.5
+        }
+      ],
+      "error": null,
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_baseline\\visual_overlays\\PHOTO-2026-10-08-10-35-20_overlay.jpg"
+    },
+    {
+      "filename": "PHOTO-2026-10-08-10-35-21(1).jpg",
+      "status": "success",
+      "detected_count": 1,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            133,
+            53,
+            347,
+            251
+          ],
+          "area": 61234,
+          "defect_percentage": 12.44,
+          "defect_type": "Anthracnose",
+          "health_status": "Defective",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 98.1
+        }
+      ],
+      "error": null,
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_baseline\\visual_overlays\\PHOTO-2026-10-08-10-35-21(1)_overlay.jpg"
+    },
+    {
+      "filename": "PHOTO-2026-10-08-10-35-21(2).jpg",
+      "status": "success",
+      "detected_count": 1,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            48,
+            19,
+            367,
+            236
+          ],
+          "area": 58827,
+          "defect_percentage": 31.05,
+          "defect_type": "Other",
+          "health_status": "Defective",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 99.9
+        }
+      ],
+      "error": null,
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_baseline\\visual_overlays\\PHOTO-2026-10-08-10-35-21(2)_overlay.jpg"
+    },
+    {
+      "filename": "PHOTO-2026-10-08-10-35-21(3).jpg",
+      "status": "success",
+      "detected_count": 4,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            48,
+            68,
+            227,
+            166
+          ],
+          "area": 22900,
+          "defect_percentage": 0.76,
+          "defect_type": "None",
+          "health_status": "Healthy",
+          "ripeness": "Nearly Ripe",
+          "grade": "Grade A",
+          "confidence": 99.8
+        },
+        {
+          "mango_index": 2,
+          "bbox": [
+            259,
+            78,
+            118,
+            158
+          ],
+          "area": 11065,
+          "defect_percentage": 0.55,
+          "defect_type": "None",
+          "health_status": "Healthy",
+          "ripeness": "Nearly Ripe",
+          "grade": "Grade A",
+          "confidence": 99.2
+        },
+        {
+          "mango_index": 3,
+          "bbox": [
+            359,
+            83,
+            99,
+            153
+          ],
+          "area": 9207,
+          "defect_percentage": 7.39,
+          "defect_type": "Anthracnose",
+          "health_status": "Defective",
+          "ripeness": "Ripe",
+          "grade": "Grade C",
+          "confidence": 100.0
+        },
+        {
+          "mango_index": 4,
+          "bbox": [
+            465,
+            81,
+            118,
+            182
+          ],
+          "area": 12202,
+          "defect_percentage": 21.31,
+          "defect_type": "Other",
+          "health_status": "Defective",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 82.3
+        }
+      ],
+      "error": null,
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_baseline\\visual_overlays\\PHOTO-2026-10-08-10-35-21(3)_overlay.jpg"
+    },
+    {
+      "filename": "PHOTO-2026-10-08-10-35-21(4).jpg",
+      "status": "success",
+      "detected_count": 1,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            25,
+            106,
+            749,
+            622
+          ],
+          "area": 303183,
+          "defect_percentage": 9.6,
+          "defect_type": "Anthracnose",
+          "health_status": "Defective",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 99.9
+        }
+      ],
+      "error": null,
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_baseline\\visual_overlays\\PHOTO-2026-10-08-10-35-21(4)_overlay.jpg"
+    },
+    {
+      "filename": "PHOTO-2026-10-08-10-35-21.jpg",
+      "status": "success",
+      "detected_count": 2,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            14,
+            9,
+            222,
+            254
+          ],
+          "area": 30210,
+          "defect_percentage": 2.31,
+          "defect_type": "None",
+          "health_status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 48.1
+        },
+        {
+          "mango_index": 2,
+          "bbox": [
+            225,
+            89,
+            128,
+            154
+          ],
+          "area": 11483,
+          "defect_percentage": 13.06,
+          "defect_type": "Anthracnose",
+          "health_status": "Defective",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 99.1
+        }
+      ],
+      "error": null,
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_baseline\\visual_overlays\\PHOTO-2026-10-08-10-35-21_overlay.jpg"
+    },
+    {
+      "filename": "PHOTO-2026-10-08-10-35-39.jpg",
+      "status": "success",
+      "detected_count": 6,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            35,
+            21,
+            361,
+            251
+          ],
+          "area": 20800,
+          "defect_percentage": 0.0,
+          "defect_type": "None",
+          "health_status": "Healthy",
+          "ripeness": "Not Ripe",
+          "grade": "Grade A",
+          "confidence": 93.8
+        },
+        {
+          "mango_index": 2,
+          "bbox": [
+            168,
+            38,
+            327,
+            293
+          ],
+          "area": 24580,
+          "defect_percentage": 0.0,
+          "defect_type": "None",
+          "health_status": "Healthy",
+          "ripeness": "Not Ripe",
+          "grade": "Grade A",
+          "confidence": 92.2
+        },
+        {
+          "mango_index": 3,
+          "bbox": [
+            375,
+            28,
+            371,
+            125
+          ],
+          "area": 21236,
+          "defect_percentage": 0.0,
+          "defect_type": "None",
+          "health_status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 93.8
+        },
+        {
+          "mango_index": 4,
+          "bbox": [
+            1022,
+            28,
+            219,
+            127
+          ],
+          "area": 18696,
+          "defect_percentage": 0.0,
+          "defect_type": "None",
+          "health_status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 61.6
+        },
+        {
+          "mango_index": 5,
+          "bbox": [
+            39,
+            257,
+            209,
+            253
+          ],
+          "area": 24664,
+          "defect_percentage": 0.22,
+          "defect_type": "None",
+          "health_status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 98.9
+        },
+        {
+          "mango_index": 6,
+          "bbox": [
+            774,
+            204,
+            223,
+            127
+          ],
+          "area": 18912,
+          "defect_percentage": 0.0,
+          "defect_type": "None",
+          "health_status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 62.2
+        }
+      ],
+      "error": null,
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_baseline\\visual_overlays\\PHOTO-2026-10-08-10-35-39_overlay.jpg"
+    },
+    {
+      "filename": "PHOTO-2026-10-08-10-36-27.jpg",
+      "status": "success",
+      "detected_count": 1,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            211,
+            25,
+            855,
+            675
+          ],
+          "area": 383524,
+          "defect_percentage": 13.43,
+          "defect_type": "Anthracnose",
+          "health_status": "Defective",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 99.2
+        }
+      ],
+      "error": null,
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_baseline\\visual_overlays\\PHOTO-2026-10-08-10-36-27_overlay.jpg"
+    },
+    {
+      "filename": "PHOTO-2026-10-08-10-41-53(1).jpg",
+      "status": "success",
+      "detected_count": 2,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            9,
+            31,
+            196,
+            216
+          ],
+          "area": 27023,
+          "defect_percentage": 13.65,
+          "defect_type": "Anthracnose",
+          "health_status": "Defective",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 99.4
+        },
+        {
+          "mango_index": 2,
+          "bbox": [
+            186,
+            85,
+            204,
+            137
+          ],
+          "area": 18039,
+          "defect_percentage": 24.21,
+          "defect_type": "Anthracnose",
+          "health_status": "Defective",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 96.6
+        }
+      ],
+      "error": null,
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_baseline\\visual_overlays\\PHOTO-2026-10-08-10-41-53(1)_overlay.jpg"
+    },
+    {
+      "filename": "PHOTO-2026-10-08-10-41-53(2).jpg",
+      "status": "success",
+      "detected_count": 4,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            292,
+            0,
+            266,
+            194
+          ],
+          "area": 35833,
+          "defect_percentage": 26.93,
+          "defect_type": "Anthracnose",
+          "health_status": "Defective",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 99.3
+        },
+        {
+          "mango_index": 2,
+          "bbox": [
+            536,
+            42,
+            266,
+            225
+          ],
+          "area": 28325,
+          "defect_percentage": 2.13,
+          "defect_type": "None",
+          "health_status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 97.3
+        },
+        {
+          "mango_index": 3,
+          "bbox": [
+            269,
+            175,
+            212,
+            208
+          ],
+          "area": 23465,
+          "defect_percentage": 18.06,
+          "defect_type": "Other",
+          "health_status": "Defective",
+          "ripeness": "Ripe",
+          "grade": "Grade C",
+          "confidence": 87.2
+        },
+        {
+          "mango_index": 4,
+          "bbox": [
+            369,
+            177,
+            200,
+            243
+          ],
+          "area": 25114,
+          "defect_percentage": 28.61,
+          "defect_type": "Anthracnose",
+          "health_status": "Defective",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 98.9
+        }
+      ],
+      "error": null,
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_baseline\\visual_overlays\\PHOTO-2026-10-08-10-41-53(2)_overlay.jpg"
+    },
+    {
+      "filename": "PHOTO-2026-10-08-10-41-53(3).jpg",
+      "status": "success",
+      "detected_count": 1,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            83,
+            26,
+            237,
+            182
+          ],
+          "area": 25961,
+          "defect_percentage": 29.46,
+          "defect_type": "Anthracnose",
+          "health_status": "Defective",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 97.1
+        }
+      ],
+      "error": null,
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_baseline\\visual_overlays\\PHOTO-2026-10-08-10-41-53(3)_overlay.jpg"
+    },
+    {
+      "filename": "PHOTO-2026-10-08-10-41-53(4).jpg",
+      "status": "success",
+      "detected_count": 1,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            53,
+            37,
+            408,
+            281
+          ],
+          "area": 71187,
+          "defect_percentage": 14.53,
+          "defect_type": "Anthracnose",
+          "health_status": "Defective",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 100.0
+        }
+      ],
+      "error": null,
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_baseline\\visual_overlays\\PHOTO-2026-10-08-10-41-53(4)_overlay.jpg"
+    },
+    {
+      "filename": "PHOTO-2026-10-08-10-41-53(5).jpg",
+      "status": "success",
+      "detected_count": 4,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            313,
+            38,
+            175,
+            326
+          ],
+          "area": 35806,
+          "defect_percentage": 22.43,
+          "defect_type": "Anthracnose",
+          "health_status": "Defective",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 61.8
+        },
+        {
+          "mango_index": 2,
+          "bbox": [
+            40,
+            288,
+            325,
+            175
+          ],
+          "area": 36055,
+          "defect_percentage": 21.48,
+          "defect_type": "Anthracnose",
+          "health_status": "Defective",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 68.8
+        },
+        {
+          "mango_index": 3,
+          "bbox": [
+            430,
+            288,
+            326,
+            175
+          ],
+          "area": 35785,
+          "defect_percentage": 21.43,
+          "defect_type": "Anthracnose",
+          "health_status": "Defective",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 70.2
+        },
+        {
+          "mango_index": 4,
+          "bbox": [
+            308,
+            378,
+            175,
+            326
+          ],
+          "area": 35740,
+          "defect_percentage": 22.18,
+          "defect_type": "Anthracnose",
+          "health_status": "Defective",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 62.5
+        }
+      ],
+      "error": null,
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_baseline\\visual_overlays\\PHOTO-2026-10-08-10-41-53(5)_overlay.jpg"
+    },
+    {
+      "filename": "PHOTO-2026-10-08-10-41-53(6).jpg",
+      "status": "success",
+      "detected_count": 2,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            25,
+            9,
+            577,
+            587
+          ],
+          "area": 181315,
+          "defect_percentage": 7.19,
+          "defect_type": "Anthracnose",
+          "health_status": "Defective",
+          "ripeness": "Ripe",
+          "grade": "Grade C",
+          "confidence": 99.7
+        },
+        {
+          "mango_index": 2,
+          "bbox": [
+            463,
+            88,
+            536,
+            509
+          ],
+          "area": 141535,
+          "defect_percentage": 2.92,
+          "defect_type": "None",
+          "health_status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 89.8
+        }
+      ],
+      "error": null,
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_baseline\\visual_overlays\\PHOTO-2026-10-08-10-41-53(6)_overlay.jpg"
+    },
+    {
+      "filename": "PHOTO-2026-10-08-10-41-53.jpg",
+      "status": "success",
+      "detected_count": 1,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            146,
+            104,
+            400,
+            246
+          ],
+          "area": 46501,
+          "defect_percentage": 2.66,
+          "defect_type": "None",
+          "health_status": "Healthy",
+          "ripeness": "Nearly Ripe",
+          "grade": "Grade A",
+          "confidence": 97.8
+        }
+      ],
+      "error": null,
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_baseline\\visual_overlays\\PHOTO-2026-10-08-10-41-53_overlay.jpg"
+    },
+    {
+      "filename": "PHOTO-2026-10-08-10-41-54(1).jpg",
+      "status": "success",
+      "detected_count": 1,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            53,
+            142,
+            798,
+            989
+          ],
+          "area": 508157,
+          "defect_percentage": 2.28,
+          "defect_type": "None",
+          "health_status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 51.3
+        }
+      ],
+      "error": null,
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_baseline\\visual_overlays\\PHOTO-2026-10-08-10-41-54(1)_overlay.jpg"
+    },
+    {
+      "filename": "PHOTO-2026-10-08-10-41-54(2).jpg",
+      "status": "success",
+      "detected_count": 2,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            69,
+            77,
+            330,
+            213
+          ],
+          "area": 46527,
+          "defect_percentage": 6.04,
+          "defect_type": "Anthracnose",
+          "health_status": "Defective",
+          "ripeness": "Ripe",
+          "grade": "Grade C",
+          "confidence": 98.7
+        },
+        {
+          "mango_index": 2,
+          "bbox": [
+            97,
+            25,
+            174,
+            108
+          ],
+          "area": 8672,
+          "defect_percentage": 16.17,
+          "defect_type": "Anthracnose",
+          "health_status": "Defective",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 99.8
+        }
+      ],
+      "error": null,
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_baseline\\visual_overlays\\PHOTO-2026-10-08-10-41-54(2)_overlay.jpg"
+    },
+    {
+      "filename": "PHOTO-2026-10-08-10-41-54.jpg",
+      "status": "success",
+      "detected_count": 4,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            67,
+            78,
+            130,
+            141
+          ],
+          "area": 10960,
+          "defect_percentage": 54.92,
+          "defect_type": "Stem End Rot",
+          "health_status": "Defective",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 99.9
+        },
+        {
+          "mango_index": 2,
+          "bbox": [
+            93,
+            77,
+            251,
+            189
+          ],
+          "area": 22412,
+          "defect_percentage": 9.06,
+          "defect_type": "Anthracnose",
+          "health_status": "Defective",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 99.2
+        },
+        {
+          "mango_index": 3,
+          "bbox": [
+            393,
+            150,
+            105,
+            140
+          ],
+          "area": 7996,
+          "defect_percentage": 54.45,
+          "defect_type": "Other",
+          "health_status": "Defective",
+          "ripeness": "Overripe",
+          "grade": "Reject",
+          "confidence": 99.2
+        },
+        {
+          "mango_index": 4,
+          "bbox": [
+            410,
+            148,
+            181,
+            190
+          ],
+          "area": 15894,
+          "defect_percentage": 0.31,
+          "defect_type": "None",
+          "health_status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 94.6
+        }
+      ],
+      "error": null,
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_baseline\\visual_overlays\\PHOTO-2026-10-08-10-41-54_overlay.jpg"
+    },
+    {
+      "filename": "Screenshot 2026-10-06 224620.png",
+      "status": "success",
+      "detected_count": 7,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            0,
+            0,
+            167,
+            217
+          ],
+          "area": 26133,
+          "defect_percentage": 13.63,
+          "defect_type": "None",
+          "health_status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade B",
+          "confidence": 93.1
+        },
+        {
+          "mango_index": 2,
+          "bbox": [
+            78,
+            0,
+            333,
+            471
+          ],
+          "area": 111495,
+          "defect_percentage": 13.14,
+          "defect_type": "Anthracnose",
+          "health_status": "Defective",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 98.2
+        },
+        {
+          "mango_index": 3,
+          "bbox": [
+            340,
+            0,
+            200,
+            292
+          ],
+          "area": 35376,
+          "defect_percentage": 2.32,
+          "defect_type": "None",
+          "health_status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 91.2
+        },
+        {
+          "mango_index": 4,
+          "bbox": [
+            461,
+            0,
+            224,
+            321
+          ],
+          "area": 42615,
+          "defect_percentage": 4.79,
+          "defect_type": "None",
+          "health_status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade B",
+          "confidence": 91.2
+        },
+        {
+          "mango_index": 5,
+          "bbox": [
+            0,
+            151,
+            140,
+            320
+          ],
+          "area": 28438,
+          "defect_percentage": 5.72,
+          "defect_type": "None",
+          "health_status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade B",
+          "confidence": 91.7
+        },
+        {
+          "mango_index": 6,
+          "bbox": [
+            499,
+            185,
+            186,
+            286
+          ],
+          "area": 25322,
+          "defect_percentage": 0.0,
+          "defect_type": "None",
+          "health_status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 82.6
+        },
+        {
+          "mango_index": 7,
+          "bbox": [
+            348,
+            256,
+            211,
+            215
+          ],
+          "area": 33011,
+          "defect_percentage": 0.04,
+          "defect_type": "None",
+          "health_status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 90.6
+        }
+      ],
+      "error": null,
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_baseline\\visual_overlays\\Screenshot 2026-10-06 224620_overlay.jpg"
+    },
+    {
+      "filename": "images.jpg",
+      "status": "success",
+      "detected_count": 3,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            0,
+            0,
+            179,
+            337
+          ],
+          "area": 37988,
+          "defect_percentage": 1.39,
+          "defect_type": "None",
+          "health_status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 91.7
+        },
+        {
+          "mango_index": 2,
+          "bbox": [
+            107,
+            0,
+            292,
+            269
+          ],
+          "area": 50245,
+          "defect_percentage": 8.48,
+          "defect_type": "Anthracnose",
+          "health_status": "Defective",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 98.4
+        },
+        {
+          "mango_index": 3,
+          "bbox": [
+            0,
+            143,
+            399,
+            358
+          ],
+          "area": 84356,
+          "defect_percentage": 19.81,
+          "defect_type": "Other",
+          "health_status": "Defective",
+          "ripeness": "Ripe",
+          "grade": "Grade C",
+          "confidence": 99.5
+        }
+      ],
+      "error": null,
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_baseline\\visual_overlays\\images_overlay.jpg"
+    },
+    {
+      "filename": "nTIGEoMBqvOUNw1.jpg",
+      "status": "success",
+      "detected_count": 1,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            0,
+            0,
+            300,
+            168
+          ],
+          "area": 47628,
+          "defect_percentage": 19.98,
+          "defect_type": "Anthracnose",
+          "health_status": "Defective",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 97.9
+        }
+      ],
+      "error": null,
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_baseline\\visual_overlays\\nTIGEoMBqvOUNw1_overlay.jpg"
+    },
+    {
+      "filename": "unripe-mango-green-mango.jpg",
+      "status": "success",
+      "detected_count": 3,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            0,
+            0,
+            157,
+            250
+          ],
+          "area": 26572,
+          "defect_percentage": 2.45,
+          "defect_type": "None",
+          "health_status": "Healthy",
+          "ripeness": "Not Ripe",
+          "grade": "Grade A",
+          "confidence": 96.5
+        },
+        {
+          "mango_index": 2,
+          "bbox": [
+            77,
+            0,
+            173,
+            185
+          ],
+          "area": 16673,
+          "defect_percentage": 8.17,
+          "defect_type": "Anthracnose",
+          "health_status": "Defective",
+          "ripeness": "Not Ripe",
+          "grade": "Reject",
+          "confidence": 96.7
+        },
+        {
+          "mango_index": 3,
+          "bbox": [
+            98,
+            175,
+            123,
+            73
+          ],
+          "area": 4958,
+          "defect_percentage": 2.46,
+          "defect_type": "None",
+          "health_status": "Healthy",
+          "ripeness": "Not Ripe",
+          "grade": "Grade A",
+          "confidence": 71.3
+        }
+      ],
+      "error": null,
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_baseline\\visual_overlays\\unripe-mango-green-mango_overlay.jpg"
+    }
+  ]
+}

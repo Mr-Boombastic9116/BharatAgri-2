@@ -1,0 +1,6179 @@
+{
+  "experiment_name": "REFINED_EXTERNAL_UNSEEN_TEST_FINAL_EVALUATION",
+  "timestamp": "2026-10-08T20:53:15.609301",
+  "total_test_images": 62,
+  "total_execution_time_seconds": 223.59,
+  "successful_process_images": 62,
+  "images_with_detections": 62,
+  "images_zero_detections": 0,
+  "total_detected_mangoes": 283,
+  "average_mangoes_per_image": 4.56,
+  "grade_distribution": {
+    "Grade A": 115,
+    "Grade B": 33,
+    "Grade C": 29,
+    "Reject": 106
+  },
+  "average_defect_pct": 13.41,
+  "median_defect_pct": 6.45,
+  "max_defect_pct": 63.31,
+  "defect_classification": {
+    "black_necrotic_defects_detected": 236,
+    "pale_white_rot_defects_detected": 87,
+    "total_accepted_defect_pixels": 5321050,
+    "total_rejected_shadow_pixels": 1324861,
+    "shadow_rejection_efficiency_pct": 19.9
+  },
+  "baseline_comparison": {
+    "baseline_detected_mangoes": 160,
+    "baseline_zero_detections": 3,
+    "baseline_grades": {
+      "Grade C": 21,
+      "Grade A": 67,
+      "Grade B": 22,
+      "Reject": 50
+    },
+    "baseline_time_seconds": 99.18,
+    "detection_increase": 123,
+    "zero_detection_reduction": 3
+  },
+  "results": [
+    {
+      "filename": "04bacterial-black-spot-mango-1024x1024.jpg",
+      "status": "success",
+      "detected_count": 1,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            0,
+            0,
+            1024,
+            1024
+          ],
+          "area": 897591,
+          "defect_percentage": 4.32,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Pale / White Rot-like Patch",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Minor Surface Defect",
+          "ripeness": "Ripe",
+          "grade": "Grade C",
+          "confidence": 98.5
+        }
+      ],
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_evaluation\\visual_overlays\\04bacterial-black-spot-mango-1024x1024_overlay.jpg"
+    },
+    {
+      "filename": "20220423_182120.jpg",
+      "status": "success",
+      "detected_count": 1,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            0,
+            0,
+            3468,
+            4624
+          ],
+          "area": 14769221,
+          "defect_percentage": 0.02,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Pale / White Rot-like Patch",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 85.5
+        }
+      ],
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_evaluation\\visual_overlays\\20220423_182120_overlay.jpg"
+    },
+    {
+      "filename": "20220423_182138.jpg",
+      "status": "success",
+      "detected_count": 1,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            0,
+            0,
+            3468,
+            4624
+          ],
+          "area": 12901443,
+          "defect_percentage": 0.33,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Discoloration / Bruising",
+            "Pale / White Rot-like Patch",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 72.8
+        }
+      ],
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_evaluation\\visual_overlays\\20220423_182138_overlay.jpg"
+    },
+    {
+      "filename": "20220423_183537.jpg",
+      "status": "success",
+      "detected_count": 5,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            0,
+            0,
+            1162,
+            1433
+          ],
+          "area": 612855,
+          "defect_percentage": 12.91,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Pale / White Rot-like Patch",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade B",
+          "confidence": 95.3
+        },
+        {
+          "mango_index": 2,
+          "bbox": [
+            366,
+            0,
+            2612,
+            1118
+          ],
+          "area": 665655,
+          "defect_percentage": 8.12,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Pale / White Rot-like Patch",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade B",
+          "confidence": 99.3
+        },
+        {
+          "mango_index": 3,
+          "bbox": [
+            498,
+            946,
+            2558,
+            1958
+          ],
+          "area": 1626228,
+          "defect_percentage": 3.33,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Pale / White Rot-like Patch",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Minor Surface Defect",
+          "ripeness": "Not Ripe",
+          "grade": "Grade C",
+          "confidence": 99.1
+        },
+        {
+          "mango_index": 4,
+          "bbox": [
+            1951,
+            2175,
+            1517,
+            2449
+          ],
+          "area": 1229524,
+          "defect_percentage": 0.77,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Pale / White Rot-like Patch",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Not Ripe",
+          "grade": "Grade A",
+          "confidence": 96.3
+        },
+        {
+          "mango_index": 5,
+          "bbox": [
+            626,
+            2243,
+            1644,
+            2381
+          ],
+          "area": 1462984,
+          "defect_percentage": 1.23,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Pale / White Rot-like Patch",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Not Ripe",
+          "grade": "Grade A",
+          "confidence": 34.5
+        }
+      ],
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_evaluation\\visual_overlays\\20220423_183537_overlay.jpg"
+    },
+    {
+      "filename": "20250531_135911.jpg",
+      "status": "success",
+      "detected_count": 3,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            0,
+            0,
+            2252,
+            1662
+          ],
+          "area": 2935626,
+          "defect_percentage": 12.39,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Discoloration / Bruising",
+            "Pale / White Rot-like Patch",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Not Ripe",
+          "grade": "Grade B",
+          "confidence": 99.1
+        },
+        {
+          "mango_index": 2,
+          "bbox": [
+            0,
+            1299,
+            2252,
+            1044
+          ],
+          "area": 1344726,
+          "defect_percentage": 23.16,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Discoloration / Bruising",
+            "Pale / White Rot-like Patch",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Not Ripe",
+          "grade": "Reject",
+          "confidence": 95.2
+        },
+        {
+          "mango_index": 3,
+          "bbox": [
+            0,
+            1843,
+            2252,
+            2157
+          ],
+          "area": 4128316,
+          "defect_percentage": 14.09,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Pale / White Rot-like Patch",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Not Ripe",
+          "grade": "Grade C",
+          "confidence": 97.8
+        }
+      ],
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_evaluation\\visual_overlays\\20250531_135911_overlay.jpg"
+    },
+    {
+      "filename": "20250531_135953.jpg",
+      "status": "success",
+      "detected_count": 1,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            0,
+            0,
+            2252,
+            4000
+          ],
+          "area": 8780165,
+          "defect_percentage": 11.38,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Discoloration / Bruising",
+            "Pale / White Rot-like Patch",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Not Ripe",
+          "grade": "Grade B",
+          "confidence": 96.9
+        }
+      ],
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_evaluation\\visual_overlays\\20250531_135953_overlay.jpg"
+    },
+    {
+      "filename": "20250531_141419.jpg",
+      "status": "success",
+      "detected_count": 2,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            461,
+            0,
+            2143,
+            1876
+          ],
+          "area": 1829697,
+          "defect_percentage": 1.69,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Discoloration / Bruising",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 77.9
+        },
+        {
+          "mango_index": 2,
+          "bbox": [
+            0,
+            500,
+            2398,
+            4124
+          ],
+          "area": 5755038,
+          "defect_percentage": 1.28,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Discoloration / Bruising",
+            "Pale / White Rot-like Patch",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 92.7
+        }
+      ],
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_evaluation\\visual_overlays\\20250531_141419_overlay.jpg"
+    },
+    {
+      "filename": "20260506_185630.jpg",
+      "status": "success",
+      "detected_count": 2,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            0,
+            0,
+            2252,
+            2585
+          ],
+          "area": 3985444,
+          "defect_percentage": 7.64,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Pale / White Rot-like Patch",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Grade C",
+          "confidence": 99.6
+        },
+        {
+          "mango_index": 2,
+          "bbox": [
+            0,
+            1830,
+            2252,
+            2170
+          ],
+          "area": 2614981,
+          "defect_percentage": 9.94,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Pale / White Rot-like Patch",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade B",
+          "confidence": 99.9
+        }
+      ],
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_evaluation\\visual_overlays\\20260506_185630_overlay.jpg"
+    },
+    {
+      "filename": "20260506_185633.jpg",
+      "status": "success",
+      "detected_count": 6,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            0,
+            0,
+            1527,
+            1357
+          ],
+          "area": 1045302,
+          "defect_percentage": 12.11,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Pale / White Rot-like Patch",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 99.6
+        },
+        {
+          "mango_index": 2,
+          "bbox": [
+            906,
+            0,
+            1346,
+            2410
+          ],
+          "area": 1773357,
+          "defect_percentage": 8.54,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Pale / White Rot-like Patch",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 99.7
+        },
+        {
+          "mango_index": 3,
+          "bbox": [
+            0,
+            1053,
+            1143,
+            1275
+          ],
+          "area": 732227,
+          "defect_percentage": 13.6,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Pale / White Rot-like Patch",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade B",
+          "confidence": 99.7
+        },
+        {
+          "mango_index": 4,
+          "bbox": [
+            6,
+            1641,
+            1714,
+            1242
+          ],
+          "area": 911138,
+          "defect_percentage": 12.95,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Pale / White Rot-like Patch",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade B",
+          "confidence": 99.7
+        },
+        {
+          "mango_index": 5,
+          "bbox": [
+            503,
+            1888,
+            1749,
+            2112
+          ],
+          "area": 2188774,
+          "defect_percentage": 7.41,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Pale / White Rot-like Patch",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade B",
+          "confidence": 95.9
+        },
+        {
+          "mango_index": 6,
+          "bbox": [
+            0,
+            2226,
+            1059,
+            1774
+          ],
+          "area": 891554,
+          "defect_percentage": 10.24,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Pale / White Rot-like Patch",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade B",
+          "confidence": 99.3
+        }
+      ],
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_evaluation\\visual_overlays\\20260506_185633_overlay.jpg"
+    },
+    {
+      "filename": "He2.jpg",
+      "status": "success",
+      "detected_count": 1,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            34,
+            0,
+            200,
+            256
+          ],
+          "area": 38054,
+          "defect_percentage": 0.0,
+          "visible_defects": [
+            "None (Sound Surface)"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Nearly Ripe",
+          "grade": "Grade A",
+          "confidence": 71.0
+        }
+      ],
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_evaluation\\visual_overlays\\He2_overlay.jpg"
+    },
+    {
+      "filename": "IMG-20140418-WA0002.jpg",
+      "status": "success",
+      "detected_count": 2,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            309,
+            40,
+            123,
+            116
+          ],
+          "area": 8360,
+          "defect_percentage": 19.01,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Pale / White Rot-like Patch"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Not Ripe",
+          "grade": "Reject",
+          "confidence": 98.6
+        },
+        {
+          "mango_index": 2,
+          "bbox": [
+            0,
+            126,
+            389,
+            474
+          ],
+          "area": 125039,
+          "defect_percentage": 0.03,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 96.7
+        }
+      ],
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_evaluation\\visual_overlays\\IMG-20140418-WA0002_overlay.jpg"
+    },
+    {
+      "filename": "IMG-20220423-WA0039.jpg",
+      "status": "success",
+      "detected_count": 7,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            0,
+            0,
+            1651,
+            1726
+          ],
+          "area": 877888,
+          "defect_percentage": 6.66,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Pale / White Rot-like Patch",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Not Ripe",
+          "grade": "Grade C",
+          "confidence": 99.4
+        },
+        {
+          "mango_index": 2,
+          "bbox": [
+            1338,
+            0,
+            822,
+            1801
+          ],
+          "area": 453650,
+          "defect_percentage": 1.11,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Not Ripe",
+          "grade": "Grade A",
+          "confidence": 98.8
+        },
+        {
+          "mango_index": 3,
+          "bbox": [
+            0,
+            468,
+            827,
+            1475
+          ],
+          "area": 283214,
+          "defect_percentage": 0.45,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Pale / White Rot-like Patch",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Not Ripe",
+          "grade": "Grade A",
+          "confidence": 98.8
+        },
+        {
+          "mango_index": 4,
+          "bbox": [
+            774,
+            1259,
+            815,
+            1003
+          ],
+          "area": 370402,
+          "defect_percentage": 5.55,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Not Ripe",
+          "grade": "Grade C",
+          "confidence": 88.3
+        },
+        {
+          "mango_index": 5,
+          "bbox": [
+            293,
+            1689,
+            853,
+            893
+          ],
+          "area": 415290,
+          "defect_percentage": 2.36,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Not Ripe",
+          "grade": "Grade A",
+          "confidence": 94.9
+        },
+        {
+          "mango_index": 6,
+          "bbox": [
+            1052,
+            1783,
+            763,
+            1449
+          ],
+          "area": 488780,
+          "defect_percentage": 1.41,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Pale / White Rot-like Patch",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Not Ripe",
+          "grade": "Grade A",
+          "confidence": 84.5
+        },
+        {
+          "mango_index": 7,
+          "bbox": [
+            0,
+            2369,
+            1913,
+            1471
+          ],
+          "area": 1173040,
+          "defect_percentage": 0.4,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Pale / White Rot-like Patch",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 87.9
+        }
+      ],
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_evaluation\\visual_overlays\\IMG-20220423-WA0039_overlay.jpg"
+    },
+    {
+      "filename": "PHOTO-2026-10-08-10-23-13(1).jpg",
+      "status": "success",
+      "detected_count": 2,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            22,
+            93,
+            812,
+            683
+          ],
+          "area": 388146,
+          "defect_percentage": 5.26,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Pale / White Rot-like Patch",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade B",
+          "confidence": 84.0
+        },
+        {
+          "mango_index": 2,
+          "bbox": [
+            726,
+            207,
+            854,
+            572
+          ],
+          "area": 296821,
+          "defect_percentage": 25.33,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Pale / White Rot-like Patch",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 98.3
+        }
+      ],
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_evaluation\\visual_overlays\\PHOTO-2026-10-08-10-23-13(1)_overlay.jpg"
+    },
+    {
+      "filename": "PHOTO-2026-10-08-10-23-13(2).jpg",
+      "status": "success",
+      "detected_count": 3,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            430,
+            100,
+            401,
+            449
+          ],
+          "area": 119248,
+          "defect_percentage": 10.79,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Discoloration / Bruising",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 80.6
+        },
+        {
+          "mango_index": 2,
+          "bbox": [
+            41,
+            246,
+            446,
+            474
+          ],
+          "area": 139926,
+          "defect_percentage": 9.67,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Pale / White Rot-like Patch",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 98.7
+        },
+        {
+          "mango_index": 3,
+          "bbox": [
+            339,
+            481,
+            605,
+            396
+          ],
+          "area": 137409,
+          "defect_percentage": 8.99,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 93.2
+        }
+      ],
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_evaluation\\visual_overlays\\PHOTO-2026-10-08-10-23-13(2)_overlay.jpg"
+    },
+    {
+      "filename": "PHOTO-2026-10-08-10-23-13.jpg",
+      "status": "success",
+      "detected_count": 3,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            60,
+            63,
+            203,
+            257
+          ],
+          "area": 29283,
+          "defect_percentage": 19.17,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 100.0
+        },
+        {
+          "mango_index": 2,
+          "bbox": [
+            212,
+            73,
+            181,
+            240
+          ],
+          "area": 18624,
+          "defect_percentage": 4.07,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Minor Surface Defect",
+          "ripeness": "Ripe",
+          "grade": "Grade C",
+          "confidence": 99.8
+        },
+        {
+          "mango_index": 3,
+          "bbox": [
+            203,
+            112,
+            337,
+            266
+          ],
+          "area": 44957,
+          "defect_percentage": 5.69,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Grade C",
+          "confidence": 99.2
+        }
+      ],
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_evaluation\\visual_overlays\\PHOTO-2026-10-08-10-23-13_overlay.jpg"
+    },
+    {
+      "filename": "PHOTO-2026-10-08-10-24-09.jpg",
+      "status": "success",
+      "detected_count": 16,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            24,
+            276,
+            119,
+            275
+          ],
+          "area": 22827,
+          "defect_percentage": 0.0,
+          "visible_defects": [
+            "None (Sound Surface)"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Nearly Ripe",
+          "grade": "Grade A",
+          "confidence": 81.5
+        },
+        {
+          "mango_index": 2,
+          "bbox": [
+            134,
+            299,
+            102,
+            243
+          ],
+          "area": 11828,
+          "defect_percentage": 4.78,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Pale / White Rot-like Patch"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade B",
+          "confidence": 84.1
+        },
+        {
+          "mango_index": 3,
+          "bbox": [
+            188,
+            277,
+            94,
+            260
+          ],
+          "area": 12977,
+          "defect_percentage": 0.0,
+          "visible_defects": [
+            "None (Sound Surface)"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 71.3
+        },
+        {
+          "mango_index": 4,
+          "bbox": [
+            262,
+            280,
+            72,
+            237
+          ],
+          "area": 9231,
+          "defect_percentage": 0.0,
+          "visible_defects": [
+            "None (Sound Surface)"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 89.8
+        },
+        {
+          "mango_index": 5,
+          "bbox": [
+            323,
+            279,
+            110,
+            260
+          ],
+          "area": 19718,
+          "defect_percentage": 0.06,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 65.6
+        },
+        {
+          "mango_index": 6,
+          "bbox": [
+            419,
+            279,
+            117,
+            258
+          ],
+          "area": 21074,
+          "defect_percentage": 0.2,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 89.8
+        },
+        {
+          "mango_index": 7,
+          "bbox": [
+            588,
+            279,
+            102,
+            258
+          ],
+          "area": 19054,
+          "defect_percentage": 4.77,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Pale / White Rot-like Patch",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade B",
+          "confidence": 98.2
+        },
+        {
+          "mango_index": 8,
+          "bbox": [
+            686,
+            281,
+            110,
+            254
+          ],
+          "area": 18121,
+          "defect_percentage": 12.05,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Pale / White Rot-like Patch",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade B",
+          "confidence": 99.9
+        },
+        {
+          "mango_index": 9,
+          "bbox": [
+            843,
+            283,
+            108,
+            254
+          ],
+          "area": 18617,
+          "defect_percentage": 25.89,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Pale / White Rot-like Patch",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 99.4
+        },
+        {
+          "mango_index": 10,
+          "bbox": [
+            923,
+            292,
+            168,
+            140
+          ],
+          "area": 13749,
+          "defect_percentage": 41.02,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Pale / White Rot-like Patch",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 99.9
+        },
+        {
+          "mango_index": 11,
+          "bbox": [
+            1084,
+            292,
+            132,
+            140
+          ],
+          "area": 11858,
+          "defect_percentage": 28.37,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Pale / White Rot-like Patch",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 92.5
+        },
+        {
+          "mango_index": 12,
+          "bbox": [
+            1205,
+            272,
+            151,
+            290
+          ],
+          "area": 24098,
+          "defect_percentage": 38.63,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Pale / White Rot-like Patch",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 93.6
+        },
+        {
+          "mango_index": 13,
+          "bbox": [
+            529,
+            300,
+            68,
+            223
+          ],
+          "area": 9710,
+          "defect_percentage": 7.35,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Pale / White Rot-like Patch",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Grade C",
+          "confidence": 83.2
+        },
+        {
+          "mango_index": 14,
+          "bbox": [
+            772,
+            302,
+            74,
+            223
+          ],
+          "area": 8469,
+          "defect_percentage": 6.23,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Pale / White Rot-like Patch"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade B",
+          "confidence": 98.8
+        },
+        {
+          "mango_index": 15,
+          "bbox": [
+            1077,
+            396,
+            186,
+            179
+          ],
+          "area": 9472,
+          "defect_percentage": 39.52,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Pale / White Rot-like Patch"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 99.2
+        },
+        {
+          "mango_index": 16,
+          "bbox": [
+            963,
+            424,
+            111,
+            108
+          ],
+          "area": 7305,
+          "defect_percentage": 38.47,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 99.7
+        }
+      ],
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_evaluation\\visual_overlays\\PHOTO-2026-10-08-10-24-09_overlay.jpg"
+    },
+    {
+      "filename": "PHOTO-2026-10-08-10-27-21(1).jpg",
+      "status": "success",
+      "detected_count": 2,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            324,
+            0,
+            1176,
+            750
+          ],
+          "area": 618443,
+          "defect_percentage": 2.67,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Pale / White Rot-like Patch",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 99.9
+        },
+        {
+          "mango_index": 2,
+          "bbox": [
+            0,
+            222,
+            832,
+            801
+          ],
+          "area": 383182,
+          "defect_percentage": 6.44,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Pale / White Rot-like Patch",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Grade C",
+          "confidence": 100.0
+        }
+      ],
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_evaluation\\visual_overlays\\PHOTO-2026-10-08-10-27-21(1)_overlay.jpg"
+    },
+    {
+      "filename": "PHOTO-2026-10-08-10-27-21(2).jpg",
+      "status": "success",
+      "detected_count": 1,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            61,
+            54,
+            713,
+            480
+          ],
+          "area": 221042,
+          "defect_percentage": 25.8,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Pale / White Rot-like Patch",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 98.5
+        }
+      ],
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_evaluation\\visual_overlays\\PHOTO-2026-10-08-10-27-21(2)_overlay.jpg"
+    },
+    {
+      "filename": "PHOTO-2026-10-08-10-27-21(3).jpg",
+      "status": "success",
+      "detected_count": 2,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            22,
+            93,
+            812,
+            683
+          ],
+          "area": 388146,
+          "defect_percentage": 5.26,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Pale / White Rot-like Patch",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade B",
+          "confidence": 84.0
+        },
+        {
+          "mango_index": 2,
+          "bbox": [
+            726,
+            207,
+            854,
+            572
+          ],
+          "area": 296821,
+          "defect_percentage": 25.33,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Pale / White Rot-like Patch",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 98.3
+        }
+      ],
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_evaluation\\visual_overlays\\PHOTO-2026-10-08-10-27-21(3)_overlay.jpg"
+    },
+    {
+      "filename": "PHOTO-2026-10-08-10-27-21(4).jpg",
+      "status": "success",
+      "detected_count": 2,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            324,
+            0,
+            1176,
+            750
+          ],
+          "area": 618443,
+          "defect_percentage": 2.67,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Pale / White Rot-like Patch",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 99.9
+        },
+        {
+          "mango_index": 2,
+          "bbox": [
+            0,
+            222,
+            832,
+            801
+          ],
+          "area": 383182,
+          "defect_percentage": 6.44,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Pale / White Rot-like Patch",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Grade C",
+          "confidence": 100.0
+        }
+      ],
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_evaluation\\visual_overlays\\PHOTO-2026-10-08-10-27-21(4)_overlay.jpg"
+    },
+    {
+      "filename": "PHOTO-2026-10-08-10-27-21.jpg",
+      "status": "success",
+      "detected_count": 1,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            113,
+            29,
+            200,
+            212
+          ],
+          "area": 26536,
+          "defect_percentage": 16.61,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 99.9
+        }
+      ],
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_evaluation\\visual_overlays\\PHOTO-2026-10-08-10-27-21_overlay.jpg"
+    },
+    {
+      "filename": "PHOTO-2026-10-08-10-28-11(1).jpg",
+      "status": "success",
+      "detected_count": 2,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            27,
+            94,
+            152,
+            124
+          ],
+          "area": 13406,
+          "defect_percentage": 4.42,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Pale / White Rot-like Patch",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Minor Surface Defect",
+          "ripeness": "Ripe",
+          "grade": "Grade C",
+          "confidence": 99.9
+        },
+        {
+          "mango_index": 2,
+          "bbox": [
+            170,
+            94,
+            201,
+            121
+          ],
+          "area": 14803,
+          "defect_percentage": 4.18,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Minor Surface Defect",
+          "ripeness": "Ripe",
+          "grade": "Grade C",
+          "confidence": 100.0
+        }
+      ],
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_evaluation\\visual_overlays\\PHOTO-2026-10-08-10-28-11(1)_overlay.jpg"
+    },
+    {
+      "filename": "PHOTO-2026-10-08-10-28-11(2).jpg",
+      "status": "success",
+      "detected_count": 2,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            14,
+            9,
+            222,
+            254
+          ],
+          "area": 30210,
+          "defect_percentage": 2.31,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 48.1
+        },
+        {
+          "mango_index": 2,
+          "bbox": [
+            225,
+            89,
+            128,
+            154
+          ],
+          "area": 11483,
+          "defect_percentage": 13.06,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 99.1
+        }
+      ],
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_evaluation\\visual_overlays\\PHOTO-2026-10-08-10-28-11(2)_overlay.jpg"
+    },
+    {
+      "filename": "PHOTO-2026-10-08-10-28-11(3).jpg",
+      "status": "success",
+      "detected_count": 1,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            81,
+            48,
+            653,
+            462
+          ],
+          "area": 153789,
+          "defect_percentage": 21.35,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Pale / White Rot-like Patch",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 99.1
+        }
+      ],
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_evaluation\\visual_overlays\\PHOTO-2026-10-08-10-28-11(3)_overlay.jpg"
+    },
+    {
+      "filename": "PHOTO-2026-10-08-10-28-11(4).jpg",
+      "status": "success",
+      "detected_count": 2,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            41,
+            68,
+            120,
+            147
+          ],
+          "area": 8944,
+          "defect_percentage": 52.56,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Overripe",
+          "grade": "Reject",
+          "confidence": 99.8
+        },
+        {
+          "mango_index": 2,
+          "bbox": [
+            66,
+            38,
+            357,
+            219
+          ],
+          "area": 45494,
+          "defect_percentage": 21.98,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 99.4
+        }
+      ],
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_evaluation\\visual_overlays\\PHOTO-2026-10-08-10-28-11(4)_overlay.jpg"
+    },
+    {
+      "filename": "PHOTO-2026-10-08-10-28-11.jpg",
+      "status": "success",
+      "detected_count": 2,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            14,
+            9,
+            222,
+            254
+          ],
+          "area": 30210,
+          "defect_percentage": 2.31,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 48.1
+        },
+        {
+          "mango_index": 2,
+          "bbox": [
+            225,
+            89,
+            128,
+            154
+          ],
+          "area": 11483,
+          "defect_percentage": 13.06,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 99.1
+        }
+      ],
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_evaluation\\visual_overlays\\PHOTO-2026-10-08-10-28-11_overlay.jpg"
+    },
+    {
+      "filename": "PHOTO-2026-10-08-10-30-57(1).jpg",
+      "status": "success",
+      "detected_count": 20,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            75,
+            34,
+            115,
+            147
+          ],
+          "area": 11633,
+          "defect_percentage": 0.0,
+          "visible_defects": [
+            "None (Sound Surface)"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Not Ripe",
+          "grade": "Grade A",
+          "confidence": 89.0
+        },
+        {
+          "mango_index": 2,
+          "bbox": [
+            355,
+            43,
+            164,
+            130
+          ],
+          "area": 14060,
+          "defect_percentage": 0.0,
+          "visible_defects": [
+            "None (Sound Surface)"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Not Ripe",
+          "grade": "Grade A",
+          "confidence": 96.0
+        },
+        {
+          "mango_index": 3,
+          "bbox": [
+            626,
+            26,
+            112,
+            162
+          ],
+          "area": 12632,
+          "defect_percentage": 0.13,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Not Ripe",
+          "grade": "Grade A",
+          "confidence": 93.6
+        },
+        {
+          "mango_index": 4,
+          "bbox": [
+            845,
+            37,
+            168,
+            130
+          ],
+          "area": 14175,
+          "defect_percentage": 0.0,
+          "visible_defects": [
+            "None (Sound Surface)"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Not Ripe",
+          "grade": "Grade A",
+          "confidence": 93.9
+        },
+        {
+          "mango_index": 5,
+          "bbox": [
+            1172,
+            34,
+            117,
+            155
+          ],
+          "area": 12865,
+          "defect_percentage": 0.0,
+          "visible_defects": [
+            "None (Sound Surface)"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Not Ripe",
+          "grade": "Grade A",
+          "confidence": 94.4
+        },
+        {
+          "mango_index": 6,
+          "bbox": [
+            73,
+            216,
+            117,
+            152
+          ],
+          "area": 12382,
+          "defect_percentage": 1.11,
+          "visible_defects": [
+            "Discoloration / Bruising",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Not Ripe",
+          "grade": "Grade A",
+          "confidence": 90.2
+        },
+        {
+          "mango_index": 7,
+          "bbox": [
+            340,
+            228,
+            175,
+            124
+          ],
+          "area": 14279,
+          "defect_percentage": 6.45,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Not Ripe",
+          "grade": "Grade B",
+          "confidence": 95.3
+        },
+        {
+          "mango_index": 8,
+          "bbox": [
+            624,
+            205,
+            114,
+            166
+          ],
+          "area": 12317,
+          "defect_percentage": 0.48,
+          "visible_defects": [
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Not Ripe",
+          "grade": "Grade A",
+          "confidence": 90.9
+        },
+        {
+          "mango_index": 9,
+          "bbox": [
+            869,
+            230,
+            172,
+            126
+          ],
+          "area": 13957,
+          "defect_percentage": 0.09,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Not Ripe",
+          "grade": "Grade A",
+          "confidence": 91.0
+        },
+        {
+          "mango_index": 10,
+          "bbox": [
+            1174,
+            213,
+            123,
+            162
+          ],
+          "area": 13999,
+          "defect_percentage": 0.35,
+          "visible_defects": [
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Not Ripe",
+          "grade": "Grade A",
+          "confidence": 93.9
+        },
+        {
+          "mango_index": 11,
+          "bbox": [
+            71,
+            398,
+            121,
+            162
+          ],
+          "area": 13097,
+          "defect_percentage": 14.04,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Not Ripe",
+          "grade": "Grade C",
+          "confidence": 92.0
+        },
+        {
+          "mango_index": 12,
+          "bbox": [
+            614,
+            394,
+            147,
+            164
+          ],
+          "area": 14337,
+          "defect_percentage": 0.04,
+          "visible_defects": [
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Not Ripe",
+          "grade": "Grade A",
+          "confidence": 93.9
+        },
+        {
+          "mango_index": 13,
+          "bbox": [
+            346,
+            406,
+            171,
+            136
+          ],
+          "area": 14490,
+          "defect_percentage": 0.18,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Not Ripe",
+          "grade": "Grade A",
+          "confidence": 95.1
+        },
+        {
+          "mango_index": 14,
+          "bbox": [
+            879,
+            413,
+            153,
+            121
+          ],
+          "area": 12726,
+          "defect_percentage": 5.11,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Not Ripe",
+          "grade": "Grade B",
+          "confidence": 93.5
+        },
+        {
+          "mango_index": 15,
+          "bbox": [
+            1176,
+            404,
+            130,
+            149
+          ],
+          "area": 13360,
+          "defect_percentage": 0.0,
+          "visible_defects": [
+            "None (Sound Surface)"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Not Ripe",
+          "grade": "Grade A",
+          "confidence": 93.7
+        },
+        {
+          "mango_index": 16,
+          "bbox": [
+            65,
+            596,
+            168,
+            130
+          ],
+          "area": 15114,
+          "defect_percentage": 23.57,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Not Ripe",
+          "grade": "Reject",
+          "confidence": 91.8
+        },
+        {
+          "mango_index": 17,
+          "bbox": [
+            630,
+            582,
+            117,
+            156
+          ],
+          "area": 12550,
+          "defect_percentage": 16.36,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Not Ripe",
+          "grade": "Grade C",
+          "confidence": 95.6
+        },
+        {
+          "mango_index": 18,
+          "bbox": [
+            882,
+            596,
+            162,
+            128
+          ],
+          "area": 14219,
+          "defect_percentage": 8.66,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Discoloration / Bruising",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Not Ripe",
+          "grade": "Grade B",
+          "confidence": 94.6
+        },
+        {
+          "mango_index": 19,
+          "bbox": [
+            1174,
+            577,
+            126,
+            164
+          ],
+          "area": 13184,
+          "defect_percentage": 14.37,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Not Ripe",
+          "grade": "Grade C",
+          "confidence": 87.9
+        },
+        {
+          "mango_index": 20,
+          "bbox": [
+            353,
+            600,
+            166,
+            126
+          ],
+          "area": 13688,
+          "defect_percentage": 14.39,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Not Ripe",
+          "grade": "Grade C",
+          "confidence": 96.6
+        }
+      ],
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_evaluation\\visual_overlays\\PHOTO-2026-10-08-10-30-57(1)_overlay.jpg"
+    },
+    {
+      "filename": "PHOTO-2026-10-08-10-30-57.jpg",
+      "status": "success",
+      "detected_count": 20,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            108,
+            29,
+            179,
+            192
+          ],
+          "area": 21498,
+          "defect_percentage": 0.0,
+          "visible_defects": [
+            "None (Sound Surface)"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 52.3
+        },
+        {
+          "mango_index": 2,
+          "bbox": [
+            362,
+            38,
+            170,
+            194
+          ],
+          "area": 20360,
+          "defect_percentage": 0.06,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 71.0
+        },
+        {
+          "mango_index": 3,
+          "bbox": [
+            611,
+            29,
+            164,
+            198
+          ],
+          "area": 20163,
+          "defect_percentage": 0.1,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 64.3
+        },
+        {
+          "mango_index": 4,
+          "bbox": [
+            858,
+            41,
+            166,
+            179
+          ],
+          "area": 19551,
+          "defect_percentage": 0.0,
+          "visible_defects": [
+            "None (Sound Surface)"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 51.1
+        },
+        {
+          "mango_index": 5,
+          "bbox": [
+            1097,
+            33,
+            168,
+            183
+          ],
+          "area": 19413,
+          "defect_percentage": 0.0,
+          "visible_defects": [
+            "None (Sound Surface)"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 54.1
+        },
+        {
+          "mango_index": 6,
+          "bbox": [
+            108,
+            227,
+            179,
+            209
+          ],
+          "area": 22940,
+          "defect_percentage": 0.14,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 79.0
+        },
+        {
+          "mango_index": 7,
+          "bbox": [
+            362,
+            214,
+            181,
+            219
+          ],
+          "area": 22414,
+          "defect_percentage": 0.04,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 88.0
+        },
+        {
+          "mango_index": 8,
+          "bbox": [
+            607,
+            211,
+            176,
+            222
+          ],
+          "area": 22426,
+          "defect_percentage": 0.1,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 78.1
+        },
+        {
+          "mango_index": 9,
+          "bbox": [
+            856,
+            208,
+            170,
+            207
+          ],
+          "area": 20768,
+          "defect_percentage": 0.0,
+          "visible_defects": [
+            "None (Sound Surface)"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 75.5
+        },
+        {
+          "mango_index": 10,
+          "bbox": [
+            1093,
+            217,
+            176,
+            204
+          ],
+          "area": 21561,
+          "defect_percentage": 0.19,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 80.3
+        },
+        {
+          "mango_index": 11,
+          "bbox": [
+            613,
+            396,
+            166,
+            226
+          ],
+          "area": 22173,
+          "defect_percentage": 0.0,
+          "visible_defects": [
+            "None (Sound Surface)"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 79.1
+        },
+        {
+          "mango_index": 12,
+          "bbox": [
+            862,
+            392,
+            162,
+            228
+          ],
+          "area": 21926,
+          "defect_percentage": 0.0,
+          "visible_defects": [
+            "None (Sound Surface)"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 85.2
+        },
+        {
+          "mango_index": 13,
+          "bbox": [
+            1093,
+            394,
+            181,
+            220
+          ],
+          "area": 22772,
+          "defect_percentage": 0.12,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 75.0
+        },
+        {
+          "mango_index": 14,
+          "bbox": [
+            112,
+            404,
+            179,
+            211
+          ],
+          "area": 22783,
+          "defect_percentage": 0.15,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 76.9
+        },
+        {
+          "mango_index": 15,
+          "bbox": [
+            359,
+            403,
+            179,
+            221
+          ],
+          "area": 22094,
+          "defect_percentage": 0.1,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 72.3
+        },
+        {
+          "mango_index": 16,
+          "bbox": [
+            112,
+            581,
+            181,
+            168
+          ],
+          "area": 19011,
+          "defect_percentage": 0.22,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 52.5
+        },
+        {
+          "mango_index": 17,
+          "bbox": [
+            368,
+            579,
+            164,
+            181
+          ],
+          "area": 18302,
+          "defect_percentage": 0.0,
+          "visible_defects": [
+            "None (Sound Surface)"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 65.3
+        },
+        {
+          "mango_index": 18,
+          "bbox": [
+            609,
+            569,
+            170,
+            192
+          ],
+          "area": 18881,
+          "defect_percentage": 0.04,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 62.1
+        },
+        {
+          "mango_index": 19,
+          "bbox": [
+            862,
+            586,
+            171,
+            176
+          ],
+          "area": 17893,
+          "defect_percentage": 0.0,
+          "visible_defects": [
+            "None (Sound Surface)"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 66.0
+        },
+        {
+          "mango_index": 20,
+          "bbox": [
+            1101,
+            573,
+            175,
+            183
+          ],
+          "area": 19270,
+          "defect_percentage": 0.0,
+          "visible_defects": [
+            "None (Sound Surface)"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 65.9
+        }
+      ],
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_evaluation\\visual_overlays\\PHOTO-2026-10-08-10-30-57_overlay.jpg"
+    },
+    {
+      "filename": "PHOTO-2026-10-08-10-30-58(1).jpg",
+      "status": "success",
+      "detected_count": 20,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            106,
+            28,
+            181,
+            186
+          ],
+          "area": 21218,
+          "defect_percentage": 3.87,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade B",
+          "confidence": 95.8
+        },
+        {
+          "mango_index": 2,
+          "bbox": [
+            359,
+            36,
+            171,
+            190
+          ],
+          "area": 19700,
+          "defect_percentage": 2.86,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 90.8
+        },
+        {
+          "mango_index": 3,
+          "bbox": [
+            613,
+            30,
+            164,
+            212
+          ],
+          "area": 20061,
+          "defect_percentage": 0.31,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 95.0
+        },
+        {
+          "mango_index": 4,
+          "bbox": [
+            860,
+            39,
+            166,
+            175
+          ],
+          "area": 19293,
+          "defect_percentage": 2.28,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 96.3
+        },
+        {
+          "mango_index": 5,
+          "bbox": [
+            1099,
+            30,
+            170,
+            182
+          ],
+          "area": 19147,
+          "defect_percentage": 0.6,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 94.6
+        },
+        {
+          "mango_index": 6,
+          "bbox": [
+            108,
+            230,
+            183,
+            206
+          ],
+          "area": 21959,
+          "defect_percentage": 5.99,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade B",
+          "confidence": 98.8
+        },
+        {
+          "mango_index": 7,
+          "bbox": [
+            362,
+            219,
+            181,
+            213
+          ],
+          "area": 21531,
+          "defect_percentage": 0.38,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 94.9
+        },
+        {
+          "mango_index": 8,
+          "bbox": [
+            607,
+            219,
+            179,
+            209
+          ],
+          "area": 21574,
+          "defect_percentage": 0.5,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 77.1
+        },
+        {
+          "mango_index": 9,
+          "bbox": [
+            854,
+            218,
+            170,
+            217
+          ],
+          "area": 20486,
+          "defect_percentage": 1.96,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 91.3
+        },
+        {
+          "mango_index": 10,
+          "bbox": [
+            1099,
+            217,
+            172,
+            204
+          ],
+          "area": 20482,
+          "defect_percentage": 3.47,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade B",
+          "confidence": 98.1
+        },
+        {
+          "mango_index": 11,
+          "bbox": [
+            613,
+            398,
+            166,
+            222
+          ],
+          "area": 22090,
+          "defect_percentage": 1.98,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 84.8
+        },
+        {
+          "mango_index": 12,
+          "bbox": [
+            860,
+            398,
+            164,
+            224
+          ],
+          "area": 21530,
+          "defect_percentage": 3.76,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade B",
+          "confidence": 90.9
+        },
+        {
+          "mango_index": 13,
+          "bbox": [
+            1093,
+            399,
+            183,
+            217
+          ],
+          "area": 21798,
+          "defect_percentage": 2.13,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 96.6
+        },
+        {
+          "mango_index": 14,
+          "bbox": [
+            112,
+            404,
+            179,
+            211
+          ],
+          "area": 22245,
+          "defect_percentage": 1.38,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 90.6
+        },
+        {
+          "mango_index": 15,
+          "bbox": [
+            362,
+            403,
+            176,
+            224
+          ],
+          "area": 21754,
+          "defect_percentage": 3.49,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade B",
+          "confidence": 98.7
+        },
+        {
+          "mango_index": 16,
+          "bbox": [
+            110,
+            586,
+            183,
+            156
+          ],
+          "area": 18492,
+          "defect_percentage": 1.27,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 97.9
+        },
+        {
+          "mango_index": 17,
+          "bbox": [
+            368,
+            577,
+            162,
+            181
+          ],
+          "area": 17312,
+          "defect_percentage": 4.26,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade B",
+          "confidence": 95.3
+        },
+        {
+          "mango_index": 18,
+          "bbox": [
+            609,
+            579,
+            172,
+            177
+          ],
+          "area": 18490,
+          "defect_percentage": 1.11,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 91.7
+        },
+        {
+          "mango_index": 19,
+          "bbox": [
+            865,
+            592,
+            166,
+            172
+          ],
+          "area": 17368,
+          "defect_percentage": 0.25,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 93.8
+        },
+        {
+          "mango_index": 20,
+          "bbox": [
+            1101,
+            579,
+            175,
+            175
+          ],
+          "area": 18596,
+          "defect_percentage": 2.98,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 93.6
+        }
+      ],
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_evaluation\\visual_overlays\\PHOTO-2026-10-08-10-30-58(1)_overlay.jpg"
+    },
+    {
+      "filename": "PHOTO-2026-10-08-10-30-58.jpg",
+      "status": "success",
+      "detected_count": 20,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            110,
+            28,
+            175,
+            218
+          ],
+          "area": 19479,
+          "defect_percentage": 37.48,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Pale / White Rot-like Patch",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 99.7
+        },
+        {
+          "mango_index": 2,
+          "bbox": [
+            362,
+            37,
+            168,
+            175
+          ],
+          "area": 17218,
+          "defect_percentage": 30.77,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Pale / White Rot-like Patch",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 99.7
+        },
+        {
+          "mango_index": 3,
+          "bbox": [
+            616,
+            37,
+            158,
+            175
+          ],
+          "area": 16715,
+          "defect_percentage": 42.84,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Pale / White Rot-like Patch",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 75.6
+        },
+        {
+          "mango_index": 4,
+          "bbox": [
+            863,
+            44,
+            158,
+            156
+          ],
+          "area": 16262,
+          "defect_percentage": 40.97,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Pale / White Rot-like Patch",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 97.2
+        },
+        {
+          "mango_index": 5,
+          "bbox": [
+            1101,
+            33,
+            164,
+            172
+          ],
+          "area": 17091,
+          "defect_percentage": 36.9,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Pale / White Rot-like Patch",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 99.7
+        },
+        {
+          "mango_index": 6,
+          "bbox": [
+            111,
+            229,
+            190,
+            163
+          ],
+          "area": 18976,
+          "defect_percentage": 36.32,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 99.8
+        },
+        {
+          "mango_index": 7,
+          "bbox": [
+            364,
+            222,
+            180,
+            172
+          ],
+          "area": 18129,
+          "defect_percentage": 34.42,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Pale / White Rot-like Patch",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 98.7
+        },
+        {
+          "mango_index": 8,
+          "bbox": [
+            607,
+            220,
+            179,
+            170
+          ],
+          "area": 18195,
+          "defect_percentage": 23.05,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 99.5
+        },
+        {
+          "mango_index": 9,
+          "bbox": [
+            837,
+            220,
+            185,
+            172
+          ],
+          "area": 17369,
+          "defect_percentage": 42.22,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Pale / White Rot-like Patch",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 97.2
+        },
+        {
+          "mango_index": 10,
+          "bbox": [
+            1084,
+            213,
+            183,
+            162
+          ],
+          "area": 16738,
+          "defect_percentage": 32.31,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Pale / White Rot-like Patch",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 91.2
+        },
+        {
+          "mango_index": 11,
+          "bbox": [
+            613,
+            392,
+            164,
+            224
+          ],
+          "area": 18485,
+          "defect_percentage": 25.97,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Pale / White Rot-like Patch",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 97.1
+        },
+        {
+          "mango_index": 12,
+          "bbox": [
+            1083,
+            392,
+            194,
+            175
+          ],
+          "area": 17332,
+          "defect_percentage": 42.44,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Pale / White Rot-like Patch",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Overripe",
+          "grade": "Reject",
+          "confidence": 99.1
+        },
+        {
+          "mango_index": 13,
+          "bbox": [
+            116,
+            405,
+            173,
+            185
+          ],
+          "area": 17615,
+          "defect_percentage": 30.76,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Pale / White Rot-like Patch",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 99.9
+        },
+        {
+          "mango_index": 14,
+          "bbox": [
+            337,
+            403,
+            202,
+            176
+          ],
+          "area": 18522,
+          "defect_percentage": 46.47,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Pale / White Rot-like Patch",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 99.6
+        },
+        {
+          "mango_index": 15,
+          "bbox": [
+            863,
+            403,
+            158,
+            170
+          ],
+          "area": 15711,
+          "defect_percentage": 35.75,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 99.5
+        },
+        {
+          "mango_index": 16,
+          "bbox": [
+            115,
+            583,
+            190,
+            166
+          ],
+          "area": 18659,
+          "defect_percentage": 39.26,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Pale / White Rot-like Patch",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 98.6
+        },
+        {
+          "mango_index": 17,
+          "bbox": [
+            372,
+            577,
+            166,
+            166
+          ],
+          "area": 17302,
+          "defect_percentage": 29.47,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Pale / White Rot-like Patch",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 99.2
+        },
+        {
+          "mango_index": 18,
+          "bbox": [
+            611,
+            582,
+            172,
+            154
+          ],
+          "area": 16435,
+          "defect_percentage": 39.44,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Pale / White Rot-like Patch",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 99.8
+        },
+        {
+          "mango_index": 19,
+          "bbox": [
+            850,
+            586,
+            181,
+            158
+          ],
+          "area": 16283,
+          "defect_percentage": 33.81,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Pale / White Rot-like Patch",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 99.7
+        },
+        {
+          "mango_index": 20,
+          "bbox": [
+            1085,
+            584,
+            190,
+            156
+          ],
+          "area": 16727,
+          "defect_percentage": 17.28,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Grade C",
+          "confidence": 98.4
+        }
+      ],
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_evaluation\\visual_overlays\\PHOTO-2026-10-08-10-30-58_overlay.jpg"
+    },
+    {
+      "filename": "PHOTO-2026-10-08-10-34-47.jpg",
+      "status": "success",
+      "detected_count": 20,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            80,
+            41,
+            232,
+            162
+          ],
+          "area": 24134,
+          "defect_percentage": 0.0,
+          "visible_defects": [
+            "None (Sound Surface)"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 57.7
+        },
+        {
+          "mango_index": 2,
+          "bbox": [
+            339,
+            40,
+            205,
+            141
+          ],
+          "area": 19669,
+          "defect_percentage": 0.0,
+          "visible_defects": [
+            "None (Sound Surface)"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Not Ripe",
+          "grade": "Grade A",
+          "confidence": 99.0
+        },
+        {
+          "mango_index": 3,
+          "bbox": [
+            591,
+            47,
+            202,
+            140
+          ],
+          "area": 19134,
+          "defect_percentage": 43.34,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Pale / White Rot-like Patch",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 99.3
+        },
+        {
+          "mango_index": 4,
+          "bbox": [
+            840,
+            40,
+            205,
+            156
+          ],
+          "area": 22992,
+          "defect_percentage": 0.03,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 74.1
+        },
+        {
+          "mango_index": 5,
+          "bbox": [
+            1087,
+            42,
+            205,
+            143
+          ],
+          "area": 20218,
+          "defect_percentage": 37.76,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 97.2
+        },
+        {
+          "mango_index": 6,
+          "bbox": [
+            83,
+            229,
+            211,
+            139
+          ],
+          "area": 19901,
+          "defect_percentage": 0.0,
+          "visible_defects": [
+            "None (Sound Surface)"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Not Ripe",
+          "grade": "Grade A",
+          "confidence": 98.6
+        },
+        {
+          "mango_index": 7,
+          "bbox": [
+            341,
+            229,
+            203,
+            158
+          ],
+          "area": 21406,
+          "defect_percentage": 14.69,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Pale / White Rot-like Patch",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Grade C",
+          "confidence": 99.0
+        },
+        {
+          "mango_index": 8,
+          "bbox": [
+            591,
+            225,
+            213,
+            153
+          ],
+          "area": 23391,
+          "defect_percentage": 0.0,
+          "visible_defects": [
+            "None (Sound Surface)"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 65.2
+        },
+        {
+          "mango_index": 9,
+          "bbox": [
+            820,
+            228,
+            223,
+            169
+          ],
+          "area": 20776,
+          "defect_percentage": 33.47,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 99.9
+        },
+        {
+          "mango_index": 10,
+          "bbox": [
+            1085,
+            225,
+            211,
+            147
+          ],
+          "area": 20651,
+          "defect_percentage": 0.0,
+          "visible_defects": [
+            "None (Sound Surface)"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Not Ripe",
+          "grade": "Grade A",
+          "confidence": 96.3
+        },
+        {
+          "mango_index": 11,
+          "bbox": [
+            299,
+            398,
+            271,
+            166
+          ],
+          "area": 24265,
+          "defect_percentage": 0.0,
+          "visible_defects": [
+            "None (Sound Surface)"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 45.7
+        },
+        {
+          "mango_index": 12,
+          "bbox": [
+            89,
+            407,
+            226,
+            168
+          ],
+          "area": 22755,
+          "defect_percentage": 40.49,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Pale / White Rot-like Patch",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 99.9
+        },
+        {
+          "mango_index": 13,
+          "bbox": [
+            597,
+            408,
+            205,
+            136
+          ],
+          "area": 19035,
+          "defect_percentage": 3.78,
+          "visible_defects": [
+            "Discoloration / Bruising"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Not Ripe",
+          "grade": "Grade B",
+          "confidence": 98.9
+        },
+        {
+          "mango_index": 14,
+          "bbox": [
+            849,
+            410,
+            198,
+            138
+          ],
+          "area": 18427,
+          "defect_percentage": 43.06,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 99.4
+        },
+        {
+          "mango_index": 15,
+          "bbox": [
+            1058,
+            404,
+            237,
+            159
+          ],
+          "area": 24193,
+          "defect_percentage": 0.41,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 43.1
+        },
+        {
+          "mango_index": 16,
+          "bbox": [
+            84,
+            591,
+            216,
+            138
+          ],
+          "area": 20289,
+          "defect_percentage": 10.76,
+          "visible_defects": [
+            "Discoloration / Bruising",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Not Ripe",
+          "grade": "Grade B",
+          "confidence": 97.7
+        },
+        {
+          "mango_index": 17,
+          "bbox": [
+            341,
+            586,
+            213,
+            145
+          ],
+          "area": 21141,
+          "defect_percentage": 48.44,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Pale / White Rot-like Patch",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 99.9
+        },
+        {
+          "mango_index": 18,
+          "bbox": [
+            603,
+            594,
+            192,
+            132
+          ],
+          "area": 17084,
+          "defect_percentage": 48.12,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Overripe",
+          "grade": "Reject",
+          "confidence": 97.8
+        },
+        {
+          "mango_index": 19,
+          "bbox": [
+            849,
+            586,
+            206,
+            141
+          ],
+          "area": 20132,
+          "defect_percentage": 10.16,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Not Ripe",
+          "grade": "Grade B",
+          "confidence": 97.2
+        },
+        {
+          "mango_index": 20,
+          "bbox": [
+            1094,
+            591,
+            189,
+            138
+          ],
+          "area": 17466,
+          "defect_percentage": 32.62,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 98.8
+        }
+      ],
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_evaluation\\visual_overlays\\PHOTO-2026-10-08-10-34-47_overlay.jpg"
+    },
+    {
+      "filename": "PHOTO-2026-10-08-10-34-51.jpg",
+      "status": "success",
+      "detected_count": 20,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            108,
+            27,
+            179,
+            221
+          ],
+          "area": 18064,
+          "defect_percentage": 27.2,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 99.8
+        },
+        {
+          "mango_index": 2,
+          "bbox": [
+            362,
+            37,
+            168,
+            175
+          ],
+          "area": 17458,
+          "defect_percentage": 31.78,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 99.7
+        },
+        {
+          "mango_index": 3,
+          "bbox": [
+            616,
+            35,
+            156,
+            179
+          ],
+          "area": 17010,
+          "defect_percentage": 43.1,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 98.4
+        },
+        {
+          "mango_index": 4,
+          "bbox": [
+            862,
+            44,
+            162,
+            158
+          ],
+          "area": 16510,
+          "defect_percentage": 40.36,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 98.2
+        },
+        {
+          "mango_index": 5,
+          "bbox": [
+            1101,
+            33,
+            164,
+            172
+          ],
+          "area": 17094,
+          "defect_percentage": 34.72,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 99.7
+        },
+        {
+          "mango_index": 6,
+          "bbox": [
+            109,
+            231,
+            192,
+            163
+          ],
+          "area": 19262,
+          "defect_percentage": 33.32,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 99.9
+        },
+        {
+          "mango_index": 7,
+          "bbox": [
+            364,
+            222,
+            179,
+            175
+          ],
+          "area": 18581,
+          "defect_percentage": 36.04,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 99.9
+        },
+        {
+          "mango_index": 8,
+          "bbox": [
+            607,
+            220,
+            179,
+            183
+          ],
+          "area": 18568,
+          "defect_percentage": 22.44,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 99.7
+        },
+        {
+          "mango_index": 9,
+          "bbox": [
+            837,
+            220,
+            185,
+            174
+          ],
+          "area": 18017,
+          "defect_percentage": 41.63,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Pale / White Rot-like Patch",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 99.8
+        },
+        {
+          "mango_index": 10,
+          "bbox": [
+            1084,
+            213,
+            185,
+            168
+          ],
+          "area": 17494,
+          "defect_percentage": 39.17,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 99.9
+        },
+        {
+          "mango_index": 11,
+          "bbox": [
+            613,
+            393,
+            164,
+            190
+          ],
+          "area": 17948,
+          "defect_percentage": 33.2,
+          "visible_defects": [
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 99.4
+        },
+        {
+          "mango_index": 12,
+          "bbox": [
+            1081,
+            392,
+            196,
+            181
+          ],
+          "area": 18189,
+          "defect_percentage": 48.02,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 99.9
+        },
+        {
+          "mango_index": 13,
+          "bbox": [
+            116,
+            405,
+            173,
+            185
+          ],
+          "area": 18230,
+          "defect_percentage": 23.37,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Pale / White Rot-like Patch",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 99.9
+        },
+        {
+          "mango_index": 14,
+          "bbox": [
+            337,
+            401,
+            202,
+            181
+          ],
+          "area": 19115,
+          "defect_percentage": 45.44,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Pale / White Rot-like Patch",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 99.8
+        },
+        {
+          "mango_index": 15,
+          "bbox": [
+            863,
+            403,
+            158,
+            176
+          ],
+          "area": 16629,
+          "defect_percentage": 35.84,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 99.8
+        },
+        {
+          "mango_index": 16,
+          "bbox": [
+            113,
+            583,
+            194,
+            166
+          ],
+          "area": 19009,
+          "defect_percentage": 42.55,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 99.9
+        },
+        {
+          "mango_index": 17,
+          "bbox": [
+            370,
+            577,
+            168,
+            166
+          ],
+          "area": 17428,
+          "defect_percentage": 35.75,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 99.8
+        },
+        {
+          "mango_index": 18,
+          "bbox": [
+            611,
+            570,
+            172,
+            171
+          ],
+          "area": 18151,
+          "defect_percentage": 38.37,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 99.9
+        },
+        {
+          "mango_index": 19,
+          "bbox": [
+            850,
+            585,
+            183,
+            164
+          ],
+          "area": 16651,
+          "defect_percentage": 42.95,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 99.8
+        },
+        {
+          "mango_index": 20,
+          "bbox": [
+            1085,
+            584,
+            190,
+            156
+          ],
+          "area": 17392,
+          "defect_percentage": 28.47,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 99.9
+        }
+      ],
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_evaluation\\visual_overlays\\PHOTO-2026-10-08-10-34-51_overlay.jpg"
+    },
+    {
+      "filename": "PHOTO-2026-10-08-10-35-20(1).jpg",
+      "status": "success",
+      "detected_count": 2,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            0,
+            0,
+            319,
+            391
+          ],
+          "area": 114893,
+          "defect_percentage": 17.38,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Pale / White Rot-like Patch",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Grade C",
+          "confidence": 99.4
+        },
+        {
+          "mango_index": 2,
+          "bbox": [
+            289,
+            0,
+            311,
+            391
+          ],
+          "area": 111842,
+          "defect_percentage": 21.95,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Pale / White Rot-like Patch",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 99.8
+        }
+      ],
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_evaluation\\visual_overlays\\PHOTO-2026-10-08-10-35-20(1)_overlay.jpg"
+    },
+    {
+      "filename": "PHOTO-2026-10-08-10-35-20(2).jpg",
+      "status": "success",
+      "detected_count": 2,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            58,
+            0,
+            571,
+            381
+          ],
+          "area": 149093,
+          "defect_percentage": 0.38,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 87.5
+        },
+        {
+          "mango_index": 2,
+          "bbox": [
+            0,
+            139,
+            455,
+            302
+          ],
+          "area": 33578,
+          "defect_percentage": 0.21,
+          "visible_defects": [
+            "Pale / White Rot-like Patch"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 97.6
+        }
+      ],
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_evaluation\\visual_overlays\\PHOTO-2026-10-08-10-35-20(2)_overlay.jpg"
+    },
+    {
+      "filename": "PHOTO-2026-10-08-10-35-20(3).jpg",
+      "status": "success",
+      "detected_count": 3,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            77,
+            173,
+            247,
+            144
+          ],
+          "area": 19408,
+          "defect_percentage": 1.17,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 92.5
+        },
+        {
+          "mango_index": 2,
+          "bbox": [
+            220,
+            184,
+            305,
+            169
+          ],
+          "area": 30399,
+          "defect_percentage": 1.45,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 95.7
+        },
+        {
+          "mango_index": 3,
+          "bbox": [
+            559,
+            215,
+            155,
+            163
+          ],
+          "area": 12230,
+          "defect_percentage": 2.87,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 99.8
+        }
+      ],
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_evaluation\\visual_overlays\\PHOTO-2026-10-08-10-35-20(3)_overlay.jpg"
+    },
+    {
+      "filename": "PHOTO-2026-10-08-10-35-20(4).jpg",
+      "status": "success",
+      "detected_count": 5,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            112,
+            185,
+            219,
+            168
+          ],
+          "area": 20946,
+          "defect_percentage": 15.45,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Grade C",
+          "confidence": 99.9
+        },
+        {
+          "mango_index": 2,
+          "bbox": [
+            282,
+            157,
+            197,
+            189
+          ],
+          "area": 20360,
+          "defect_percentage": 2.43,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Pale / White Rot-like Patch",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 99.0
+        },
+        {
+          "mango_index": 3,
+          "bbox": [
+            408,
+            167,
+            392,
+            190
+          ],
+          "area": 36864,
+          "defect_percentage": 11.68,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Pale / White Rot-like Patch",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade B",
+          "confidence": 99.7
+        },
+        {
+          "mango_index": 4,
+          "bbox": [
+            29,
+            230,
+            140,
+            132
+          ],
+          "area": 12070,
+          "defect_percentage": 24.56,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 97.4
+        },
+        {
+          "mango_index": 5,
+          "bbox": [
+            613,
+            284,
+            187,
+            135
+          ],
+          "area": 17872,
+          "defect_percentage": 14.38,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Pale / White Rot-like Patch",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Grade C",
+          "confidence": 97.7
+        }
+      ],
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_evaluation\\visual_overlays\\PHOTO-2026-10-08-10-35-20(4)_overlay.jpg"
+    },
+    {
+      "filename": "PHOTO-2026-10-08-10-35-20(5).jpg",
+      "status": "success",
+      "detected_count": 2,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            60,
+            49,
+            148,
+            195
+          ],
+          "area": 17120,
+          "defect_percentage": 0.0,
+          "visible_defects": [
+            "None (Sound Surface)"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 69.4
+        },
+        {
+          "mango_index": 2,
+          "bbox": [
+            220,
+            45,
+            156,
+            193
+          ],
+          "area": 18198,
+          "defect_percentage": 2.95,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Pale / White Rot-like Patch",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 99.1
+        }
+      ],
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_evaluation\\visual_overlays\\PHOTO-2026-10-08-10-35-20(5)_overlay.jpg"
+    },
+    {
+      "filename": "PHOTO-2026-10-08-10-35-20(6).jpg",
+      "status": "success",
+      "detected_count": 4,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            109,
+            190,
+            140,
+            135
+          ],
+          "area": 12698,
+          "defect_percentage": 45.62,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 99.2
+        },
+        {
+          "mango_index": 2,
+          "bbox": [
+            128,
+            135,
+            115,
+            72
+          ],
+          "area": 4757,
+          "defect_percentage": 0.0,
+          "visible_defects": [
+            "None (Sound Surface)"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Nearly Ripe",
+          "grade": "Grade A",
+          "confidence": 56.3
+        },
+        {
+          "mango_index": 3,
+          "bbox": [
+            271,
+            137,
+            132,
+            195
+          ],
+          "area": 16945,
+          "defect_percentage": 0.82,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 87.2
+        },
+        {
+          "mango_index": 4,
+          "bbox": [
+            415,
+            130,
+            152,
+            191
+          ],
+          "area": 18705,
+          "defect_percentage": 0.24,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Not Ripe",
+          "grade": "Grade A",
+          "confidence": 60.6
+        }
+      ],
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_evaluation\\visual_overlays\\PHOTO-2026-10-08-10-35-20(6)_overlay.jpg"
+    },
+    {
+      "filename": "PHOTO-2026-10-08-10-35-20(7).jpg",
+      "status": "success",
+      "detected_count": 1,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            15,
+            0,
+            585,
+            399
+          ],
+          "area": 125798,
+          "defect_percentage": 10.43,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Pale / White Rot-like Patch",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 99.8
+        }
+      ],
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_evaluation\\visual_overlays\\PHOTO-2026-10-08-10-35-20(7)_overlay.jpg"
+    },
+    {
+      "filename": "PHOTO-2026-10-08-10-35-20(8).jpg",
+      "status": "success",
+      "detected_count": 3,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            150,
+            75,
+            176,
+            171
+          ],
+          "area": 19007,
+          "defect_percentage": 2.21,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 97.8
+        },
+        {
+          "mango_index": 2,
+          "bbox": [
+            135,
+            269,
+            155,
+            209
+          ],
+          "area": 22722,
+          "defect_percentage": 3.46,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade B",
+          "confidence": 64.6
+        },
+        {
+          "mango_index": 3,
+          "bbox": [
+            106,
+            479,
+            184,
+            206
+          ],
+          "area": 23985,
+          "defect_percentage": 0.65,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 80.5
+        }
+      ],
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_evaluation\\visual_overlays\\PHOTO-2026-10-08-10-35-20(8)_overlay.jpg"
+    },
+    {
+      "filename": "PHOTO-2026-10-08-10-35-20.jpg",
+      "status": "success",
+      "detected_count": 4,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            98,
+            55,
+            328,
+            326
+          ],
+          "area": 44014,
+          "defect_percentage": 12.22,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Grade C",
+          "confidence": 62.9
+        },
+        {
+          "mango_index": 2,
+          "bbox": [
+            324,
+            69,
+            364,
+            342
+          ],
+          "area": 77397,
+          "defect_percentage": 6.9,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Grade C",
+          "confidence": 70.7
+        },
+        {
+          "mango_index": 3,
+          "bbox": [
+            92,
+            231,
+            252,
+            199
+          ],
+          "area": 23517,
+          "defect_percentage": 63.31,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 99.1
+        },
+        {
+          "mango_index": 4,
+          "bbox": [
+            176,
+            269,
+            541,
+            259
+          ],
+          "area": 54858,
+          "defect_percentage": 0.05,
+          "visible_defects": [
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 86.5
+        }
+      ],
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_evaluation\\visual_overlays\\PHOTO-2026-10-08-10-35-20_overlay.jpg"
+    },
+    {
+      "filename": "PHOTO-2026-10-08-10-35-21(1).jpg",
+      "status": "success",
+      "detected_count": 1,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            133,
+            53,
+            347,
+            251
+          ],
+          "area": 61234,
+          "defect_percentage": 12.44,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 98.1
+        }
+      ],
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_evaluation\\visual_overlays\\PHOTO-2026-10-08-10-35-21(1)_overlay.jpg"
+    },
+    {
+      "filename": "PHOTO-2026-10-08-10-35-21(2).jpg",
+      "status": "success",
+      "detected_count": 1,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            48,
+            19,
+            367,
+            236
+          ],
+          "area": 58827,
+          "defect_percentage": 31.13,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Pale / White Rot-like Patch",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 99.9
+        }
+      ],
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_evaluation\\visual_overlays\\PHOTO-2026-10-08-10-35-21(2)_overlay.jpg"
+    },
+    {
+      "filename": "PHOTO-2026-10-08-10-35-21(3).jpg",
+      "status": "success",
+      "detected_count": 4,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            48,
+            68,
+            227,
+            166
+          ],
+          "area": 22900,
+          "defect_percentage": 0.76,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Nearly Ripe",
+          "grade": "Grade A",
+          "confidence": 99.8
+        },
+        {
+          "mango_index": 2,
+          "bbox": [
+            259,
+            78,
+            118,
+            158
+          ],
+          "area": 11065,
+          "defect_percentage": 0.55,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Nearly Ripe",
+          "grade": "Grade A",
+          "confidence": 99.2
+        },
+        {
+          "mango_index": 3,
+          "bbox": [
+            359,
+            83,
+            99,
+            153
+          ],
+          "area": 9207,
+          "defect_percentage": 7.39,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Grade C",
+          "confidence": 100.0
+        },
+        {
+          "mango_index": 4,
+          "bbox": [
+            465,
+            81,
+            118,
+            182
+          ],
+          "area": 12202,
+          "defect_percentage": 21.31,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 82.3
+        }
+      ],
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_evaluation\\visual_overlays\\PHOTO-2026-10-08-10-35-21(3)_overlay.jpg"
+    },
+    {
+      "filename": "PHOTO-2026-10-08-10-35-21(4).jpg",
+      "status": "success",
+      "detected_count": 1,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            25,
+            106,
+            749,
+            622
+          ],
+          "area": 303183,
+          "defect_percentage": 9.6,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 99.9
+        }
+      ],
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_evaluation\\visual_overlays\\PHOTO-2026-10-08-10-35-21(4)_overlay.jpg"
+    },
+    {
+      "filename": "PHOTO-2026-10-08-10-35-21.jpg",
+      "status": "success",
+      "detected_count": 2,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            14,
+            9,
+            222,
+            254
+          ],
+          "area": 30210,
+          "defect_percentage": 2.31,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 48.1
+        },
+        {
+          "mango_index": 2,
+          "bbox": [
+            225,
+            89,
+            128,
+            154
+          ],
+          "area": 11483,
+          "defect_percentage": 13.06,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 99.1
+        }
+      ],
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_evaluation\\visual_overlays\\PHOTO-2026-10-08-10-35-21_overlay.jpg"
+    },
+    {
+      "filename": "PHOTO-2026-10-08-10-35-39.jpg",
+      "status": "success",
+      "detected_count": 18,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            37,
+            22,
+            389,
+            271
+          ],
+          "area": 24283,
+          "defect_percentage": 0.0,
+          "visible_defects": [
+            "None (Sound Surface)"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Not Ripe",
+          "grade": "Grade A",
+          "confidence": 94.2
+        },
+        {
+          "mango_index": 2,
+          "bbox": [
+            180,
+            41,
+            352,
+            315
+          ],
+          "area": 28538,
+          "defect_percentage": 0.0,
+          "visible_defects": [
+            "None (Sound Surface)"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Not Ripe",
+          "grade": "Grade A",
+          "confidence": 92.3
+        },
+        {
+          "mango_index": 3,
+          "bbox": [
+            402,
+            29,
+            410,
+            136
+          ],
+          "area": 24673,
+          "defect_percentage": 0.0,
+          "visible_defects": [
+            "None (Sound Surface)"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 94.5
+        },
+        {
+          "mango_index": 4,
+          "bbox": [
+            841,
+            27,
+            222,
+            143
+          ],
+          "area": 20679,
+          "defect_percentage": 25.18,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 100.0
+        },
+        {
+          "mango_index": 5,
+          "bbox": [
+            1099,
+            29,
+            235,
+            136
+          ],
+          "area": 21626,
+          "defect_percentage": 0.0,
+          "visible_defects": [
+            "None (Sound Surface)"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 60.1
+        },
+        {
+          "mango_index": 6,
+          "bbox": [
+            41,
+            278,
+            226,
+            271
+          ],
+          "area": 28626,
+          "defect_percentage": 0.37,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 99.0
+        },
+        {
+          "mango_index": 7,
+          "bbox": [
+            583,
+            219,
+            222,
+            138
+          ],
+          "area": 19909,
+          "defect_percentage": 0.25,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 79.9
+        },
+        {
+          "mango_index": 8,
+          "bbox": [
+            833,
+            219,
+            238,
+            138
+          ],
+          "area": 21819,
+          "defect_percentage": 0.0,
+          "visible_defects": [
+            "None (Sound Surface)"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 61.7
+        },
+        {
+          "mango_index": 9,
+          "bbox": [
+            1103,
+            219,
+            226,
+            136
+          ],
+          "area": 19994,
+          "defect_percentage": 20.48,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 100.0
+        },
+        {
+          "mango_index": 10,
+          "bbox": [
+            322,
+            408,
+            211,
+            136
+          ],
+          "area": 18646,
+          "defect_percentage": 32.32,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 99.2
+        },
+        {
+          "mango_index": 11,
+          "bbox": [
+            583,
+            406,
+            224,
+            142
+          ],
+          "area": 21098,
+          "defect_percentage": 0.0,
+          "visible_defects": [
+            "None (Sound Surface)"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 63.7
+        },
+        {
+          "mango_index": 12,
+          "bbox": [
+            828,
+            406,
+            239,
+            136
+          ],
+          "area": 19822,
+          "defect_percentage": 0.32,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Not Ripe",
+          "grade": "Grade A",
+          "confidence": 94.7
+        },
+        {
+          "mango_index": 13,
+          "bbox": [
+            1120,
+            401,
+            175,
+            154
+          ],
+          "area": 14870,
+          "defect_percentage": 41.37,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Pale / White Rot-like Patch",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Overripe",
+          "grade": "Reject",
+          "confidence": 89.4
+        },
+        {
+          "mango_index": 14,
+          "bbox": [
+            330,
+            593,
+            194,
+            158
+          ],
+          "area": 17650,
+          "defect_percentage": 37.89,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Pale / White Rot-like Patch",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Overripe",
+          "grade": "Reject",
+          "confidence": 91.0
+        },
+        {
+          "mango_index": 15,
+          "bbox": [
+            583,
+            591,
+            220,
+            140
+          ],
+          "area": 20041,
+          "defect_percentage": 0.0,
+          "visible_defects": [
+            "None (Sound Surface)"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 46.0
+        },
+        {
+          "mango_index": 16,
+          "bbox": [
+            855,
+            595,
+            205,
+            138
+          ],
+          "area": 18570,
+          "defect_percentage": 32.05,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 99.9
+        },
+        {
+          "mango_index": 17,
+          "bbox": [
+            1132,
+            547,
+            201,
+            183
+          ],
+          "area": 18306,
+          "defect_percentage": 0.04,
+          "visible_defects": [
+            "Discoloration / Bruising"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Not Ripe",
+          "grade": "Grade A",
+          "confidence": 89.6
+        },
+        {
+          "mango_index": 18,
+          "bbox": [
+            47,
+            600,
+            198,
+            130
+          ],
+          "area": 17799,
+          "defect_percentage": 7.19,
+          "visible_defects": [
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Not Ripe",
+          "grade": "Grade B",
+          "confidence": 97.8
+        }
+      ],
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_evaluation\\visual_overlays\\PHOTO-2026-10-08-10-35-39_overlay.jpg"
+    },
+    {
+      "filename": "PHOTO-2026-10-08-10-36-27.jpg",
+      "status": "success",
+      "detected_count": 1,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            226,
+            28,
+            921,
+            724
+          ],
+          "area": 443717,
+          "defect_percentage": 13.49,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Pale / White Rot-like Patch",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 99.2
+        }
+      ],
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_evaluation\\visual_overlays\\PHOTO-2026-10-08-10-36-27_overlay.jpg"
+    },
+    {
+      "filename": "PHOTO-2026-10-08-10-41-53(1).jpg",
+      "status": "success",
+      "detected_count": 2,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            9,
+            31,
+            196,
+            216
+          ],
+          "area": 27023,
+          "defect_percentage": 15.42,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Pale / White Rot-like Patch"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 99.4
+        },
+        {
+          "mango_index": 2,
+          "bbox": [
+            186,
+            85,
+            204,
+            137
+          ],
+          "area": 18039,
+          "defect_percentage": 24.21,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 96.6
+        }
+      ],
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_evaluation\\visual_overlays\\PHOTO-2026-10-08-10-41-53(1)_overlay.jpg"
+    },
+    {
+      "filename": "PHOTO-2026-10-08-10-41-53(2).jpg",
+      "status": "success",
+      "detected_count": 4,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            292,
+            0,
+            266,
+            194
+          ],
+          "area": 35833,
+          "defect_percentage": 26.94,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 99.3
+        },
+        {
+          "mango_index": 2,
+          "bbox": [
+            536,
+            42,
+            266,
+            225
+          ],
+          "area": 28325,
+          "defect_percentage": 2.13,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 97.3
+        },
+        {
+          "mango_index": 3,
+          "bbox": [
+            269,
+            175,
+            212,
+            208
+          ],
+          "area": 23465,
+          "defect_percentage": 18.06,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Grade C",
+          "confidence": 87.2
+        },
+        {
+          "mango_index": 4,
+          "bbox": [
+            369,
+            177,
+            200,
+            243
+          ],
+          "area": 25114,
+          "defect_percentage": 28.61,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 98.9
+        }
+      ],
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_evaluation\\visual_overlays\\PHOTO-2026-10-08-10-41-53(2)_overlay.jpg"
+    },
+    {
+      "filename": "PHOTO-2026-10-08-10-41-53(3).jpg",
+      "status": "success",
+      "detected_count": 1,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            83,
+            26,
+            237,
+            182
+          ],
+          "area": 25961,
+          "defect_percentage": 29.46,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 97.1
+        }
+      ],
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_evaluation\\visual_overlays\\PHOTO-2026-10-08-10-41-53(3)_overlay.jpg"
+    },
+    {
+      "filename": "PHOTO-2026-10-08-10-41-53(4).jpg",
+      "status": "success",
+      "detected_count": 1,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            53,
+            37,
+            408,
+            281
+          ],
+          "area": 71187,
+          "defect_percentage": 14.93,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Pale / White Rot-like Patch",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 100.0
+        }
+      ],
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_evaluation\\visual_overlays\\PHOTO-2026-10-08-10-41-53(4)_overlay.jpg"
+    },
+    {
+      "filename": "PHOTO-2026-10-08-10-41-53(5).jpg",
+      "status": "success",
+      "detected_count": 4,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            313,
+            38,
+            175,
+            326
+          ],
+          "area": 35806,
+          "defect_percentage": 22.43,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 61.8
+        },
+        {
+          "mango_index": 2,
+          "bbox": [
+            40,
+            288,
+            325,
+            175
+          ],
+          "area": 36055,
+          "defect_percentage": 21.48,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 68.8
+        },
+        {
+          "mango_index": 3,
+          "bbox": [
+            430,
+            288,
+            326,
+            175
+          ],
+          "area": 35785,
+          "defect_percentage": 21.43,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 70.2
+        },
+        {
+          "mango_index": 4,
+          "bbox": [
+            308,
+            378,
+            175,
+            326
+          ],
+          "area": 35740,
+          "defect_percentage": 22.18,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 62.5
+        }
+      ],
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_evaluation\\visual_overlays\\PHOTO-2026-10-08-10-41-53(5)_overlay.jpg"
+    },
+    {
+      "filename": "PHOTO-2026-10-08-10-41-53(6).jpg",
+      "status": "success",
+      "detected_count": 2,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            25,
+            9,
+            577,
+            587
+          ],
+          "area": 181315,
+          "defect_percentage": 7.19,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Grade C",
+          "confidence": 99.7
+        },
+        {
+          "mango_index": 2,
+          "bbox": [
+            463,
+            88,
+            536,
+            509
+          ],
+          "area": 141535,
+          "defect_percentage": 2.92,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 89.8
+        }
+      ],
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_evaluation\\visual_overlays\\PHOTO-2026-10-08-10-41-53(6)_overlay.jpg"
+    },
+    {
+      "filename": "PHOTO-2026-10-08-10-41-53.jpg",
+      "status": "success",
+      "detected_count": 1,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            146,
+            104,
+            400,
+            246
+          ],
+          "area": 46501,
+          "defect_percentage": 2.66,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Nearly Ripe",
+          "grade": "Grade A",
+          "confidence": 97.8
+        }
+      ],
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_evaluation\\visual_overlays\\PHOTO-2026-10-08-10-41-53_overlay.jpg"
+    },
+    {
+      "filename": "PHOTO-2026-10-08-10-41-54(1).jpg",
+      "status": "success",
+      "detected_count": 1,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            57,
+            154,
+            869,
+            1076
+          ],
+          "area": 599699,
+          "defect_percentage": 2.39,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Pale / White Rot-like Patch",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 51.0
+        }
+      ],
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_evaluation\\visual_overlays\\PHOTO-2026-10-08-10-41-54(1)_overlay.jpg"
+    },
+    {
+      "filename": "PHOTO-2026-10-08-10-41-54(2).jpg",
+      "status": "success",
+      "detected_count": 2,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            69,
+            77,
+            330,
+            213
+          ],
+          "area": 46527,
+          "defect_percentage": 6.04,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Grade C",
+          "confidence": 98.7
+        },
+        {
+          "mango_index": 2,
+          "bbox": [
+            97,
+            25,
+            174,
+            108
+          ],
+          "area": 8672,
+          "defect_percentage": 16.17,
+          "visible_defects": [
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 99.8
+        }
+      ],
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_evaluation\\visual_overlays\\PHOTO-2026-10-08-10-41-54(2)_overlay.jpg"
+    },
+    {
+      "filename": "PHOTO-2026-10-08-10-41-54.jpg",
+      "status": "success",
+      "detected_count": 4,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            67,
+            78,
+            130,
+            141
+          ],
+          "area": 10960,
+          "defect_percentage": 55.0,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Pale / White Rot-like Patch"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 99.9
+        },
+        {
+          "mango_index": 2,
+          "bbox": [
+            93,
+            77,
+            251,
+            189
+          ],
+          "area": 22412,
+          "defect_percentage": 9.06,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 99.2
+        },
+        {
+          "mango_index": 3,
+          "bbox": [
+            393,
+            150,
+            105,
+            140
+          ],
+          "area": 7996,
+          "defect_percentage": 54.23,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Overripe",
+          "grade": "Reject",
+          "confidence": 99.2
+        },
+        {
+          "mango_index": 4,
+          "bbox": [
+            410,
+            148,
+            181,
+            190
+          ],
+          "area": 15894,
+          "defect_percentage": 0.31,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 94.6
+        }
+      ],
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_evaluation\\visual_overlays\\PHOTO-2026-10-08-10-41-54_overlay.jpg"
+    },
+    {
+      "filename": "Screenshot 2026-10-06 224620.png",
+      "status": "success",
+      "detected_count": 7,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            0,
+            0,
+            167,
+            217
+          ],
+          "area": 26133,
+          "defect_percentage": 13.63,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade B",
+          "confidence": 93.1
+        },
+        {
+          "mango_index": 2,
+          "bbox": [
+            78,
+            0,
+            333,
+            471
+          ],
+          "area": 111495,
+          "defect_percentage": 13.14,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 98.2
+        },
+        {
+          "mango_index": 3,
+          "bbox": [
+            340,
+            0,
+            200,
+            292
+          ],
+          "area": 35376,
+          "defect_percentage": 2.32,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 91.2
+        },
+        {
+          "mango_index": 4,
+          "bbox": [
+            461,
+            0,
+            224,
+            321
+          ],
+          "area": 42615,
+          "defect_percentage": 4.79,
+          "visible_defects": [
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade B",
+          "confidence": 91.2
+        },
+        {
+          "mango_index": 5,
+          "bbox": [
+            0,
+            151,
+            140,
+            320
+          ],
+          "area": 28438,
+          "defect_percentage": 5.72,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade B",
+          "confidence": 91.7
+        },
+        {
+          "mango_index": 6,
+          "bbox": [
+            499,
+            185,
+            186,
+            286
+          ],
+          "area": 25322,
+          "defect_percentage": 0.0,
+          "visible_defects": [
+            "None (Sound Surface)"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 82.6
+        },
+        {
+          "mango_index": 7,
+          "bbox": [
+            348,
+            256,
+            211,
+            215
+          ],
+          "area": 33011,
+          "defect_percentage": 0.04,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 90.6
+        }
+      ],
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_evaluation\\visual_overlays\\Screenshot 2026-10-06 224620_overlay.jpg"
+    },
+    {
+      "filename": "images.jpg",
+      "status": "success",
+      "detected_count": 3,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            0,
+            0,
+            179,
+            337
+          ],
+          "area": 37988,
+          "defect_percentage": 1.39,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Ripe",
+          "grade": "Grade A",
+          "confidence": 91.7
+        },
+        {
+          "mango_index": 2,
+          "bbox": [
+            107,
+            0,
+            292,
+            269
+          ],
+          "area": 50245,
+          "defect_percentage": 8.48,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 98.4
+        },
+        {
+          "mango_index": 3,
+          "bbox": [
+            0,
+            143,
+            399,
+            358
+          ],
+          "area": 84356,
+          "defect_percentage": 19.81,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Grade C",
+          "confidence": 99.5
+        }
+      ],
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_evaluation\\visual_overlays\\images_overlay.jpg"
+    },
+    {
+      "filename": "nTIGEoMBqvOUNw1.jpg",
+      "status": "success",
+      "detected_count": 1,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            0,
+            0,
+            300,
+            168
+          ],
+          "area": 47628,
+          "defect_percentage": 19.98,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Ripe",
+          "grade": "Reject",
+          "confidence": 97.9
+        }
+      ],
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_evaluation\\visual_overlays\\nTIGEoMBqvOUNw1_overlay.jpg"
+    },
+    {
+      "filename": "unripe-mango-green-mango.jpg",
+      "status": "success",
+      "detected_count": 3,
+      "mangoes": [
+        {
+          "mango_index": 1,
+          "bbox": [
+            0,
+            0,
+            157,
+            250
+          ],
+          "area": 26572,
+          "defect_percentage": 2.48,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Not Ripe",
+          "grade": "Grade A",
+          "confidence": 96.5
+        },
+        {
+          "mango_index": 2,
+          "bbox": [
+            77,
+            0,
+            173,
+            185
+          ],
+          "area": 16673,
+          "defect_percentage": 8.18,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion",
+            "Surface Scab / Mechanical Scar"
+          ],
+          "health_status": "Defective",
+          "status": "Significant Defect",
+          "ripeness": "Not Ripe",
+          "grade": "Reject",
+          "confidence": 96.7
+        },
+        {
+          "mango_index": 3,
+          "bbox": [
+            98,
+            175,
+            123,
+            73
+          ],
+          "area": 4958,
+          "defect_percentage": 2.46,
+          "visible_defects": [
+            "Black Spot / Necrotic Lesion"
+          ],
+          "health_status": "Healthy",
+          "status": "Healthy",
+          "ripeness": "Not Ripe",
+          "grade": "Grade A",
+          "confidence": 71.3
+        }
+      ],
+      "overlay_path": "C:\\Users\\test\\Desktop\\BharatAgri-main\\BharatAgri-main\\ml\\results\\mango\\external_test_evaluation\\visual_overlays\\unripe-mango-green-mango_overlay.jpg"
+    }
+  ]
+}

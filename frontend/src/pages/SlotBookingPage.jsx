@@ -128,7 +128,7 @@ export default function SlotBookingPage({ user, onBookingSuccess, navigate }) {
         crop,
         quantity: parseFloat(quantity) || 40,
         farmer_id: user?.user_id,
-        district: user?.district || 'Pune'
+        district: user?.district || (user?.state === 'Goa' ? 'North Goa' : 'North Goa')
       })
         .then(res => {
           setRecommendedCentres(res.centres || []);
@@ -657,9 +657,12 @@ export default function SlotBookingPage({ user, onBookingSuccess, navigate }) {
                               fontSize: '0.65rem',
                               fontWeight: 800,
                               padding: '1px 6px',
-                              borderRadius: '8px'
+                              borderRadius: '8px',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '3px'
                             }}>
-                              ★ RECOMMENDED
+                              <Sparkles size={11} /> RECOMMENDED
                             </span>
                           )}
                           {isAlt && (

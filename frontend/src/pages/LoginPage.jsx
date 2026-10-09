@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { loginUser, registerFarmer, registerCentre, registerAgent, registerGovernment } from '../services/api';
-import { LogIn, UserCheck, Building2, User, AlertCircle, ShieldCheck, Users, Briefcase } from 'lucide-react';
+import { LogIn, UserCheck, Building2, User, AlertCircle, ShieldCheck, Users, Briefcase, Sprout, Landmark } from 'lucide-react';
 import { useTranslation } from '../context/LanguageContext';
 
 const DEMO_ACCOUNTS = {
@@ -272,30 +272,30 @@ export default function LoginPage({ initialRole = 'farmer', onLoginSuccess, navi
               <button
                 type="button"
                 onClick={() => handleQuickFill('farmer')}
-                style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem', borderRadius: '4px', border: '1px solid var(--border)', backgroundColor: 'var(--bg-card)', color: 'var(--secondary)', cursor: 'pointer', fontWeight: 600 }}
+                style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem', borderRadius: '4px', border: '1px solid var(--border)', backgroundColor: 'var(--bg-card)', color: 'var(--secondary)', cursor: 'pointer', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '4px' }}
               >
-                🌾 Demo Farmer
+                <Sprout size={13} style={{ color: 'var(--primary)' }} /> Demo Farmer
               </button>
               <button
                 type="button"
                 onClick={() => handleQuickFill('agent')}
-                style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem', borderRadius: '4px', border: '1px solid var(--border)', backgroundColor: 'var(--bg-card)', color: 'var(--secondary)', cursor: 'pointer', fontWeight: 600 }}
+                style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem', borderRadius: '4px', border: '1px solid var(--border)', backgroundColor: 'var(--bg-card)', color: 'var(--secondary)', cursor: 'pointer', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '4px' }}
               >
-                🤝 Demo Agent
+                <Users size={13} style={{ color: 'var(--info)' }} /> Demo Agent
               </button>
               <button
                 type="button"
                 onClick={() => handleQuickFill('centre')}
-                style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem', borderRadius: '4px', border: '1px solid var(--border)', backgroundColor: 'var(--bg-card)', color: 'var(--secondary)', cursor: 'pointer', fontWeight: 600 }}
+                style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem', borderRadius: '4px', border: '1px solid var(--border)', backgroundColor: 'var(--bg-card)', color: 'var(--secondary)', cursor: 'pointer', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '4px' }}
               >
-                🏢 Demo Centre
+                <Building2 size={13} style={{ color: 'var(--secondary)' }} /> Demo Centre
               </button>
               <button
                 type="button"
                 onClick={() => handleQuickFill('government')}
-                style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem', borderRadius: '4px', border: '1px solid var(--border)', backgroundColor: 'var(--bg-card)', color: 'var(--secondary)', cursor: 'pointer', fontWeight: 600 }}
+                style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem', borderRadius: '4px', border: '1px solid var(--border)', backgroundColor: 'var(--bg-card)', color: 'var(--secondary)', cursor: 'pointer', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '4px' }}
               >
-                🏛️ Demo Govt Admin
+                <Landmark size={13} style={{ color: 'var(--primary)' }} /> Demo Govt Admin
               </button>
             </div>
           </div>

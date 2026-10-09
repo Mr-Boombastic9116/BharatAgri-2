@@ -544,7 +544,7 @@ def get_centre_bookings(centre_id: str, date: Optional[str] = None, db: Session 
             "end_time": s.end_time,
             "time_slot": f"{s.start_time} - {s.end_time}",
             "status": b.status,
-            "verification_status": "VERIFIED ✓" if b.status in ["VERIFIED", "ARRIVED", "CHECKED_IN", "RECEIVED", "COLLECTED", "QUALITY_CHECKED", "WEIGHED", "PROCURED", "STORED", "PAYMENT_INITIATED", "PAID"] else "NOT VERIFIED",
+            "verification_status": "VERIFIED" if b.status in ["VERIFIED", "ARRIVED", "CHECKED_IN", "RECEIVED", "COLLECTED", "QUALITY_CHECKED", "WEIGHED", "PROCURED", "STORED", "PAYMENT_INITIATED", "PAID"] else "NOT VERIFIED",
             "qr_token": b.qr_token,
             "verified_at": str(b.verified_at) if b.verified_at else None,
             "created_at": str(b.created_at)

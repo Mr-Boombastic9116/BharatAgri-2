@@ -23,7 +23,7 @@ def verify_appointment_qr(
         return {
             "success": False,
             "code": "INVALID_REQUEST",
-            "error": "INVALID APPOINTMENT ✕",
+            "error": "INVALID APPOINTMENT",
             "message": "QR token and Centre ID are required."
         }
 
@@ -35,7 +35,7 @@ def verify_appointment_qr(
         return {
             "success": False,
             "code": "CENTRE_NOT_FOUND",
-            "error": "CENTRE NOT FOUND ✕",
+            "error": "CENTRE NOT FOUND",
             "message": f"Procurement centre '{req.centre_id}' does not exist."
         }
 
@@ -46,7 +46,7 @@ def verify_appointment_qr(
             return {
                 "success": False,
                 "code": "UNAUTHORIZED_CENTRE",
-                "error": "UNAUTHORIZED CENTRE ✕",
+                "error": "UNAUTHORIZED CENTRE",
                 "message": f"You are authorized for '{user_centre.centre_id}', cannot verify bookings for '{target_centre.centre_id}'."
             }
 
@@ -65,7 +65,7 @@ def verify_appointment_qr(
         return {
             "success": False,
             "code": "INVALID_QR",
-            "error": "INVALID APPOINTMENT ✕",
+            "error": "INVALID APPOINTMENT",
             "message": "Entry Not Accepted. Unrecognized QR code."
         }
 
@@ -73,7 +73,7 @@ def verify_appointment_qr(
         return {
             "success": False,
             "code": "WRONG_CENTRE",
-            "error": "WRONG PROCUREMENT CENTRE ✕",
+            "error": "WRONG PROCUREMENT CENTRE",
             "message": f"Appointment belongs to centre '{booking.centre_id}', not this centre ({target_centre.centre_id})."
         }
 
@@ -90,7 +90,7 @@ def verify_appointment_qr(
         return {
             "success": False,
             "code": "REJECTED",
-            "error": "APPOINTMENT REJECTED ✕",
+            "error": "APPOINTMENT REJECTED",
             "message": "This appointment has been marked rejected."
         }
 
@@ -143,7 +143,7 @@ def verify_appointment_qr(
     return {
         "success": True,
         "code": "SUCCESS",
-        "title": "APPOINTMENT FOUND ✓",
+        "title": "APPOINTMENT FOUND",
         "message": "Appointment verified successfully. Farmer checked-in at centre gate.",
         "appointment": {
             "appointment_id": booking.appointment_id,

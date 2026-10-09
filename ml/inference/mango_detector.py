@@ -128,34 +128,123 @@ class MangoDetector:
         b_est = (r + g - 2.0 * b) * 0.4 + 128.0
         chroma = np.hypot(a_est - 128.0, b_est - 128.0)
 
-        # Foreground mango peel segmentation:
-        # Accounts for ripe yellow/orange peel, green unripe peel, and breaking peel
-        # Strictly rejects cool blue/grey/white background and dark non-mango shadows
-        is_yellow = (r > b * 1.10) & (g > b * 0.92) & (b_est > 128.0) & (l_est > 35.0) & (l_est < 248.0)
-        is_green = (g > r * 0.90) & (g > b * 1.02) & (chroma > 8.0) & (l_est > 30.0) & (l_est < 245.0)
-        is_breaking = (r > b * 1.04) & (g > b * 0.96) & (chroma > 10.0) & (l_est > 35.0) & (l_est < 248.0)
-        peel_raw = is_yellow | is_green | is_breaking
+        # HSV representation for illumination and saturation separation
+        c_max = np.maximum(np.maximum(r, g), b)
+        c_min = np.minimum(np.minimum(r, g), b)
+        c_rng = c_max - c_min
+        sat = np.where(c_max > 1.0, c_rng / (c_max + 1e-6), 0.0)
 
-        struct = np.ones((7, 7), dtype=bool)
-        peel_clean = ndi.binary_closing(peel_raw, structure=struct)
-        peel_clean = ndi.binary_fill_holes(peel_clean)
+        # 1. White Background Estimation (Controlled white sheet/table prior)
+        # Operators photograph mangoes on a clean white background under white overhead lighting.
+        # Estimate reference white illumination from image border margins
+        bg_margin_h = max(2, int(sh * 0.08))
+        bg_margin_w = max(2, int(sw * 0.08))
+        border_mask = np.zeros((sh, sw), dtype=bool)
+        border_mask[:bg_margin_h, :] = True
+        border_mask[-bg_margin_h:, :] = True
+        border_mask[:, :bg_margin_w] = True
+        border_mask[:, -bg_margin_w:] = True
 
-        # Filter out tiny disconnected noise specks from peel_clean
+        border_L = l_est[border_mask]
+        border_sat = sat[border_mask]
+        white_border_l = border_L[(border_sat <= 0.20) & (border_L >= 160.0)]
+        bg_white_ref = float(np.percentile(white_border_l, 80)) if len(white_border_l) > 20 else 240.0
+        bg_white_ref = max(185.0, min(255.0, bg_white_ref))
+        l_norm = l_est / bg_white_ref
+
+        is_pure_white = (l_est >= 200.0) & (sat <= 0.18) & (chroma <= 18.0)
+        is_near_white = (l_est >= 175.0) & (sat <= 0.14) & (chroma <= 16.0) & (c_rng <= 35.0)
+        white_bg = is_pure_white | is_near_white
+
+        # 2. Shadow / Neutral Illumination Candidate Suppression
+        # Includes both deep neutral shadows and whitish-grey penumbra cast shadows with color bounce
+        is_neutral_shadow = (l_est >= 38.0) & (l_est <= 218.0) & (sat <= 0.15) & (chroma <= 16.0) & (c_rng <= 28.0)
+        is_whitish_grey_shadow = (l_est >= 130.0) & (l_est <= 235.0) & (sat <= 0.22) & (chroma <= 22.0) & (c_rng <= 52.0)
+        shadow_mask = is_neutral_shadow | is_whitish_grey_shadow
+        is_dark_bg = (l_est <= 38.0) & (sat <= 0.20) & (chroma <= 12.0) & border_mask
+        bg_and_shadow = white_bg | shadow_mask
+
+        # 3. Foreground Mango Peel Segmentation:
+        # Accounts for ripe yellow/orange peel, green unripe peel, breaking peel, and dark/black peel
+        # Strongly rejects white background, neutral shadows, and whitish-grey cast shadows
+        is_yellow = (r > b * 1.14) & (g > b * 0.95) & (b_est > 130.0) & (sat >= 0.19) & (chroma >= 14.0) & (l_est >= 35.0) & (l_est < 250.0) & (~bg_and_shadow)
+        is_green = (g > r * 0.88) & (g > b * 1.02) & (chroma >= 8.0) & (sat >= 0.10) & (l_est >= 28.0) & (l_est < 245.0) & (~white_bg) & (~is_neutral_shadow)
+        is_breaking = (r > b * 1.06) & (g > b * 0.96) & (chroma >= 13.0) & (sat >= 0.16) & (l_est >= 35.0) & (l_est < 250.0) & (~bg_and_shadow)
+        is_dark_fruit = (~white_bg) & (~shadow_mask) & (~border_mask) & (l_est < 40.0)
+        peel_raw = (is_yellow | is_green | is_breaking | is_dark_fruit) & (~is_dark_bg) & (~border_mask)
+
+        # Morphology: small opening to remove whisker bridges without merging gaps,
+        # followed by closing and hole filling to retain interior defects
+        peel_opened = ndi.binary_opening(peel_raw, structure=np.ones((3, 3), dtype=bool))
+        peel_closed = ndi.binary_closing(peel_opened, structure=np.ones((3, 3), dtype=bool))
+        peel_filled = ndi.binary_fill_holes(peel_closed)
+
+        # Boundary Refinement: Strip outer perimeter shadow fringes adjacent to white background
+        # Inspect boundary section pixels extending towards surrounding white sheet:
+        eroded_peel_5 = ndi.binary_erosion(peel_filled, structure=np.ones((5, 5), dtype=bool))
+        eroded_peel_9 = ndi.binary_erosion(peel_filled, structure=np.ones((9, 9), dtype=bool))
+        outer_perim_narrow = peel_filled & (~eroded_peel_5)
+        outer_perim_wide = peel_filled & (~eroded_peel_9)
+
+        # External cast shadows on white sheet exhibit low chroma, neutral saturation, or grey tone
+        is_outer_cast_shadow = outer_perim_wide & (
+            ((sat < 0.22) & (chroma < 20.0)) |
+            ((l_est > 140.0) & (sat < 0.26)) |
+            ((l_est > 190.0) & (chroma < 25.0)) |
+            ((c_rng < 35.0) & (l_est > 100.0) & (sat < 0.28))
+        ) & (~is_green) & (~is_dark_fruit)
+
+        # Also strip ambiguous dark border outline pixels touching the white background
+        is_dark_outline = outer_perim_narrow & (l_est < 45.0) & (sat < 0.25) & (chroma < 18.0)
+
+        is_boundary_shadow = is_outer_cast_shadow | is_dark_outline
+        peel_refined = peel_filled & (~is_boundary_shadow)
+        peel_clean = ndi.binary_fill_holes(peel_refined)
+
+        # Track excluded shadow ledger
+        raw_fg_pixels = int(np.sum(peel_filled))
+        refined_mask_pixels = int(np.sum(peel_clean))
+        excluded_shadow_mask = peel_filled & (~peel_clean)
+        excluded_shadow_pixels = int(np.sum(excluded_shadow_mask))
+        shadow_exclusion_ratio = round(float(excluded_shadow_pixels) / float(max(1, raw_fg_pixels)), 4)
+
+        # Filter out tiny disconnected noise specks, border clutter, and rectangular dark crates from peel_clean
         lbl_raw, n_raw = ndi.label(peel_clean)
-        if n_raw > 1:
+        if n_raw >= 1:
             raw_sizes = ndi.sum(peel_clean, lbl_raw, range(1, n_raw + 1))
-            dom_raw = float(np.max(raw_sizes))
+            dom_raw = float(np.max(raw_sizes)) if len(raw_sizes) > 0 else 0.0
             min_keep = max(350.0, dom_raw * 0.05)
             filtered_peel = np.zeros_like(peel_clean)
             for idx_r, s in enumerate(raw_sizes, 1):
                 if s >= min_keep:
-                    filtered_peel[lbl_raw == idx_r] = True
+                    m_comp = (lbl_raw == idx_r)
+                    ys_c, xs_c = np.where(m_comp)
+                    bw_c = np.max(xs_c) - np.min(xs_c) + 1
+                    bh_c = np.max(ys_c) - np.min(ys_c) + 1
+                    rect_c = float(s) / float(max(1, bw_c * bh_c))
+                    mean_l_c = float(np.mean(l_est[m_comp]))
+
+                    # If dark object (L < 42) and either touches border or is rectangular (> 0.86), it is background clutter
+                    is_border_clutter = (mean_l_c < 42.0) and (np.sum(m_comp & border_mask) > int(s * 0.08))
+                    is_dark_crate = (mean_l_c < 42.0) and (rect_c > 0.86)
+
+                    if not (is_border_clutter or is_dark_crate):
+                        filtered_peel[m_comp] = True
             peel_clean = filtered_peel
 
         total_peel_pixels = float(np.sum(peel_clean))
         if total_peel_pixels < 250:
             self.last_debug_data = {
                 'peel_clean': peel_clean,
+                'white_bg_mask': white_bg,
+                'shadow_mask': shadow_mask,
+                'raw_foreground': peel_filled,
+                'refined_mask': peel_clean,
+                'excluded_shadow_mask': excluded_shadow_mask,
+                'excluded_shadow_pixels': excluded_shadow_pixels,
+                'raw_foreground_pixels': raw_fg_pixels,
+                'refined_mask_pixels': refined_mask_pixels,
+                'shadow_exclusion_ratio': shadow_exclusion_ratio,
                 'markers': np.zeros_like(peel_clean, dtype=np.int32),
                 'segmented_instances': np.zeros_like(peel_clean, dtype=np.int32),
                 'scale': scale
@@ -164,11 +253,21 @@ class MangoDetector:
                 return img, [], self.generate_debug_images(img, [])
             return img, []
 
-        # Outer perimeter of peel for validating true inter-fruit creases
+        # 4. Connected-Component Analysis & Conditional Watershed
+        # Rule 7: If objects are already separated connected components, DO NOT watershed between them!
+        lbl_cc, n_cc = ndi.label(peel_clean)
+        dist_full = ndi.distance_transform_edt(peel_clean)
+
+        markers = np.zeros(peel_clean.shape, dtype=np.int32)
+        marker_count = 0
+        total_candidate_markers = 0
+        total_accepted_markers = 0
+        total_rejected_markers = 0
+        rejected_reasons = []
+
+        # Signal B: Boundary edge gradient creases to detect contact seams between touching mangoes
         eroded_peel = ndi.binary_erosion(peel_clean, structure=np.ones((5, 5), bool))
         outer_perim = peel_clean & (~eroded_peel)
-
-        # Signal B: Boundary edge gradient detection to find creases and contact seams
         gx = ndi.sobel(l_est, axis=1)
         gy = ndi.sobel(l_est, axis=0)
         grad = np.hypot(gx, gy)
@@ -177,7 +276,6 @@ class MangoDetector:
         edge_thresh = max(28.0, float(p85))
         raw_edges = (grad > edge_thresh) & peel_clean
 
-        # Filter out interior defect texture noise: only keep continuous edge creases that touch the perimeter
         lbl_e, n_e = ndi.label(raw_edges)
         clean_creases = np.zeros_like(raw_edges, dtype=bool)
         for idx_e in range(1, n_e + 1):
@@ -192,9 +290,7 @@ class MangoDetector:
         lbl_cores, n_cores = ndi.label(separated_peel)
         sizes = ndi.sum(separated_peel, lbl_cores, range(1, n_cores + 1)) if n_cores > 0 else []
 
-        markers = np.zeros(peel_clean.shape, dtype=np.int32)
-        marker_count = 0
-
+        # If boundary creases separated touching mangoes into distinct cores:
         if n_cores > 1 and len(sizes) > 0:
             dom_size = float(np.max(sizes))
             min_core_thresh = max(350.0, dom_size * 0.15)
@@ -202,8 +298,10 @@ class MangoDetector:
                 if s >= min_core_thresh:
                     marker_count += 1
                     markers[lbl_cores == idx_c] = marker_count
+                    total_candidate_markers += 1
+                    total_accepted_markers += 1
 
-        # Signal A & C: Multi-scale distance transform peaks and saddle dip detection
+        # Signal A & C: Distance transform peaks if boundary creases were insufficient (< 2 markers)
         if marker_count < 2:
             dist = ndi.distance_transform_edt(peel_clean)
             max_d = float(np.max(dist))
@@ -222,10 +320,10 @@ class MangoDetector:
                 kept_count = 0
                 kept_centers = []
                 for cx, cy, val, p_idx in peak_points:
+                    total_candidate_markers += 1
                     if not any(np.hypot(cx - kx, cy - ky) < min_peak_dist for kx, ky in kept_centers):
                         is_valid_peak = True
                         if kept_centers:
-                            # Verify saddle dip between candidate peak and existing peaks
                             nearest_k = min(kept_centers, key=lambda k: np.hypot(cx - k[0], cy - k[1]))
                             dist_to_k = np.hypot(cx - nearest_k[0], cy - nearest_k[1])
                             num_s = int(dist_to_k)
@@ -237,21 +335,31 @@ class MangoDetector:
                                 dip = (max(val, dist[int(nearest_k[1]), int(nearest_k[0])]) - min_line) / max_d
                                 if dip < 0.05:
                                     is_valid_peak = False
+                                    total_rejected_markers += 1
+                                    rejected_reasons.append(f"Insufficient dip {dip:.3f} < 0.05")
                         if is_valid_peak:
                             kept_count += 1
+                            total_accepted_markers += 1
                             kept_centers.append((cx, cy))
                             kept_markers[lbl_p == p_idx] = kept_count
+                    else:
+                        total_rejected_markers += 1
+                        rejected_reasons.append(f"Peak too close (< {min_peak_dist:.1f})")
                 if kept_count >= 2:
                     markers = kept_markers
                     marker_count = kept_count
                 else:
                     lbl_fallback, _ = ndi.label(peel_clean)
                     markers = lbl_fallback.astype(np.int32)
+                    marker_count = 1
+                    total_accepted_markers = 1
             else:
                 lbl_fallback, _ = ndi.label(peel_clean)
                 markers = lbl_fallback.astype(np.int32)
+                marker_count = 1
+                total_accepted_markers = 1
 
-        # Geodesic Voronoi / Marker-controlled distance partition
+        # Marker-controlled distance partition (Geodesic Voronoi / Watershed)
         if marker_count >= 2:
             _, indices = ndi.distance_transform_edt(markers == 0, return_indices=True)
             segmented_instances = markers[indices[0], indices[1]]
@@ -278,8 +386,69 @@ class MangoDetector:
         # Post-watershed geometric validation & false-split merger
         labels = [l for l in np.unique(segmented_instances) if l > 0]
         changed = True
+        dist_map = ndi.distance_transform_edt(peel_clean)
         while changed and len(labels) > 1:
             changed = False
+
+            # Check 0: False Middle Fragment / Bridge Sliver between two larger instances
+            # (Solves over-segmentation where 2 mangoes ~1 cm apart produce 3 mangoes)
+            if len(labels) >= 3:
+                for l_mid in labels:
+                    m_mid = (segmented_instances == l_mid)
+                    a_mid = float(np.sum(m_mid))
+                    if a_mid == 0:
+                        continue
+                    m_mid_d = ndi.binary_dilation(m_mid, structure=np.ones((5, 5), dtype=bool))
+                    neighbor_labels = [l_other for l_other in labels if l_other != l_mid and np.sum(m_mid_d & (segmented_instances == l_other)) > 0]
+                    if len(neighbor_labels) >= 2:
+                        for idx_a in range(len(neighbor_labels)):
+                            for idx_b in range(idx_a + 1, len(neighbor_labels)):
+                                la, lb = neighbor_labels[idx_a], neighbor_labels[idx_b]
+                                ma = (segmented_instances == la)
+                                mb = (segmented_instances == lb)
+                                aa, ab = float(np.sum(ma)), float(np.sum(mb))
+                                if aa == 0 or ab == 0:
+                                    continue
+                                min_ab = min(aa, ab)
+                                d_mid = float(np.max(dist_map[m_mid]))
+                                d_a = float(np.max(dist_map[ma]))
+                                d_b = float(np.max(dist_map[mb]))
+                                min_d_ab = min(d_a, d_b)
+                                mean_d_mid = float(np.mean(dist_map[m_mid]))
+                                mean_d_a = float(np.mean(dist_map[ma]))
+                                mean_d_b = float(np.mean(dist_map[mb]))
+                                min_mean_ab = min(mean_d_a, mean_d_b)
+
+                                # Section 10-12: Reject artificial bridge slivers and white-gap artifacts
+                                is_sliver = (
+                                    (a_mid < min_ab * 0.88 and (d_mid < min_d_ab * 0.72 or mean_d_mid < min_mean_ab * 0.65))
+                                    or (d_mid < min_d_ab * 0.65)
+                                    or (a_mid < min_ab * 0.40)
+                                )
+
+                                mid_sat = float(np.mean(sat[m_mid])) if np.sum(m_mid) > 0 else 0.0
+                                mid_chroma = float(np.mean(chroma[m_mid])) if np.sum(m_mid) > 0 else 0.0
+                                mid_l = float(np.mean(l_est[m_mid])) if np.sum(m_mid) > 0 else 0.0
+                                is_gap_artifact = (mid_l > 195.0) or ((mid_l > 140.0) and ((mid_sat < 0.16) or (mid_chroma < 14.0)))
+
+                                if is_sliver or is_gap_artifact:
+                                    if is_gap_artifact:
+                                        # Exclude background gap artifact completely
+                                        segmented_instances[m_mid] = 0
+                                    else:
+                                        # Merge bridge neck into adjacent real mangoes
+                                        _, nn_idx = ndi.distance_transform_edt(~(ma | mb), return_indices=True)
+                                        segmented_instances[m_mid] = segmented_instances[nn_idx[0][m_mid], nn_idx[1][m_mid]]
+                                    labels = [l for l in np.unique(segmented_instances) if l > 0]
+                                    changed = True
+                                    break
+                            if changed:
+                                break
+                    if changed:
+                        break
+                if changed:
+                    continue
+
             pairs = []
             for i in range(len(labels)):
                 for j in range(i + 1, len(labels)):
@@ -357,7 +526,8 @@ class MangoDetector:
                         segmented_instances[seam_touch] = 0
 
         # 6. Build rich instance outputs mapped back to full resolution
-        min_fruit_area_scaled = max(400.0, float(sw * sh) * 0.02)
+        # Adaptively scale minimum fruit area so multi-fruit sack samples / dense trays (10-20 mangoes) are not discarded
+        min_fruit_area_scaled = max(300.0, min(float(sw * sh) * 0.005, total_peel_pixels * 0.015))
         max_fruit_area_scaled = float(sw * sh) * 0.98
 
         orig_rgb_arr = np.array(img, dtype=np.float32)
@@ -379,6 +549,10 @@ class MangoDetector:
             bw_s = bx2_s - bx1_s
             bh_s = by2_s - by1_s
 
+            # Reject border clutter (crates, corner shadows, conveyor edges)
+            if np.sum(inst_mask_s & border_mask) > int(area_s * 0.12):
+                continue
+
             aspect = float(bw_s) / float(max(bh_s, 1))
             if not (0.28 <= aspect <= 3.5):
                 continue
@@ -387,6 +561,9 @@ class MangoDetector:
             box_area_s = float(bw_s * bh_s)
             rectangularity = area_s / max(1.0, box_area_s)
             if rectangularity > 0.86:
+                mean_inst_l = float(np.mean(l_est[inst_mask_s])) if np.sum(inst_mask_s) > 0 else 0.0
+                if mean_inst_l < 42.0:
+                    continue
                 # Mask has unnatural rectangular cut edges; round off with morphological opening
                 inst_mask_s = ndi.binary_opening(inst_mask_s, structure=np.ones((5, 5), dtype=bool))
 
@@ -436,6 +613,8 @@ class MangoDetector:
             valid_detections.append({
                 'box': [x1_pad, y1_pad, bw, bh],
                 'bbox': [x1_pad, y1_pad, bw, bh],
+                'width': bw,
+                'height': bh,
                 'crop': masked_crop_img,
                 'area': float(np.sum(inst_mask_full)),
                 'mask': inst_mask_full,
@@ -444,13 +623,39 @@ class MangoDetector:
                 'centroid': (cx, cy),
                 'solidity': round(solidity, 3),
                 'aspect_ratio': round(float(bw) / float(max(bh, 1)), 2),
-                'segmentation_confidence': round(conf, 1)
+                'confidence': round(conf, 1),
+                'segmentation_confidence': round(conf, 1),
+                'cc_before_watershed': n_cc,
+                'candidate_markers': total_candidate_markers,
+                'accepted_markers': total_accepted_markers,
+                'rejected_markers': total_rejected_markers,
+                'rejected_reason': (rejected_reasons[0] if rejected_reasons else "None"),
+                'excluded_shadow_pixels': excluded_shadow_pixels,
+                'raw_foreground_pixels': raw_fg_pixels,
+                'refined_mask_pixels': refined_mask_pixels,
+                'shadow_exclusion_ratio': shadow_exclusion_ratio
             })
 
         # Return empty detections if no valid instances parsed
         if not valid_detections:
             self.last_debug_data = {
                 'peel_clean': peel_clean,
+                'white_bg_mask': white_bg,
+                'shadow_mask': shadow_mask,
+                'raw_foreground': peel_filled,
+                'refined_mask': peel_clean,
+                'excluded_shadow_mask': excluded_shadow_mask,
+                'excluded_shadow_pixels': excluded_shadow_pixels,
+                'raw_foreground_pixels': raw_fg_pixels,
+                'refined_mask_pixels': refined_mask_pixels,
+                'shadow_exclusion_ratio': shadow_exclusion_ratio,
+                'connected_components': lbl_cc,
+                'n_connected_components': n_cc,
+                'dist_map': dist_full,
+                'candidate_markers_count': total_candidate_markers,
+                'accepted_markers_count': total_accepted_markers,
+                'rejected_markers_count': total_rejected_markers,
+                'rejected_reasons': rejected_reasons,
                 'markers': markers,
                 'segmented_instances': segmented_instances,
                 'scale': scale
@@ -467,6 +672,22 @@ class MangoDetector:
         # Cache debug data for visualization
         self.last_debug_data = {
             'peel_clean': peel_clean,
+            'white_bg_mask': white_bg,
+            'shadow_mask': shadow_mask,
+            'raw_foreground': peel_filled,
+            'refined_mask': peel_clean,
+            'excluded_shadow_mask': excluded_shadow_mask,
+            'excluded_shadow_pixels': excluded_shadow_pixels,
+            'raw_foreground_pixels': raw_fg_pixels,
+            'refined_mask_pixels': refined_mask_pixels,
+            'shadow_exclusion_ratio': shadow_exclusion_ratio,
+            'connected_components': lbl_cc,
+            'n_connected_components': n_cc,
+            'dist_map': dist_full,
+            'candidate_markers_count': total_candidate_markers,
+            'accepted_markers_count': total_accepted_markers,
+            'rejected_markers_count': total_rejected_markers,
+            'rejected_reasons': rejected_reasons,
             'markers': markers,
             'segmented_instances': segmented_instances,
             'scale': scale
@@ -658,6 +879,141 @@ class MangoDetector:
         d10.text((250, 120), "Evaluation: Strictly Computed from Valid Fruit Surface", fill=(148, 163, 184))
         d10.text((20, 180), "Disclaimer: Optical AI baseline estimate for procurement gate triage.", fill=(100, 116, 139))
 
+        # DEVELOPER INSPECTION STAGES (SHADOW CORRECTION PIPELINE)
+        # Stage A: Estimated White Sheet Background
+        white_bg_m = d_data.get('white_bg_mask')
+        if white_bg_m is not None:
+            wbg_arr = np.full((h, w, 3), (15, 23, 42), dtype=np.uint8)
+            wbg_full = Image.fromarray(white_bg_m.astype(np.uint8) * 255).resize((w, h), Image.Resampling.NEAREST)
+            wbg_m_full = np.array(wbg_full) > 0
+            wbg_arr[wbg_m_full] = (220, 235, 252)
+            debug_wbg = Image.fromarray(wbg_arr)
+        else:
+            debug_wbg = orig_img.copy()
+        d_wbg = ImageDraw.Draw(debug_wbg)
+        d_wbg.text((12, 12), "DEV STAGE: Estimated White Sheet Background", fill=(255, 255, 255))
+
+        # Stage B: Shadow Mask (Neutral & Whitish-Grey Penumbra)
+        sh_m = d_data.get('shadow_mask')
+        if sh_m is not None:
+            sh_arr = np.full((h, w, 3), (15, 23, 42), dtype=np.uint8)
+            sh_full = Image.fromarray(sh_m.astype(np.uint8) * 255).resize((w, h), Image.Resampling.NEAREST)
+            sh_m_full = np.array(sh_full) > 0
+            sh_arr[sh_m_full] = (168, 85, 247)
+            debug_sh = Image.fromarray(sh_arr)
+        else:
+            debug_sh = orig_img.copy()
+        d_sh = ImageDraw.Draw(debug_sh)
+        d_sh.text((12, 12), "DEV STAGE: Detected Cast Shadows (Neutral & Whitish-Grey)", fill=(255, 255, 255))
+
+        # Stage C: Raw Foreground Candidate Mask
+        raw_fg = d_data.get('raw_foreground')
+        if raw_fg is not None:
+            rfg_arr = np.full((h, w, 3), (15, 23, 42), dtype=np.uint8)
+            rfg_full = Image.fromarray(raw_fg.astype(np.uint8) * 255).resize((w, h), Image.Resampling.NEAREST)
+            rfg_m_full = np.array(rfg_full) > 0
+            rfg_arr[rfg_m_full] = (245, 158, 11)
+            debug_rfg = Image.fromarray(rfg_arr)
+        else:
+            debug_rfg = orig_img.copy()
+        d_rfg = ImageDraw.Draw(debug_rfg)
+        d_rfg.text((12, 12), "DEV STAGE: Raw Foreground Candidate Mask", fill=(255, 255, 255))
+
+        # Stage D: Refined Fruit Mask (Shadow Excluded)
+        ref_m = d_data.get('refined_mask')
+        if ref_m is not None:
+            ref_arr = np.full((h, w, 3), (15, 23, 42), dtype=np.uint8)
+            ref_full = Image.fromarray(ref_m.astype(np.uint8) * 255).resize((w, h), Image.Resampling.NEAREST)
+            ref_m_full = np.array(ref_full) > 0
+            ref_arr[ref_m_full] = (16, 185, 129)
+            debug_ref = Image.fromarray(ref_arr)
+        else:
+            debug_ref = orig_img.copy()
+        d_ref = ImageDraw.Draw(debug_ref)
+        d_ref.text((12, 12), "DEV STAGE: Refined Mango Mask (Shadow-Excluded)", fill=(255, 255, 255))
+
+        # Stage E: Excluded Shadow Pixels Overlay
+        debug_exsh = orig_img.copy().convert("RGBA")
+        exsh_ov = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+        exsh_m = d_data.get('excluded_shadow_mask')
+        if exsh_m is not None:
+            exsh_full = Image.fromarray(exsh_m.astype(np.uint8) * 255).resize((w, h), Image.Resampling.NEAREST)
+            ex_ys, ex_xs = np.where(np.array(exsh_full) > 0)
+            ex_d = ImageDraw.Draw(exsh_ov)
+            for ex, ey in zip(ex_xs, ex_ys):
+                ex_d.point((ex, ey), fill=(236, 72, 153, 220))
+        debug_exsh = Image.alpha_composite(debug_exsh, exsh_ov).convert("RGB")
+        d_exsh = ImageDraw.Draw(debug_exsh)
+        d_exsh.text((12, 12), f"DEV STAGE: Excluded Shadow Pixels ({d_data.get('excluded_shadow_pixels', 0)} px stripped)", fill=(255, 255, 255))
+
+        # Stage F: Candidate White / Pale Patches (Section 6.6.E)
+        debug_cwp = orig_img.copy().convert("RGBA")
+        cwp_ov = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+        d_cwp = ImageDraw.Draw(cwp_ov)
+        for det in detections:
+            bx, by, bw, bh = det['box']
+            d_cwp.rectangle([bx, by, bx + bw, by + bh], outline=(6, 182, 212, 180), width=1)
+            for box in det.get('defect_boxes', []):
+                dbx, dby, dbw, dbh = box
+                d_cwp.rectangle([bx + dbx, by + dby, bx + dbx + dbw, by + dby + dbh], outline=(255, 255, 255, 240), fill=(6, 182, 212, 80), width=2)
+        debug_cwp = Image.alpha_composite(debug_cwp, cwp_ov).convert("RGB")
+        d_cwp_draw = ImageDraw.Draw(debug_cwp)
+        d_cwp_draw.text((12, 12), "DEV STAGE: Candidate White/Pale Disease Patches (Local Analysis)", fill=(255, 255, 255))
+
+        # Stage G: Candidate Grey-Shadow Regions (Section 6.6.E)
+        debug_cgs = orig_img.copy().convert("RGBA")
+        cgs_ov = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+        d_cgs = ImageDraw.Draw(cgs_ov)
+        if exsh_m is not None:
+            ex_ys, ex_xs = np.where(np.array(exsh_full) > 0)
+            for ex, ey in zip(ex_xs, ex_ys):
+                d_cgs.point((ex, ey), fill=(100, 116, 139, 180))
+        for det in detections:
+            bx, by, bw, bh = det['box']
+            d_cgs.rectangle([bx, by, bx + bw, by + bh], outline=(148, 163, 184, 160), width=1)
+        debug_cgs = Image.alpha_composite(debug_cgs, cgs_ov).convert("RGB")
+        d_cgs_draw = ImageDraw.Draw(debug_cgs)
+        d_cgs_draw.text((12, 12), "DEV STAGE: Candidate Grey Shadows on Background & Skin", fill=(255, 255, 255))
+
+        # Stage H: Local Context Windows (Section 6.6.E)
+        debug_lcw = orig_img.copy().convert("RGBA")
+        lcw_ov = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+        d_lcw = ImageDraw.Draw(lcw_ov)
+        for det in detections:
+            bx, by, bw, bh = det['box']
+            for box in det.get('defect_boxes', []):
+                dbx, dby, dbw, dbh = box
+                pad_w = max(6, int(max(dbw, dbh) * 1.2))
+                wx1 = max(bx, bx + dbx - pad_w)
+                wy1 = max(by, by + dby - pad_w)
+                wx2 = min(bx + bw, bx + dbx + dbw + pad_w)
+                wy2 = min(by + bh, by + dby + dbh + pad_w)
+                d_lcw.rectangle([wx1, wy1, wx2, wy2], outline=(245, 158, 11, 220), width=2)
+                d_lcw.rectangle([bx + dbx, by + dby, bx + dbx + dbw, by + dby + dbh], outline=(239, 68, 68, 255), width=2)
+        debug_lcw = Image.alpha_composite(debug_lcw, lcw_ov).convert("RGB")
+        d_lcw_draw = ImageDraw.Draw(debug_lcw)
+        d_lcw_draw.text((12, 12), "DEV STAGE: Local Context Windows (Surrounding Skin Inspection)", fill=(255, 255, 255))
+
+        # Stage I: Pixel Classification Map (Section 6.6.E)
+        # Colors: Background (15, 23, 42), Shadow (59, 130, 246), Mango Skin (16, 185, 129), Confirmed Defect (239, 68, 68)
+        px_arr = np.full((h, w, 3), (15, 23, 42), dtype=np.uint8)
+        if ref_m is not None:
+            ref_full = Image.fromarray(ref_m.astype(np.uint8) * 255).resize((w, h), Image.Resampling.NEAREST)
+            ref_mask = np.array(ref_full) > 0
+            px_arr[ref_mask] = (16, 185, 129)  # Mango skin
+        if exsh_m is not None:
+            exsh_full = Image.fromarray(exsh_m.astype(np.uint8) * 255).resize((w, h), Image.Resampling.NEAREST)
+            sh_mask = np.array(exsh_full) > 0
+            px_arr[sh_mask] = (59, 130, 246)  # Shadow
+        debug_pxc = Image.fromarray(px_arr)
+        d_pxc = ImageDraw.Draw(debug_pxc)
+        for det in detections:
+            bx, by, bw, bh = det['box']
+            for box in det.get('defect_boxes', []):
+                dbx, dby, dbw, dbh = box
+                d_pxc.rectangle([bx + dbx, by + dby, bx + dbx + dbw, by + dby + dbh], fill=(239, 68, 68), outline=(255, 255, 255), width=1)
+        d_pxc.text((12, 12), "DEV STAGE: Pixel Classification (Green: Skin, Blue: Shadow, Red: Defect, Dark: BG)", fill=(255, 255, 255))
+
         return {
             "debug_1_original": debug_1,
             "debug_2_peel_mask": debug_2,
@@ -669,7 +1025,16 @@ class MangoDetector:
             "debug_7_defect_candidates": debug_7,
             "debug_8_final_defect_mask": debug_8,
             "debug_9_defect_percentage": debug_9,
-            "debug_10_final_grade": debug_10
+            "debug_10_final_grade": debug_10,
+            "debug_stage_white_bg": debug_wbg,
+            "debug_stage_shadow_mask": debug_sh,
+            "debug_stage_raw_foreground": debug_rfg,
+            "debug_stage_refined_mask": debug_ref,
+            "debug_stage_excluded_shadow": debug_exsh,
+            "debug_stage_candidate_white_patches": debug_cwp,
+            "debug_stage_candidate_grey_shadows": debug_cgs,
+            "debug_stage_local_context_windows": debug_lcw,
+            "debug_stage_pixel_classification": debug_pxc
         }
 
     def annotate_image(self, original_img: Image.Image, detections: list, save_path: str = None) -> Image.Image:

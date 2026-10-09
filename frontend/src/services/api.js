@@ -694,13 +694,18 @@ export async function getForecastVsActual(paramsOrState) {
     if (paramsOrState.state && paramsOrState.state !== 'Nationwide') q.append('state', paramsOrState.state);
     if (paramsOrState.crop && paramsOrState.crop !== 'ALL') q.append('crop', paramsOrState.crop);
     if (paramsOrState.district && paramsOrState.district !== 'ALL') q.append('district', paramsOrState.district);
+    if (paramsOrState.interval) q.append('interval', paramsOrState.interval);
+    if (paramsOrState.date_range || paramsOrState.range) q.append('date_range', paramsOrState.date_range || paramsOrState.range);
     query = q.toString() ? `?${q.toString()}` : '';
   }
   const res = await fetch(`${API_BASE}/government/analytics/forecast-vs-actual${query}`, {
     headers: getAuthHeaders()
   });
   const data = await res.json();
-  return data.data || [];
+  return {
+    data: data.data || [],
+    summary: data.summary || null
+  };
 }
 
 export async function getCentreUtilizationAnalytics(state) {
@@ -939,6 +944,36 @@ export async function generateTruckRoutePredictions(payload = {}) {
   });
   const data = await res.json();
   return data;
+}
+
+export async function acceptAndNotifyTruckRoute(routeId, comments) {
+  const res = await fetch(`${API_BASE}/trucks/routes/${encodeURIComponent(routeId)}/accept-and-notify`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ comments: comments || '' })
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error?.message || data.detail || 'Accept and notify failed');
+  return data;
+}
+
+export async function acceptAndNotifyTruckRequest(requestId) {
+  const res = await fetch(`${API_BASE}/trucks/requests/${encodeURIComponent(requestId)}/accept-and-notify`, {
+    method: 'POST',
+    headers: getAuthHeaders()
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error?.message || data.detail || 'Accept and notify failed');
+  return data;
+}
+
+export async function getTruckRequests(params = {}) {
+  const query = new URLSearchParams(params).toString();
+  const res = await fetch(`${API_BASE}/trucks/requests?${query}`, {
+    headers: getAuthHeaders()
+  });
+  const data = await res.json();
+  return data.data || [];
 }
 
 export async function approveTruckRoute(routeId, comments) {
@@ -1363,26 +1398,32 @@ export async function getFarmerNotifications(farmerId) {
   return data.notifications || [];
 }
 
-export async function queryCopilot(query) {
+export async function queryCopilot(query, sessionContext = null) {
   const res = await fetch(`${API_BASE}/queue/copilot`, {
     method: 'POST',
     headers: getAuthHeaders(),
-    body: JSON.stringify({ query })
+    body: JSON.stringify({ query, session_context: sessionContext })
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.detail?.message || data.detail || 'Failed to query copilot');
-  return data.data;
+  if (!res.ok) {
+    const msg = data.detail?.message || (typeof data.detail === 'object' ? JSON.stringify(data.detail) : data.detail) || 'Failed to query copilot';
+    throw new Error(msg);
+  }
+  return data.data || data;
 }
 
-export async function queryCentreCopilot(centreId, query) {
+export async function queryCentreCopilot(centreId, query, sessionContext = null) {
   const res = await fetch(`${API_BASE}/queue/centre-copilot/${encodeURIComponent(centreId)}`, {
     method: 'POST',
     headers: getAuthHeaders(),
-    body: JSON.stringify({ query })
+    body: JSON.stringify({ query, session_context: sessionContext })
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.detail?.message || data.detail || 'Failed to query centre copilot');
-  return data.data;
+  if (!res.ok) {
+    const msg = data.detail?.message || (typeof data.detail === 'object' ? JSON.stringify(data.detail) : data.detail) || 'Failed to query centre copilot';
+    throw new Error(msg);
+  }
+  return data.data || data;
 }
 
 

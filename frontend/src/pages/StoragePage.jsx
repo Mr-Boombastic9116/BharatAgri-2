@@ -529,8 +529,8 @@ export default function StoragePage({ user, appointmentId, navigate }) {
               <div style={{ marginBottom: '14px', textAlign: 'center' }}>
                 <video ref={videoRef} autoPlay playsInline style={{ width: '100%', maxWidth: '400px', borderRadius: '8px', border: '2px solid var(--primary)' }} />
                 <div style={{ marginTop: '8px' }}>
-                  <button type="button" className="btn btn-primary btn-sm" onClick={captureCameraPhoto}>
-                    📸 Grab Photo
+                  <button type="button" className="btn btn-primary btn-sm" onClick={captureCameraPhoto} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                    <Camera size={14} /> Grab Photo
                   </button>
                 </div>
               </div>

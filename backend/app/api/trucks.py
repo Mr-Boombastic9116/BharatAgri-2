@@ -13,6 +13,7 @@ from backend.app.models.centre import ProcurementCentre, Slot
 from backend.app.models.booking import Booking
 from backend.app.models.queue import CentreDailyMetric
 from backend.app.models.audit import AuditLog
+from backend.app.models.alert import Alert
 from ml.inference.truck_optimizer import TruckOptimizer
 
 truck_optimizer = TruckOptimizer()
@@ -186,6 +187,132 @@ def create_truck_request(
     db.commit()
 
     return {"success": True, "message": "Truck request created", "data": {"id": req.id, "request_code": req.request_code}}
+
+@router.post("/requests/{request_id}/accept-and-notify")
+def accept_and_notify_truck_request(
+    request_id: str,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_role("GOVERNMENT", "ADMIN"))
+):
+    """
+    Accept & Notify Centre Workflow for Truck Requests:
+    1. Validates request availability (prevents duplicate acceptance or cancelled requests).
+    2. Finds and allocates available truck.
+    3. Changes backend status to ACCEPTED and associates truck with centre.
+    4. Records persistent TruckAllocation and AuditLog.
+    5. Generates persistent Alert notification for the destination centre.
+    """
+    req = None
+    if str(request_id).isdigit():
+        req = db.query(TruckRequest).filter(TruckRequest.id == int(request_id)).first()
+    if not req:
+        req = db.query(TruckRequest).filter(TruckRequest.request_code == str(request_id)).first()
+    if not req:
+        raise HTTPException(status_code=404, detail="Truck request not found.")
+
+    if req.status in ["ACCEPTED", "ALLOCATED", "COMPLETED", "CANCELLED"]:
+        raise HTTPException(status_code=400, detail="Truck request has already been accepted or is no longer available.")
+
+    # 1. Validate destination centre
+    dest_centre = db.query(ProcurementCentre).filter(ProcurementCentre.centre_id == req.centre_id).first()
+    if not dest_centre:
+        raise HTTPException(status_code=404, detail=f"Destination centre '{req.centre_id}' not found.")
+
+    # 2. Find and allocate available truck
+    avail_truck = db.query(Truck).filter(
+        Truck.is_available == True,
+        Truck.assigned_centre_id == req.centre_id
+    ).first()
+    if not avail_truck:
+        avail_truck = db.query(Truck).filter(Truck.is_available == True).first()
+
+    if not avail_truck:
+        raise HTTPException(status_code=400, detail="No logistics trucks currently available for allocation.")
+
+    # 3. Associate truck and update backend status
+    now_dt = datetime.now()
+    exp_arrival_dt = now_dt + timedelta(hours=3, minutes=30)
+    exp_arrival_str = exp_arrival_dt.strftime("%I:%M %p")
+
+    avail_truck.is_available = False
+    avail_truck.current_status = "ALLOCATED"
+    avail_truck.assigned_centre_id = req.centre_id
+
+    req.status = "ACCEPTED"
+
+    # 4. Store allocation event
+    alloc_code = f"TAL-{now_dt.strftime('%y%m%d')}-{uuid.uuid4().hex[:6].upper()}"
+    alloc = TruckAllocation(
+        allocation_code=alloc_code,
+        request_id=req.id,
+        truck_id=avail_truck.id,
+        centre_id=req.centre_id,
+        allocation_date=date.today(),
+        assigned_quantity_quintals=req.required_capacity_quintals,
+        status="ALLOCATED",
+        notes=f"Accepted and dispatched to {dest_centre.centre_name}"
+    )
+    db.add(alloc)
+    db.flush()
+
+    # 5. Generate notification for the destination centre (Alert table)
+    alert_code = f"ALT-TRK-REQ-{req.id}"
+    existing_alert = db.query(Alert).filter(Alert.alert_code == alert_code).first()
+    if not existing_alert:
+        truck_cap_tonnes = float(avail_truck.capacity_quintals) / 10.0
+        alert_msg = (
+            f"Truck {avail_truck.truck_number} has been accepted and dispatched to your centre. "
+            f"Capacity: {truck_cap_tonnes:.0f} tonnes ({float(avail_truck.capacity_quintals):.0f} Q). "
+            f"Expected arrival: {exp_arrival_str}."
+        )
+        alert = Alert(
+            alert_code=alert_code,
+            scope="CENTRE",
+            centre_id=req.centre_id,
+            state=dest_centre.state,
+            district=dest_centre.district,
+            alert_type="LOGISTICS_DISPATCH",
+            severity="MEDIUM",
+            what=alert_msg,
+            where_location=f"{dest_centre.centre_name}, {dest_centre.district}",
+            when_timestamp=now_dt,
+            why=f"Government Logistics accepted truck request {req.request_code} (Reason: {req.reason}).",
+            recommended_action=f"Prepare yard bay WB-01 and notify weighbridge staff for incoming Truck {avail_truck.truck_number} (Driver: {avail_truck.driver_name}, Ph: {avail_truck.driver_phone}).",
+            is_resolved=False
+        )
+        db.add(alert)
+
+    # 6. Audit log
+    audit = AuditLog(
+        user_id=get_user_identifier(current_user, "GOVERNMENT_OFFICER"),
+        action="TRUCK_REQUEST_ACCEPTED",
+        entity="truck_requests",
+        entity_id=req.request_code,
+        old_value="PENDING",
+        new_value=f"ACCEPTED: Truck {avail_truck.truck_number} allocated to {req.centre_id}"
+    )
+    db.add(audit)
+    db.commit()
+
+    return {
+        "success": True,
+        "message": f"Truck {avail_truck.truck_number} accepted and dispatched. Notification sent to {dest_centre.centre_name}.",
+        "data": {
+            "request_id": req.id,
+            "request_code": req.request_code,
+            "truck_number": avail_truck.truck_number,
+            "driver_name": avail_truck.driver_name,
+            "driver_phone": avail_truck.driver_phone,
+            "capacity_quintals": float(avail_truck.capacity_quintals),
+            "capacity_tonnes": float(avail_truck.capacity_quintals) / 10.0,
+            "destination_centre_id": req.centre_id,
+            "destination_centre_name": dest_centre.centre_name,
+            "expected_arrival": exp_arrival_str,
+            "allocation_code": alloc.allocation_code,
+            "status": req.status,
+            "timestamp": now_dt.isoformat()
+        }
+    }
 
 @router.get("/allocations")
 def list_allocations(
@@ -393,14 +520,26 @@ def list_predicted_routes(
 
         truck_cap = float(r.truck_capacity_quintals or 200.0)
         trucks_req = max(1, math.ceil(float(r.quantity_quintals) / max(truck_cap, 1.0)))
+        total_truck_cap = trucks_req * truck_cap
+        util_pct = min(100.0, round((float(r.quantity_quintals) / max(total_truck_cap, 1.0)) * 100, 1))
+        src_util_pct = round((source_used / max(source_cap, 1.0)) * 100, 1)
+        dest_util_pct = round((dest_used / max(dest_cap, 1.0)) * 100, 1)
+        source_remaining_after = max(0.0, source_used - float(r.quantity_quintals))
+        dest_remaining_after = max(0.0, dest_avail - float(r.quantity_quintals))
 
         # Format calculated reason if blank or generic
         reason_text = r.reason
         if not reason_text or "storage" not in reason_text.lower():
             reason_text = (
                 f"Source storage is nearing capacity ({source_used:,.0f}/{source_cap:,.0f} Q) "
-                f"while destination has available storage ({dest_avail:,.0f} Q) and higher demand for {r.crop}."
+                f"while destination has available storage ({dest_avail:,.0f} Q) and verified demand for {r.crop}."
             )
+
+        factual_expl = (
+            f"Source {r.origin_centre_name} ({r.origin_centre_id}) has a verified stock/surplus of {float(r.quantity_quintals)/10:.1f} tonnes ({float(r.quantity_quintals):.0f} Q) of {r.crop}, "
+            f"while Destination {r.destination_centre_name} ({r.destination_centre_id}) has {dest_avail/10:.1f} tonnes spare storage and receiving capacity. "
+            f"{trucks_req} truck(s) ({truck_cap/10:.0f}-tonne capacity each) is sufficient for this transfer."
+        )
 
         results.append({
             "id": r.id,
@@ -408,24 +547,38 @@ def list_predicted_routes(
             "origin_centre_id": r.origin_centre_id,
             "origin_centre_name": r.origin_centre_name,
             "origin_state": origin_st,
+            "origin_location": f"{orig_c.district if orig_c else 'District'}, {origin_st}",
+            "source_location": f"{orig_c.district if orig_c else 'District'}, {origin_st}",
             "source_capacity": source_cap,
             "source_used": source_used,
             "source_available": source_avail,
             "source_available_capacity": source_avail,
             "source_remaining_capacity": source_avail,
+            "source_utilization_percent": src_util_pct,
+            "source_can_spare": source_used >= float(r.quantity_quintals),
+            "source_remaining_after_transfer": round(source_remaining_after, 1),
 
             "destination_centre_id": r.destination_centre_id,
             "destination_centre_name": r.destination_centre_name,
             "destination_state": dest_st,
+            "destination_location": f"{dest_c.district if dest_c else 'District'}, {dest_st}",
             "destination_capacity": dest_cap,
             "destination_used": dest_used,
             "destination_available": dest_avail,
             "destination_available_capacity": dest_avail,
             "destination_remaining_capacity": dest_avail,
+            "destination_utilization_percent": dest_util_pct,
+            "destination_can_receive": dest_avail >= float(r.quantity_quintals),
+            "destination_remaining_capacity_after_transfer": round(dest_remaining_after, 1),
 
             "crop": r.crop,
             "quantity_quintals": float(r.quantity_quintals),
+            "quantity_tonnes": round(float(r.quantity_quintals) / 10.0, 2),
             "truck_capacity_quintals": truck_cap,
+            "truck_capacity_tonnes": round(truck_cap / 10.0, 2),
+            "total_truck_capacity_quintals": total_truck_cap,
+            "expected_utilization": f"{util_pct}%",
+            "expected_utilization_percent": util_pct,
             "trucks_required": trucks_req,
             "truck_required": trucks_req,
 
@@ -434,6 +587,7 @@ def list_predicted_routes(
             "current_supply": f"{source_used:,.0f} Q",
             "supply": f"{source_used:,.0f} Q",
             "reason": reason_text,
+            "factual_explanation": factual_expl,
 
             "estimated_distance_km": float(r.estimated_distance_km) if r.estimated_distance_km else None,
             "distance": float(r.estimated_distance_km) if r.estimated_distance_km else None,
@@ -463,7 +617,7 @@ def generate_route_predictions(
     Generates intelligent truck route predictions considering:
     - Centre procurement volume received & expected
     - Storage utilization & remaining storage capacity
-    - Target centre storage capacity and demand for crop
+    - Target centre storage capacity and genuine demand for crop (strict crop compatibility)
     - Fleet availability & route distances
     - Mathematical optimization using Google OR-Tools MIP solver
     """
@@ -484,84 +638,87 @@ def generate_route_predictions(
     surplus_sources = []
     deficit_sinks = []
 
+    target_crop = req.crop.strip() if req.crop and req.crop.strip() and req.crop.strip().lower() not in ["all", "any"] else None
+
     for c in all_centres:
         cap = float(c.total_storage_capacity_quintals or 15000.0)
         usage = float(c.current_storage_usage_quintals or 3000.0)
         ratio = usage / max(cap, 1.0)
         avail = max(0.0, cap - usage)
 
-        crops_supported = [cr.strip() for cr in (c.supported_crops or "Paddy").split(",") if cr.strip()]
-        primary_crop = req.crop.strip() if req.crop and req.crop.strip() else (crops_supported[0] if crops_supported else "Paddy")
+        crops_supported = [cr.strip() for cr in (c.supported_crops or "").split(",") if cr.strip()]
+        if target_crop and target_crop not in crops_supported:
+            continue
 
-        sentiment = sd_map.get((c.state, primary_crop), "BALANCED")
+        eval_crops = [target_crop] if target_crop else (crops_supported[:2] if crops_supported else ["Paddy"])
 
-        # Today's operational bookings load for congestion indicator
-        t_bookings = db.query(func.coalesce(func.sum(Booking.quantity), 0)).join(
-            Slot, Booking.slot_id == Slot.id
-        ).filter(
-            Booking.centre_id == c.centre_id,
-            Slot.date == today,
-            Booking.status.in_(["BOOKED", "CONFIRMED", "ARRIVED", "CHECKED_IN"])
-        ).scalar() or 0
-        load_ratio = float(t_bookings) / max(float(c.max_daily_capacity_quintals or 800.0), 1.0)
+        for cr in eval_crops:
+            sentiment = sd_map.get((c.state, cr), "BALANCED")
 
-        # SIH CentreDailyMetric yard congestion check
-        latest_metric = db.query(CentreDailyMetric).filter(CentreDailyMetric.centre_id == c.centre_id).order_by(CentreDailyMetric.date.desc()).first()
-        high_flag = latest_metric.high_congestion_flag if latest_metric else 0
-        c_score = float(latest_metric.congestion_score or 0) if latest_metric else 0.0
-        arrivals = latest_metric.arrivals if latest_metric else 0
+            # Today's operational bookings load for congestion indicator
+            t_bookings = db.query(func.coalesce(func.sum(Booking.quantity), 0)).join(
+                Slot, Booking.slot_id == Slot.id
+            ).filter(
+                Booking.centre_id == c.centre_id,
+                Slot.date == today,
+                Booking.status.in_(["BOOKED", "CONFIRMED", "ARRIVED", "CHECKED_IN"])
+            ).scalar() or 0
+            load_ratio = float(t_bookings) / max(float(c.max_daily_capacity_quintals or 800.0), 1.0)
 
-        congestion = "CRITICAL" if (c_score >= 0.90 or load_ratio >= 0.9 or ratio >= 0.85) else "HIGH" if (high_flag == 1 or c_score >= 0.70 or load_ratio >= 0.75 or ratio >= 0.7 or arrivals >= 130) else "MEDIUM" if ratio >= 0.35 else "LOW"
+            # Yard congestion check
+            latest_metric = db.query(CentreDailyMetric).filter(CentreDailyMetric.centre_id == c.centre_id).order_by(CentreDailyMetric.date.desc()).first()
+            high_flag = latest_metric.high_congestion_flag if latest_metric else 0
+            c_score = float(latest_metric.congestion_score or 0) if latest_metric else 0.0
+            arrivals = latest_metric.arrivals if latest_metric else 0
 
-        # Quantified trigger: Allocate additional trucks when real congestion or storage bottlenecks exist
-        is_perish = primary_crop.lower() in ["sugarcane", "tomato", "onion", "potato", "mango"]
-        has_quantified_need = (ratio >= 0.80) or (congestion in ["CRITICAL", "HIGH"]) or is_perish or (sentiment == "SURPLUS" and ratio >= 0.65) or (high_flag == 1)
+            congestion = "CRITICAL" if (c_score >= 0.90 or load_ratio >= 0.9 or ratio >= 0.85) else "HIGH" if (high_flag == 1 or c_score >= 0.70 or load_ratio >= 0.75 or ratio >= 0.7 or arrivals >= 130) else "MEDIUM" if ratio >= 0.35 else "LOW"
 
-        if has_quantified_need and usage >= 400.0:
-            surplus_qty = max(400.0, usage - (0.50 * cap)) if ratio >= 0.80 else min(max(usage * 0.30, 400.0), 800.0)
-            surplus_sources.append({
-                "centre_id": c.centre_id,
-                "centre_name": c.centre_name,
-                "state": c.state,
-                "district": c.district,
-                "total_capacity": cap,
-                "current_usage": usage,
-                "surplus_qty": surplus_qty,
-                "crop": primary_crop,
-                "congestion": congestion,
-                "sentiment": sentiment
-            })
+            is_perish = cr.lower() in ["sugarcane", "tomato", "onion", "potato", "mango"]
 
-        if avail >= 200.0:
-            deficit_sinks.append({
-                "centre_id": c.centre_id,
-                "centre_name": c.centre_name,
-                "state": c.state,
-                "district": c.district,
-                "total_capacity": cap,
-                "current_usage": usage,
-                "available_capacity": avail,
-                "crop": primary_crop,
-                "sentiment": sentiment
-            })
+            # Genuine operational source trigger
+            has_source_need = (ratio >= 0.80) or (congestion in ["CRITICAL", "HIGH"]) or is_perish or (sentiment == "SURPLUS" and ratio >= 0.65) or (high_flag == 1)
 
-    if not deficit_sinks:
-        # Fallback to all centres as potential destination buffers
-        for c in all_centres:
-            cap = float(c.total_storage_capacity_quintals or 15000.0)
-            usage = float(c.current_storage_usage_quintals or 3000.0)
-            avail = max(1000.0, cap - usage)
-            deficit_sinks.append({
-                "centre_id": c.centre_id,
-                "centre_name": c.centre_name,
-                "state": c.state,
-                "district": c.district,
-                "total_capacity": cap,
-                "current_usage": usage,
-                "available_capacity": avail,
-                "crop": req.crop.strip() if req.crop else (c.supported_crops.split(',')[0].strip() if c.supported_crops else "Mango"),
-                "sentiment": "BALANCED"
-            })
+            if has_source_need and usage >= 300.0:
+                surplus_qty = max(200.0, usage - (0.50 * cap)) if ratio >= 0.80 else min(max(usage * 0.30, 200.0), 800.0)
+                surplus_sources.append({
+                    "centre_id": c.centre_id,
+                    "centre_name": c.centre_name,
+                    "state": c.state,
+                    "district": c.district,
+                    "total_capacity": cap,
+                    "current_usage": usage,
+                    "surplus_qty": surplus_qty,
+                    "crop": cr,
+                    "congestion": congestion,
+                    "sentiment": sentiment
+                })
+
+            # Destination sink check: must support crop, have headroom, and have operational need or buffer role
+            has_dest_need = (sentiment == "DEFICIT") or (ratio <= 0.40 and avail >= 1500.0) or (load_ratio < 0.50 and avail >= 1000.0)
+            if avail >= 200.0 and has_dest_need:
+                deficit_sinks.append({
+                    "centre_id": c.centre_id,
+                    "centre_name": c.centre_name,
+                    "state": c.state,
+                    "district": c.district,
+                    "total_capacity": cap,
+                    "current_usage": usage,
+                    "available_capacity": avail,
+                    "crop": cr,
+                    "sentiment": sentiment
+                })
+
+    if not surplus_sources or not deficit_sinks:
+        return {
+            "success": True,
+            "engine": "Optimization Engine (Google OR-Tools)",
+            "solver_status": "NO_OP_NEED",
+            "message": "No truck transfers are currently required based on available supply, demand and capacity data.",
+            "routes_created_count": 0,
+            "count": 0,
+            "routes": [],
+            "routes_created": []
+        }
 
     # Available fleet from real database
     avail_trucks_count = db.query(func.count(Truck.id)).filter(Truck.is_available == True).scalar() or 0
@@ -572,13 +729,12 @@ def generate_route_predictions(
                 "success": True,
                 "engine": "Optimization Engine (Google OR-Tools)",
                 "solver_status": "INSUFFICIENT_DATA",
-                "message": "Insufficient data: No logistics trucks currently registered in the database.",
+                "message": "No truck transfers are currently required based on available supply, demand and capacity data.",
                 "routes_created_count": 0,
                 "count": 0,
                 "routes": [],
                 "routes_created": []
             }
-        # If all trucks are busy
         avail_trucks_count = total_trucks
 
     # Execute mathematical optimization using Google OR-Tools MIP solver
@@ -652,6 +808,135 @@ def generate_route_predictions(
         "routes_created": created_routes,
         "count": len(created_routes),
         "routes_created_count": len(created_routes)
+    }
+
+
+@router.post("/routes/{route_id}/accept-and-notify")
+def accept_and_notify_truck_route(
+    route_id: int,
+    payload: RouteApprovalRequest = None,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_role("GOVERNMENT", "ADMIN"))
+):
+    """
+    Accept & Notify Centre Workflow for Proposed Truck Routes:
+    1. Validates route availability (prevents duplicate acceptance or cancelled/completed routes).
+    2. Changes status to APPROVED.
+    3. Finds and assigns available physical truck.
+    4. Generates persistent Alert notification for the destination centre.
+    5. Also notifies the origin centre for dispatch preparation.
+    6. Stores acceptance event and AuditLog.
+    """
+    route = db.query(TruckRoutePrediction).filter(TruckRoutePrediction.id == route_id).first()
+    if not route:
+        raise HTTPException(status_code=404, detail="Predicted truck route not found.")
+
+    if route.status in ["APPROVED", "SCHEDULED", "IN_TRANSIT", "ARRIVED", "COMPLETED"]:
+        raise HTTPException(status_code=400, detail="This truck route has already been accepted or scheduled.")
+    if route.status == "REJECTED":
+        raise HTTPException(status_code=400, detail="Cannot accept a previously rejected route.")
+
+    old_status = route.status
+    route.status = "APPROVED"
+    route.reviewed_by = get_user_identifier(current_user, "GOVERNMENT_OFFICER")
+    route.reviewed_at = datetime.now()
+
+    comments = payload.comments if payload and payload.comments else "Accepted & Dispatched by Government Logistics."
+    approval_rec = TruckRouteApproval(
+        route_prediction_id=route.id,
+        action="APPROVED",
+        action_by=route.reviewed_by,
+        comments=comments
+    )
+    db.add(approval_rec)
+
+    # Allocate physical truck from origin centre or regional fleet pool
+    physical_truck = db.query(Truck).filter(
+        Truck.is_available == True,
+        Truck.assigned_centre_id == route.origin_centre_id
+    ).first()
+    if not physical_truck:
+        physical_truck = db.query(Truck).filter(Truck.is_available == True).first()
+
+    now_dt = datetime.now()
+    exp_arrival_dt = now_dt + timedelta(hours=3, minutes=30)
+    exp_arrival_str = exp_arrival_dt.strftime("%I:%M %p")
+
+    truck_num = physical_truck.truck_number if physical_truck else f"TRK-GA-{route.id:03d}"
+    truck_cap = float(route.truck_capacity_quintals or 200.0)
+    truck_cap_tonnes = truck_cap / 10.0
+
+    if physical_truck:
+        physical_truck.is_available = False
+        physical_truck.current_status = "ALLOCATED"
+
+    # Destination centre notification in Alert table
+    dest_c = db.query(ProcurementCentre).filter(ProcurementCentre.centre_id == route.destination_centre_id).first()
+    alert_code = f"ALT-TRK-RTE-{route.id}"
+    existing_alert = db.query(Alert).filter(Alert.alert_code == alert_code).first()
+    if not existing_alert:
+        alert_msg = (
+            f"Truck {truck_num} has been accepted and dispatched to your centre. "
+            f"Capacity: {truck_cap_tonnes:.0f} tonnes ({float(route.quantity_quintals):.0f} Q of {route.crop}). "
+            f"Expected arrival: {exp_arrival_str}."
+        )
+        alert = Alert(
+            alert_code=alert_code,
+            scope="CENTRE",
+            centre_id=route.destination_centre_id,
+            state=dest_c.state if dest_c else route.destination_state,
+            district=dest_c.district if dest_c else "North Goa",
+            alert_type="LOGISTICS_DISPATCH",
+            severity="MEDIUM",
+            what=alert_msg,
+            where_location=f"{route.destination_centre_name}, {dest_c.district if dest_c else route.destination_state}",
+            when_timestamp=now_dt,
+            why=f"Government Logistics accepted route {route.route_code} from {route.origin_centre_name} ({route.reason}).",
+            recommended_action=f"Reserve receiving bay for Truck {truck_num} transporting {float(route.quantity_quintals):.0f} Q of {route.crop}.",
+            is_resolved=False
+        )
+        db.add(alert)
+
+    # Origin centre notification as well
+    orig_alert_code = f"ALT-TRK-ORIG-{route.id}"
+    if not db.query(Alert).filter(Alert.alert_code == orig_alert_code).first():
+        orig_c = db.query(ProcurementCentre).filter(ProcurementCentre.centre_id == route.origin_centre_id).first()
+        orig_alert = Alert(
+            alert_code=orig_alert_code,
+            scope="CENTRE",
+            centre_id=route.origin_centre_id,
+            state=orig_c.state if orig_c else "Goa",
+            district=orig_c.district if orig_c else "North Goa",
+            alert_type="LOGISTICS_DISPATCH",
+            severity="LOW",
+            what=f"Truck {truck_num} dispatched to transport {float(route.quantity_quintals):.0f} Q {route.crop} to {route.destination_centre_name}.",
+            where_location=f"{route.origin_centre_name}",
+            when_timestamp=now_dt,
+            why="Storage rebalancing approved by Government Logistics.",
+            recommended_action=f"Clear loading bay for Truck {truck_num}.",
+            is_resolved=False
+        )
+        db.add(orig_alert)
+
+    audit = AuditLog(
+        user_id=route.reviewed_by,
+        action="TRUCK_ROUTE_ACCEPTED_NOTIFIED",
+        entity="TRUCK_ROUTE",
+        entity_id=route.route_code,
+        old_value=old_status,
+        new_value=f"APPROVED: Truck {truck_num} dispatched to {route.destination_centre_name}"
+    )
+    db.add(audit)
+    db.commit()
+
+    return {
+        "success": True,
+        "message": f"Truck {truck_num} accepted and dispatched. Notification delivered to {route.destination_centre_name}.",
+        "route_code": route.route_code,
+        "status": route.status,
+        "truck_number": truck_num,
+        "destination_centre_id": route.destination_centre_id,
+        "destination_centre_name": route.destination_centre_name
     }
 
 

@@ -214,16 +214,18 @@ class MangoQualityScanner:
             else:
                 fruit_peel = np.array(Image.fromarray(inst_mask.astype(np.uint8)).resize((w, h), Image.Resampling.NEAREST)) > 0
 
+        is_white_pad = (r > 245) & (g > 245) & (b > 245)
+
         if fruit_peel is None:
             is_yellow = (r > b * 1.08) & (g > b * 0.90) & (b_est > 128.0) & (l_est > 35.0) & (l_est < 248.0)
             is_green = (g > r * 0.90) & (g > b * 1.02) & (chroma > 8.0) & (l_est > 30.0) & (l_est < 245.0)
             is_breaking = (r > b * 1.04) & (g > b * 0.96) & (chroma > 10.0) & (l_est > 35.0) & (l_est < 248.0)
-            fruit_peel = is_yellow | is_green | is_breaking
+            is_dark_fruit = (l_est < 40.0) & (~is_white_pad)
+            fruit_peel = is_yellow | is_green | is_breaking | is_dark_fruit
             fruit_peel = ndi.binary_fill_holes(ndi.binary_closing(fruit_peel, structure=np.ones((7, 7), dtype=bool)))
 
         # 2. Strict background exclusion
         # Exclude surrounding white padding outside mango crop, while preserving interior defects
-        is_white_pad = (r > 245) & (g > 245) & (b > 245)
         fruit_peel = fruit_peel & (~is_white_pad)
         fruit_peel = ndi.binary_fill_holes(fruit_peel)
 
@@ -238,25 +240,57 @@ class MangoQualityScanner:
         if total_mango_pixels < 100:
             return {
                 "affected_area_pct": 0.0,
+                "visible_defect_pct": 0.0,
                 "defect_boxes": [],
+                "defect_details": [],
+                "visible_defects": ["None (Sound Surface)"],
                 "defect_mask": np.zeros((h, w), dtype=bool),
+                "inner_analysis_mask": np.zeros((h, w), dtype=bool),
+                "full_mango_mask": np.zeros((h, w), dtype=bool),
+                "candidate_white_mask": np.zeros((h, w), dtype=bool),
+                "candidate_shadow_mask": np.zeros((h, w), dtype=bool),
+                "uncertain_mask": np.zeros((h, w), dtype=bool),
                 "total_defect_pixels": 0,
                 "largest_defect_pixels": 0,
                 "num_regions": 0,
-                "confidence": 0.0
+                "confidence": 0.0,
+                "valid_mango_pixels": 0,
+                "inner_mango_pixels": 0,
+                "padding_margin_px": 0,
+                "padding_ratio": 0.0,
+                "candidate_dark_pixels": 0,
+                "candidate_pale_pixels": 0,
+                "rejected_shadow_pixels": 0,
+                "skin_shadow_pixels": 0,
+                "uncertain_pixels": 0,
+                "accepted_defect_pixels": 0,
+                "raw_defect_ratio": 0.0,
+                "segmentation_status": "NEEDS_REVIEW",
+                "segmentation_failure": True
             }
 
-        # 3. Boundary erosion safety margin
-        # Prevents uncertain perimeter edge pixels and contact seam shadows from being counted as defects
-        erode_rad = max(2, min(8, int(round(min(w, h) * 0.035))))
-        inner_peel = ndi.binary_erosion(fruit_peel, structure=np.ones((erode_rad * 2 + 1, erode_rad * 2 + 1), dtype=bool))
-        if np.sum(inner_peel) < 40:
-            inner_peel = ndi.binary_erosion(fruit_peel, structure=np.ones((3, 3), dtype=bool))
-        if np.sum(inner_peel) < 20:
-            inner_peel = fruit_peel
+        # 3. Section 3.J Adaptive Internal Padding to Prevent Border False Positives
+        # Generates a slightly eroded inner analysis mask specifically for defect analysis.
+        # Excludes narrow, uncertain border margin and boundary shadows from defect percentage.
+        # Keeps original validated mango mask for full instance display and object detection.
+        eq_diameter = 2.0 * np.sqrt(total_mango_pixels / np.pi)
+        padding_margin_px = int(max(2, min(8, round(eq_diameter * 0.025))))
+        padding_ratio = round(float(padding_margin_px) / float(max(1.0, eq_diameter)), 4)
 
-        valid_mango_pixels = int(np.sum(inner_peel & fruit_peel))
-        peel_L = l_est[inner_peel]
+        inner_analysis_mask = ndi.binary_erosion(
+            fruit_peel,
+            structure=np.ones((padding_margin_px * 2 + 1, padding_margin_px * 2 + 1), dtype=bool)
+        )
+        if np.sum(inner_analysis_mask) < 40:
+            inner_analysis_mask = ndi.binary_erosion(fruit_peel, structure=np.ones((3, 3), dtype=bool))
+            padding_margin_px = 1
+        if np.sum(inner_analysis_mask) < 20:
+            inner_analysis_mask = fruit_peel.copy()
+            padding_margin_px = 0
+
+        valid_inner_pixels = int(np.sum(inner_analysis_mask))
+        valid_mango_pixels = valid_inner_pixels
+        peel_L = l_est[inner_analysis_mask]
         median_L = float(np.median(peel_L)) if len(peel_L) > 0 else 128.0
 
         gx = ndi.sobel(l_est, axis=1)
@@ -269,91 +303,249 @@ class MangoQualityScanner:
         l_bg = ndi.gaussian_filter(l_est, sigma=sigma)
         delta_l = l_bg - l_est
 
-        # Candidate dark regions (inside valid fruit peel only)
-        dark_drop = (delta_l >= 16.0) & (l_est < 75.0)
-        deep_pit = (l_est < 42.0) & (delta_l >= 10.0)
-        scab_pit = (grad > 26.0) & (delta_l >= 14.0) & (l_est < 85.0)
-        is_healthy_green = (g > r * 1.08) & (g > b * 1.15) & (l_est > 55.0)
+        # Candidate dark regions (inside inner analysis mask only)
+        if median_L < 50.0:
+            # On naturally dark or black mango skin, lesions must be darker than local peel or have necrotic pits/scabs
+            dark_drop = (delta_l >= 12.0) & (l_est < median_L - 8.0)
+            deep_pit = (l_est < 18.0) & (delta_l >= 8.0) & (median_L >= 26.0)
+            scab_pit = (grad > 26.0) & (delta_l >= 10.0)
+        else:
+            dark_drop = (delta_l >= 14.0) & (l_est < 75.0)
+            deep_pit = (l_est < 44.0) & (delta_l >= 8.0)
+            scab_pit = (grad > 24.0) & (delta_l >= 12.0) & (l_est < 85.0)
 
-        raw_dark = (dark_drop | deep_pit | scab_pit) & inner_peel & fruit_peel & (~is_healthy_green)
+        # Protect healthy green peel (including dark green: L >= 25, high chlorophyll green signal)
+        is_healthy_green = (
+            ((g > r * 0.92) & (g > b * 1.05) & (chroma > 8.0) & (l_est > 25.0) & (grad < 22.0)) |
+            ((g > r * 1.08) & (g > b * 1.15) & (l_est > 50.0))
+        )
+
+        # Protect healthy yellow / golden / ochre peel (including darker yellow peel: strong b_est, high R & G over B)
+        is_healthy_yellow = (
+            (r > b * 1.30) & (g > b * 1.05) & (b_est > 136.0) & (chroma > 16.0) & (grad < 22.0) & (l_est > 35.0)
+        )
+
+        # Candidate pale/white rot or fungal mycelium patches (strictly inside inner analysis mask)
+        is_pale_patch = (
+            ((l_est > median_L + 15.0) | (l_est > 155.0)) &
+            (chroma < 26.0) &
+            (r > 130.0) & (g > 130.0) &
+            (~is_white_pad) &
+            inner_analysis_mask
+        )
+
+        raw_dark = (dark_drop | deep_pit | scab_pit) & inner_analysis_mask & (~is_healthy_green) & (~is_healthy_yellow)
+        raw_pale = is_pale_patch & inner_analysis_mask
+
         candidate_dark_pixels = int(np.sum(raw_dark))
+        candidate_pale_pixels = int(np.sum(raw_pale))
 
         # Outer boundary buffer for edge artifact / antialiasing rejection
         eroded_outer = ndi.binary_erosion(fruit_peel, structure=np.ones((3, 3), bool))
         outer_boundary = fruit_peel & (~eroded_outer)
 
-        # 5. Connected component evaluation with surrounding ring contrast & shadow rejection
-        lbl_d, n_d = ndi.label(raw_dark)
-        sizes = ndi.sum(raw_dark, lbl_d, range(1, n_d + 1)) if n_d > 0 else []
+        # 5. Connected component evaluation with surrounding-pixel local contextual analysis (Section 6.6)
+        raw_candidates = raw_dark | raw_pale
+        lbl_d, n_d = ndi.label(raw_candidates)
+        sizes = ndi.sum(raw_candidates, lbl_d, range(1, n_d + 1)) if n_d > 0 else []
+        slices = ndi.find_objects(lbl_d) if n_d > 0 else []
 
-        clean_mask = np.zeros_like(raw_dark, dtype=bool)
+        clean_mask = np.zeros_like(raw_candidates, dtype=bool)
+        candidate_white_mask = np.zeros_like(raw_candidates, dtype=bool)
+        candidate_shadow_mask = np.zeros_like(raw_candidates, dtype=bool)
+        uncertain_mask = np.zeros_like(raw_candidates, dtype=bool)
+
         defect_boxes = []
+        defect_details = []
+        detected_categories = set()
         largest_region = 0
+        skin_shadow_pixels = 0
+        uncertain_pixels = 0
 
         for idx_d, s in enumerate(sizes, 1):
-            if s < 5:
+            if s < 4:
                 continue
-            comp = (lbl_d == idx_d)
 
-            # Surrounding peel ring analysis: compare spot lightness against its immediate neighborhood
-            ring = ndi.binary_dilation(comp, structure=np.ones((7, 7), bool)) & (~comp) & fruit_peel
-            if np.sum(ring) >= 5:
-                l_ring = float(np.median(l_est[ring]))
-                l_spot = float(np.median(l_est[comp]))
-                local_contrast = l_ring - l_spot
+            slc = slices[idx_d - 1]
+            if slc is None:
+                continue
+
+            # Local contextual bounding window adapting to region size (Section 6.6.C)
+            comp_h = slc[0].stop - slc[0].start
+            comp_w = slc[1].stop - slc[1].start
+            pad = max(8, min(36, int(round(max(comp_h, comp_w) * 1.25))))
+
+            sy = slice(max(0, slc[0].start - pad), min(h, slc[0].stop + pad))
+            sx = slice(max(0, slc[1].start - pad), min(w, slc[1].stop + pad))
+
+            comp_sub = (lbl_d[sy, sx] == idx_d)
+            peel_sub = fruit_peel[sy, sx]
+            l_sub = l_est[sy, sx]
+            chroma_sub = chroma[sy, sx]
+            grad_sub = grad[sy, sx]
+            outer_sub = outer_boundary[sy, sx]
+
+            # Determine whether candidate is primarily pale/white or dark/grey
+            cand_median_l = float(np.median(l_sub[comp_sub]))
+            is_pale_comp = (cand_median_l > median_L + 12.0) and (float(np.mean(chroma_sub[comp_sub])) < 28.0)
+
+            if is_pale_comp:
+                candidate_white_mask[sy, sx] |= comp_sub
             else:
-                l_spot = float(np.median(l_est[comp]))
-                local_contrast = float(median_L - l_spot)
+                candidate_shadow_mask[sy, sx] |= comp_sub
 
-            # Rejection Rule 1: Gradual illumination variation / smooth shadow (lacks sharp contrast drop)
-            if local_contrast < 14.0:
-                continue
+            # Partition immediate neighborhood into:
+            # 1. Candidate core
+            # 2. Surrounding mango skin ring
+            # 3. Surrounding background/external space
+            ring_sub = ndi.binary_dilation(comp_sub, structure=np.ones((7, 7), bool)) & (~comp_sub) & peel_sub
+            bg_sub = ~peel_sub
+            touches_bg = np.sum(ndi.binary_dilation(comp_sub, structure=np.ones((3, 3), bool)) & bg_sub) > 0
+            touches_outer = np.sum(comp_sub & outer_sub) > 0
 
-            # Rejection Rule 2: Dimmed peel shadow retaining healthy chroma without necrosis
-            if l_spot > 55.0 and local_contrast < 22.0 and np.mean(chroma[comp]) > 18.0:
-                continue
+            if np.sum(ring_sub) >= 5:
+                l_ring = float(np.median(l_sub[ring_sub]))
+                c_ring = float(np.mean(chroma_sub[ring_sub]))
+                local_contrast = abs(cand_median_l - l_ring)
+            else:
+                l_ring = median_L
+                c_ring = 35.0
+                local_contrast = abs(cand_median_l - median_L)
 
-            # Rejection Rule 3: Boundary edge artifact / perimeter contact transition
-            if np.sum(comp & outer_boundary) > 0 and local_contrast < 24.0:
-                continue
+            # Edge sharpness along the perimeter of the candidate region
+            edge_ring = (ndi.binary_dilation(comp_sub, structure=np.ones((3, 3), bool)) ^ comp_sub) & peel_sub
+            edge_sharpness = float(np.mean(grad_sub[edge_ring])) if np.sum(edge_ring) > 0 else 0.0
+            texture_roughness = float(np.std(l_sub[comp_sub]))
 
-            clean_mask[comp] = True
-            if s > largest_region:
-                largest_region = int(s)
+            # SECTION 6.6 DECISION LOGIC:
+            # Case 1: Candidate White / Pale Patch on Mango
+            if is_pale_comp:
+                # Distinguish genuine white disease patch from specular highlight or natural pale skin
+                # Genuine fungal/rot patches exhibit distinct texture roughness or clear perimeter contrast
+                is_specular = (cand_median_l > 225.0) and (s < 25) and (edge_sharpness < 10.0)
+                is_natural_pale_skin = (local_contrast < 12.0) and (edge_sharpness < 10.0) and (texture_roughness < 6.0)
 
-            dys, dxs = np.where(comp)
-            bx1 = int(np.min(dxs))
-            by1 = int(np.min(dys))
-            bw_b = int(np.max(dxs) - bx1 + 1)
-            bh_b = int(np.max(dys) - by1 + 1)
-            defect_boxes.append([bx1, by1, bw_b, bh_b])
+                if is_specular or is_natural_pale_skin:
+                    # Natural highlight / healthy peel: do not mark as defect
+                    continue
 
+                if (edge_sharpness >= 10.0) or (texture_roughness >= 7.0) or (local_contrast >= 16.0):
+                    # Confirmed genuine white disease-infected patch (Section 6.6.A)
+                    d_type = "White Fungal / Powdery Mildew Patch" if s > 40 else "Pale Rot Abnormality"
+                    clean_mask[sy, sx] |= comp_sub
+                else:
+                    # Ambiguous pale area: retain uncertain classification (Section 6.6.A / 6.6.B)
+                    uncertain_mask[sy, sx] |= comp_sub
+                    uncertain_pixels += int(s)
+                    d_type = "Suspected Pale / White Abnormality"
+
+            # Case 2: Candidate Dark / Grey Region on Mango
+            else:
+                # Distinguish illumination shadow from genuine necrotic lesion (Section 6.6.B)
+                # Shading / illumination shadow cues:
+                # - Soft, gradual transition (low edge sharpness, grad < 18)
+                # - Retains natural peel chroma (not necrotic black)
+                # - Lightness >= 40 or smooth spatial gradient
+                is_gradual_shadow_gradient = (edge_sharpness < 18.0) and (local_contrast < 24.0) and (cand_median_l >= 38.0)
+                is_peel_color_shadow = (cand_median_l >= 42.0) and (c_ring > 12.0) and (edge_sharpness < 20.0) and (local_contrast < 22.0)
+                is_illumination_shadow = is_gradual_shadow_gradient or is_peel_color_shadow
+
+                if is_illumination_shadow:
+                    # Grey shadow on mango skin: excluded from defects, preserved in mango mask!
+                    skin_shadow_pixels += int(s)
+                    continue
+
+                # Perimeter edge artifact check
+                if touches_outer and local_contrast < 22.0 and edge_sharpness < 20.0:
+                    continue
+
+                # Confirmed disease lesion
+                if median_L < 50.0:
+                    # On dark/black fruit, lesion must distinctly contrast against dark peel or have scab texture
+                    if local_contrast > 20.0 or edge_sharpness > 22.0:
+                        d_type = "Black Spot / Necrotic Lesion"
+                        clean_mask[sy, sx] |= (comp_sub & inner_analysis_mask[sy, sx])
+                    elif np.mean(grad_sub[comp_sub]) > 26.0:
+                        d_type = "Surface Scab / Mechanical Scar"
+                        clean_mask[sy, sx] |= (comp_sub & inner_analysis_mask[sy, sx])
+                    else:
+                        continue
+                else:
+                    if cand_median_l < 42.0 or local_contrast > 26.0 or edge_sharpness > 24.0:
+                        d_type = "Black Spot / Necrotic Lesion"
+                        clean_mask[sy, sx] |= (comp_sub & inner_analysis_mask[sy, sx])
+                    elif np.mean(grad_sub[comp_sub]) > 26.0:
+                        d_type = "Surface Scab / Mechanical Scar"
+                        clean_mask[sy, sx] |= (comp_sub & inner_analysis_mask[sy, sx])
+                    else:
+                        d_type = "Discoloration / Bruising"
+                        clean_mask[sy, sx] |= (comp_sub & inner_analysis_mask[sy, sx])
+
+            if d_type not in ["Suspected Pale / White Abnormality", "None (Sound Surface)"]:
+                detected_categories.add(d_type)
+                if s > largest_region:
+                    largest_region = int(s)
+
+                dys, dxs = np.where(comp_sub)
+                bx1 = int(np.min(dxs) + sx.start)
+                by1 = int(np.min(dys) + sy.start)
+                bw_b = int(np.max(dxs) - np.min(dxs) + 1)
+                bh_b = int(np.max(dys) - np.min(dys) + 1)
+                box_item = [bx1, by1, bw_b, bh_b]
+                defect_boxes.append(box_item)
+                defect_details.append({
+                    "box": box_item,
+                    "type": d_type,
+                    "area_px": int(s),
+                    "contrast": round(local_contrast, 1),
+                    "edge_sharpness": round(edge_sharpness, 1)
+                })
+
+        # Section 3.J: Constrain confirmed defect mask strictly to inner analysis mask
+        clean_mask = clean_mask & inner_analysis_mask
         accepted_defect_pixels = int(np.sum(clean_mask))
-        rejected_shadow_pixels = max(0, candidate_dark_pixels - accepted_defect_pixels)
+        rejected_shadow_pixels = max(0, candidate_dark_pixels - accepted_defect_pixels) + skin_shadow_pixels
 
-        # Defect percentage strictly calculated over valid mango pixels, NOT bounding box or image area
-        raw_defect_ratio = accepted_defect_pixels / max(1.0, float(total_mango_pixels))
+        # Section 3.J Defect percentage calculation:
+        # Defect percentage = confirmed defect pixels inside the inner analysis mask ÷ valid pixels in the inner analysis mask × 100.
+        raw_defect_ratio = float(accepted_defect_pixels) / float(max(1, valid_inner_pixels))
         affected_pct = round(raw_defect_ratio * 100.0, 2)
+        affected_pct = min(100.0, max(0.0, affected_pct))
 
         # Sort defect boxes by size descending
         defect_boxes.sort(key=lambda b: b[2] * b[3], reverse=True)
+        defect_details.sort(key=lambda d: d["area_px"], reverse=True)
 
         conf = min(99.0, 75.0 + min(22.0, affected_pct * 4.0)) if accepted_defect_pixels > 0 else 0.0
+        visible_defects_list = sorted(list(detected_categories)) if detected_categories else ["None (Sound Surface)"]
 
         return {
             "affected_area_pct": affected_pct,
             "visible_defect_pct": affected_pct,
             "defect_boxes": defect_boxes[:16],
+            "defect_details": defect_details[:16],
+            "visible_defects": visible_defects_list,
             "defect_mask": clean_mask,
+            "inner_analysis_mask": inner_analysis_mask,
+            "full_mango_mask": fruit_peel,
+            "candidate_white_mask": candidate_white_mask,
+            "candidate_shadow_mask": candidate_shadow_mask,
+            "uncertain_mask": uncertain_mask,
             "total_defect_pixels": accepted_defect_pixels,
             "largest_defect_pixels": largest_region,
             "num_regions": len(defect_boxes),
             "confidence": round(conf, 1),
             # Developer numerical debug metrics
-            "valid_mango_pixels": int(total_mango_pixels),
-            "inner_mango_pixels": valid_mango_pixels,
+            "valid_mango_pixels": valid_inner_pixels,
+            "inner_mango_pixels": valid_inner_pixels,
+            "total_mango_pixels": int(total_mango_pixels),
+            "padding_margin_px": padding_margin_px,
+            "padding_ratio": padding_ratio,
             "candidate_dark_pixels": candidate_dark_pixels,
+            "candidate_pale_pixels": candidate_pale_pixels,
             "rejected_shadow_pixels": rejected_shadow_pixels,
+            "skin_shadow_pixels": skin_shadow_pixels,
+            "uncertain_pixels": uncertain_pixels,
             "accepted_defect_pixels": accepted_defect_pixels,
             "raw_defect_ratio": round(raw_defect_ratio, 5)
         }
@@ -554,10 +746,14 @@ class MangoQualityScanner:
                 "grading_factors": grading_factors,
                 "affected_area_pct": affected_pct,
                 "visible_defect_pct": affected_pct,
+                "defect_percentage": affected_pct,
+                "visible_defects": defect_info.get("visible_defects", ["None (Sound Surface)"]),
+                "status": "Healthy" if health_status == "Healthy" else ("Minor Surface Defect" if affected_pct <= 5.0 else "Significant Defect"),
                 "estimated_total_surface_severity": estimated_total_severity,
                 "visual_evidence": visual_evidence,
                 "decision_path": eval_res["decision_path"],
                 "defect_regions": [[int(c) for c in r] for r in defect_regions],
+                "defect_details": defect_info.get("defect_details", []),
                 "crop_url": rel_crop_url,
                 "crop": crop_img,
                 "mask": b.get('mask'),
@@ -568,13 +764,26 @@ class MangoQualityScanner:
                 # Section 19 Developer Numerical Debug Metrics
                 "debug_numerical": {
                     "valid_mango_pixels": int(defect_info.get("valid_mango_pixels", area_px)),
+                    "inner_mango_pixels": int(defect_info.get("inner_mango_pixels", area_px)),
+                    "padding_margin_px": int(defect_info.get("padding_margin_px", 0)),
+                    "padding_ratio": float(defect_info.get("padding_ratio", 0.0)),
                     "candidate_dark_pixels": int(defect_info.get("candidate_dark_pixels", 0)),
                     "rejected_shadow_pixels": int(defect_info.get("rejected_shadow_pixels", 0)),
                     "accepted_defect_pixels": int(defect_info.get("accepted_defect_pixels", 0)),
                     "raw_defect_ratio": float(defect_info.get("raw_defect_ratio", 0.0)),
                     "defect_percentage": float(affected_pct),
                     "commercial_grade": comm_grade,
-                    "health_status": health_status
+                    "health_status": health_status,
+                    "connected_components_before_watershed": int(b.get("cc_before_watershed", 1)),
+                    "candidate_markers": int(b.get("candidate_markers", 1)),
+                    "accepted_markers": int(b.get("accepted_markers", 1)),
+                    "rejected_markers": int(b.get("rejected_markers", 0)),
+                    "rejected_candidate_reason": str(b.get("rejected_reason", "None")),
+                    "final_mango_count": int(len(raw_boxes)),
+                    "excluded_shadow_pixels": int(b.get("excluded_shadow_pixels", 0)),
+                    "raw_foreground_pixels": int(b.get("raw_foreground_pixels", area_px)),
+                    "refined_mask_pixels": int(b.get("refined_mask_pixels", area_px)),
+                    "shadow_exclusion_ratio": float(b.get("shadow_exclusion_ratio", 0.0)),
                 }
             })
 
