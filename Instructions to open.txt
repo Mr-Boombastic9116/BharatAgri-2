@@ -1,0 +1,246 @@
+# BHARATAGRI-2 PROJECT — SETUP AND RUNNING INSTRUCTIONS
+
+GitHub Repository: https://github.com/Mr-Boombastic9116/BharatAgri-2
+
+## 1. SOFTWARE REQUIRED
+
+Install the following software before running the project:
+
+1. **Python 3.11** — https://www.python.org/downloads/release/python-3119/
+2. **Node.js (LTS version)** — https://nodejs.org/
+3. **MySQL and XAMPP** — https://www.apachefriends.org/
+4. **Visual Studio Code** — https://code.visualstudio.com/
+
+Make sure Python and Node.js are added to the system PATH during installation.
+
+To check whether Python and Node.js are installed, open the VS Code terminal and run:
+
+```powershell
+python --version
+node --version
+npm.cmd --version
+```
+
+Python 3.11 and a working Node.js/npm installation are recommended for this setup.
+
+## 2. DOWNLOAD THE PROJECT
+
+1. Open the GitHub repository:
+   https://github.com/Mr-Boombastic9116/BharatAgri-2
+2. Click the green **Code** button.
+3. Select **Download ZIP**.
+4. Extract the downloaded ZIP file.
+5. Open Visual Studio Code.
+6. Select **File → Open Folder**.
+7. Choose the extracted `BharatAgri-2` project folder.
+8. Open the terminal using **Terminal → New Terminal**.
+
+IMPORTANT: Open the main project folder containing the `backend`, `frontend`, `database`, and `requirements.txt` items. Do not open only the backend or frontend folder for the initial setup.
+
+## 3. SET UP THE PYTHON BACKEND
+
+In the VS Code terminal, make sure you are in the main project directory.
+
+Create a new Python virtual environment:
+
+```powershell
+py -3.11 -m venv venv
+```
+
+Upgrade pip:
+
+```powershell
+.\venv\Scripts\python.exe -m pip install --upgrade pip
+```
+
+Install the backend dependencies:
+
+```powershell
+.\venv\Scripts\python.exe -m pip install -r requirements.txt
+```
+
+Wait until the installation finishes.
+
+NOTE: The first installation may take several minutes and requires an internet connection. If installation fails, check the error message before continuing. Some packages may require compatible prebuilt wheels or Microsoft C++ Build Tools.
+
+## 4. SET UP THE DATABASE
+
+1. Open the XAMPP Control Panel.
+2. Start **MySQL**.
+3. Open phpMyAdmin in your browser:
+
+   http://localhost/phpmyadmin
+
+4. Create or select the database named:
+
+   `bharatagri_iteration2`
+
+5. Find the SQL file in the project's `database` folder. If the repository contains `bharatagri_iteration2.sql`, select the database in phpMyAdmin, open the **Import** tab, choose that file, and import it.
+
+6. Check the project's `.env` configuration file in the root directory. If a `.env.example` file is supplied instead, create `.env` from that template and fill in the required settings.
+
+The database configuration should match your local MySQL setup. For example:
+
+```env
+DB_HOST=localhost
+DB_PORT=3306
+DB_USER=root
+DB_NAME=bharatagri_iteration2
+```
+
+Use the correct password for your MySQL installation. Do not overwrite other required environment variables, such as `SECRET_KEY`, if they are already configured.
+
+If the database is already populated, do not import the SQL file again without checking whether doing so could duplicate data or overwrite existing records.
+
+## 5. SET UP THE FRONTEND
+
+Open a new terminal in VS Code.
+
+Navigate to the frontend directory:
+
+```powershell
+cd frontend
+```
+
+Install the frontend dependencies:
+
+```powershell
+npm.cmd install
+```
+
+Wait for the installation to complete.
+
+If PowerShell blocks `npm.ps1`, use `npm.cmd` as shown above instead.
+
+After installation, return to the project root when required:
+
+```powershell
+cd ..
+```
+
+## 6. RUN THE PROJECT
+
+### Method A — Use the startup file
+
+If the project contains a `start.bat` file in the root directory:
+
+1. Return to the main project folder.
+2. Double-click `start.bat` in File Explorer, or run this in the VS Code terminal:
+
+```powershell
+.\start.bat
+```
+
+3. Allow the startup script to launch the required services.
+4. Keep the terminal windows open while using the application.
+
+If the startup script reports an error, use Method B below.
+
+### Method B — Start the backend and frontend manually
+
+**Terminal 1: Start the Python backend**
+
+Open a terminal in the main project folder and run:
+
+```powershell
+.\venv\Scripts\python.exe -m uvicorn backend.app.main:app --host 127.0.0.1 --port 5000
+```
+
+Wait until the server starts successfully.
+
+Backend API documentation:
+
+http://localhost:5000/docs
+
+**Terminal 2: Start the frontend**
+
+Open another terminal in VS Code and run:
+
+```powershell
+cd frontend
+npm.cmd run dev
+```
+
+Wait until Vite reports that the frontend is ready.
+
+Open the local URL displayed in the terminal. For this project setup, it is expected to be:
+
+http://localhost:3000
+
+Keep both terminals running. Closing either terminal may stop the corresponding service.
+
+## 7. OPEN AND USE THE APPLICATION
+
+Once the backend and frontend have started:
+
+- **Application:** http://localhost:3000
+- **Backend API documentation:** http://localhost:5000/docs
+- **Backend health endpoint, if enabled:** http://localhost:5000/api/health
+
+Open the application URL in Chrome or another modern browser.
+
+Use the appropriate account credentials for the selected role. If the application displays an invalid user ID or password message, verify that the account exists in the configured database and that the selected role matches the account.
+
+Do not assume that a default username or password exists unless it is documented in the project or configured in the database.
+
+## 8. COMMON ERRORS AND SOLUTIONS
+
+### Error 1: `python` is not recognized
+
+Install Python 3.11 and enable the option to add Python to PATH. Restart VS Code after installation.
+
+### Error 2: `npm.ps1 cannot be loaded`
+
+Use `npm.cmd` instead of `npm` in PowerShell.
+
+### Error 3: `No module named uvicorn`
+
+Install the dependencies using the virtual environment's Python executable:
+
+```powershell
+.\venv\Scripts\python.exe -m pip install -r requirements.txt
+```
+
+### Error 4: The virtual environment refers to a different folder
+
+If a copied `venv` is present, recreate it from the project root:
+
+```powershell
+Remove-Item -Recurse -Force .\venv
+py -3.11 -m venv venv
+.\venv\Scripts\python.exe -m pip install --upgrade pip
+.\venv\Scripts\python.exe -m pip install -r requirements.txt
+```
+
+Only remove the environment after confirming that you are in the correct project directory. This removes the virtual environment, not the project source code.
+
+### Error 5: Port 5000 is already in use
+
+Stop any previous backend process using port 5000, or identify the process using Windows tools. Then restart the backend.
+
+Do not start multiple backend instances on the same port.
+
+### Error 6: MySQL connection failed
+
+- Confirm that MySQL is running.
+- Verify the database name, username, password, host, and port in `.env`.
+- Confirm that the database and required tables exist.
+- Ensure that MySQL is listening on the configured port, normally 3306.
+
+### Error 7: Login says “Invalid User ID or Password”
+
+- Verify that the account exists in the correct database.
+- Check the selected role.
+- Confirm that the backend is connected to the intended database.
+- Use the project's supported registration process or configured test credentials.
+
+## 9. IMPORTANT REMINDERS
+
+1. Run the setup commands only during the initial installation, unless dependencies need to be reinstalled.
+2. Keep the backend, frontend, and database running while using the application.
+3. Do not close the terminal windows while the servers are running.
+4. Do not share your `.env` file or secret keys publicly.
+5. When opening the project again, you normally do not need to download it or install all dependencies again. Start MySQL, open the project in VS Code, and launch the backend and frontend.
+6. If the project is moved to another folder or computer, recreate the Python virtual environment and install the dependencies again.
+
+**END OF INSTRUCTIONS**
